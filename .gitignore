@@ -37,3 +37,5 @@ gitbox_config.json
 .DS_Store
 AGENTS.md
 example/
+shared/
+domain/
