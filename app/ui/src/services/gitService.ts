@@ -1,0 +1,164 @@
+import { ref, computed, shallowRef } from 'vue';
+import { getItem, setItem } from './storageService';
+import {
+    GitStatusEntry,
+    Branch,
+    Commit,
+    Stash,
+    FileDiff,
+    TabKey
+} from '../types/git';
+
+// State
+export const repoPath = ref(getItem('gitbox_repo_path') || '');
+export const status = ref<GitStatusEntry[]>([]);
+export const branches = ref<Branch[]>([]);
+export const remotes = ref<string[]>([]);
+export const tags = ref<{ name: string, target?: string }[]>([]);
+export const stashes = ref<Stash[]>([]);
+export const log = shallowRef<Commit[]>([]);
+export const error = ref('');
+
+export const activeTab = ref<TabKey>('history');
+export const isTerminalOpen = ref(false);
+export const selectedCommit = ref<Commit | null>(null);
+export const selectedFile = ref<string>('');
+export const selectedStash = ref<Stash | null>(null);
+export const selectedStashFile = ref<string>('');
+export const commitMessage = ref('');
+export const userName = ref('');
+export const userEmail = ref('');
+export const isLoadingData = ref(false);
+
+// Computed
+export const unstagedFiles = computed(() => status.value.filter(s => (s.status.includes('untracked') || s.status.includes('modified') || s.status.includes('deleted') || s.status.includes('conflicted')) && !s.status.startsWith('staged_')));
+export const stagedFiles = computed(() => status.value.filter(s => s.status.startsWith('staged_')));
+export const selectedLogRef = ref('');
+
+let pollingTimer: any = null;
+
+// Actions
+export async function loadRepoData(showLoader = false) {
+    if (!repoPath.value.trim() || !window.gitbox) return;
+
+    // We only show loader on critical manual refreshes or app start
+    if (showLoader) isLoadingData.value = true;
+    error.value = '';
+
+    try {
+        // Fetch light metadata always
+        const [newStatus, newBranches, newRemotes, newTags, newStashes, newConfig] = await Promise.all([
+            window.gitbox.status(repoPath.value),
+            window.gitbox.branches(repoPath.value),
+            window.gitbox.remotes(repoPath.value),
+            window.gitbox.tags(repoPath.value),
+            window.gitbox.stashes(repoPath.value),
+            window.gitbox.getConfig(repoPath.value)
+        ]);
+
+        status.value = newStatus;
+        branches.value = newBranches;
+        remotes.value = newRemotes;
+        tags.value = newTags;
+        stashes.value = newStashes;
+        userName.value = newConfig ? newConfig.userName : '';
+        userEmail.value = newConfig ? newConfig.userEmail : '';
+
+        // Optimization: Only fetch the heavy log if it's the first time, 
+        // or a manual refresh was requested, or if the active tab is 'history'.
+        // This avoids hammering the CPU with git logs every 5s in the background.
+        if (showLoader || activeTab.value === 'history' || log.value.length === 0) {
+            const newLog = await window.gitbox.log(repoPath.value, 1500, selectedLogRef.value || 'ALL');
+            log.value = newLog;
+        }
+
+        if (status.value.length > 0 && !selectedFile.value) {
+            selectedFile.value = status.value[0].path;
+        }
+    } catch (err) {
+        error.value = String(err);
+    } finally {
+        if (showLoader) isLoadingData.value = false;
+    }
+}
+
+let lastManualRefresh = 0;
+
+/**
+ * Start a controlled background refresh that only runs when the window is active.
+ */
+export function startPolling() {
+    if (pollingTimer) clearTimeout(pollingTimer);
+
+    const poll = async () => {
+        // Only poll if window is focused AND not currently doing an action
+        if (!document.hidden && !isLoading.value) {
+            await loadRepoData();
+            lastManualRefresh = Date.now();
+        }
+        pollingTimer = setTimeout(poll, 60000); // 1 minute
+    };
+
+    // Immediate refresh when coming back from background, but with a 10s cooldown
+    window.addEventListener('focus', () => {
+        const now = Date.now();
+        if (now - lastManualRefresh > 10000 && !isLoading.value) {
+            loadRepoData();
+            lastManualRefresh = now;
+
+            // Reset the 1-minute timer to start counting from now
+            if (pollingTimer) clearTimeout(pollingTimer);
+            pollingTimer = setTimeout(poll, 60000);
+        }
+    });
+
+    pollingTimer = setTimeout(poll, 60000);
+}
+
+export async function openRepo() {
+    if (!window.gitbox) return;
+    const path = await window.gitbox.selectFolder();
+    if (path) {
+        repoPath.value = path;
+        setItem('gitbox_repo_path', path);
+        await loadRepoData(true);
+    }
+}
+
+export const isLoading = ref(false);
+
+async function runAction(action: () => unknown, showLoader = false) {
+    isLoading.value = true;
+    try {
+        await action();
+        // After an action, always refresh everything immediately
+        await loadRepoData(showLoader || true);
+    } catch (err) {
+        error.value = String(err);
+    } finally {
+        isLoading.value = false;
+    }
+}
+
+export const stageAll = () => runAction(() => window.gitbox.stageAll(repoPath.value));
+export const unstageAll = () => runAction(() => window.gitbox.unstageAll(repoPath.value));
+export const discardAll = () => runAction(() => window.gitbox.discardAll(repoPath.value));
+export const doFetch = () => runAction(() => window.gitbox.fetch(repoPath.value));
+export const doPull = () => runAction(() => window.gitbox.pull(repoPath.value));
+export const doPush = () => runAction(() => window.gitbox.push(repoPath.value));
+
+export const setGitConfig = async (name: string, email: string) => {
+    if (!window.gitbox) return;
+    await runAction(() => window.gitbox.setConfig(repoPath.value, name, email));
+};
+
+export const toggleTerminal = () => {
+    isTerminalOpen.value = !isTerminalOpen.value;
+};
+
+export const checkoutBranch = (name: string) => runAction(() => window.gitbox.checkoutBranch(repoPath.value, name), true);
+export const commitAll = async () => {
+    if (!commitMessage.value.trim()) return;
+    await runAction(() => window.gitbox.commitAll(repoPath.value, commitMessage.value.trim()));
+    commitMessage.value = '';
+};

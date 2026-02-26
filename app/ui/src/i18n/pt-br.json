@@ -1,0 +1,67 @@
+{
+    "common": {
+        "open_repo": "Abrir Repo",
+        "fetch": "Fetch",
+        "pull": "Pull",
+        "push": "Push",
+        "discard": "Descartar",
+        "cancel": "Cancelar",
+        "confirm": "Confirmar",
+        "settings": "Configurações",
+        "search": "Buscar...",
+        "history": "Histórico",
+        "local_changes": "Mudanças Locais",
+        "stashes": "Stashes",
+        "files": "Arquivos",
+        "remotes": "Remotos",
+        "tags": "Tags",
+        "local": "Local",
+        "support": "Suporte",
+        "version": "Versão",
+        "zoom_level": "Nível de Zoom",
+        "keyboard_shortcuts": "Atalhos de Teclado",
+        "checkout": "Checkout",
+        "loading": "Carregando",
+        "whats_new": "O que há de novo"
+    },
+    "workspace": {
+        "add": "Adicionar Workspace",
+        "add_desc": "Abrir um repositório local"
+    },
+    "history": {
+        "subject": "GRÁFICO & ASSUNTO",
+        "author": "AUTOR",
+        "time": "TEMPO",
+        "sha": "SHA",
+        "information": "INFORMAÇÃO",
+        "changes": "MUDANÇAS",
+        "files": "ARQUIVOS",
+        "committer": "COMMITTER"
+    },
+    "changes": {
+        "unstaged": "NÃO PREPARADOS",
+        "staged": "PREPARADOS",
+        "commit": "COMMIT",
+        "commit_placeholder": "Mensagem de commit...",
+        "select_file_diff": "Selecione um arquivo para diff"
+    },
+    "settings": {
+        "title": "Configurações",
+        "appearance": "Aparência",
+        "git": "Git",
+        "theme": "Tema",
+        "language": "Language",
+        "dark": "Escuro",
+        "light": "Claro",
+        "system": "Sistema",
+        "user_name": "Nome de Usuário",
+        "user_email": "E-mail de Usuário",
+        "default_branch": "Branch Padrão"
+    },
+    "time": {
+        "just_now": "Agora mesmo",
+        "mins_ago": "há {count} mins",
+        "hours_ago": "há {count} horas",
+        "days_ago": "há {count} dias"
+    }
+}

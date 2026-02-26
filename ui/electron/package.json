@@ -1,0 +1,66 @@
+{
+  "name": "gitbox-electron",
+  "version": "0.1.0",
+  "description": "GitBox Desktop Application",
+  "author": "GitBox Team <gitbox@example.com>",
+  "homepage": "https://gitbox.example.com",
+  "private": true,
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:vue\" \"npm:dev:electron\"",
+    "dev:vue": "npm --prefix ../../app/ui run dev",
+    "dev:electron": "wait-on tcp:1420 && cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .",
+    "start": "cross-env NODE_ENV=production electron .",
+    "build:core": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.gitbox.app",
+    "productName": "GitBox",
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "msi"
+      ]
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      {
+        "from": "../../core/addon",
+        "to": "core/addon",
+        "filter": [
+          "index.js",
+          "package.json",
+          "build/Release/**/*.node",
+          "node_modules/**/*"
+        ]
+      },
+      {
+        "from": "../../dist",
+        "to": "dist"
+      }
+    ]
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.8.1",
+    "wait-on": "^8.0.0"
+  }
+}

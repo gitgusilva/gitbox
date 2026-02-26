@@ -1,0 +1,59 @@
+{
+    "common": {
+        "open_repo": "Abrir Repo",
+        "fetch": "Fetch",
+        "pull": "Pull",
+        "push": "Push",
+        "discard": "Descartar",
+        "cancel": "Cancelar",
+        "confirm": "Confirmar",
+        "settings": "Ajustes",
+        "search": "Buscar...",
+        "history": "Historial",
+        "local_changes": "Cambios Locales",
+        "stashes": "Stashes",
+        "files": "Archivos",
+        "remotes": "Remotos",
+        "tags": "Etiquetas",
+        "local": "Local",
+        "support": "Soporte",
+        "version": "Versión",
+        "zoom_level": "Nivel de Zoom",
+        "keyboard_shortcuts": "Atajos de Teclado",
+        "checkout": "Checkout",
+        "loading": "Cargando",
+        "whats_new": "Novedades"
+    },
+    "workspace": {
+        "add": "Añadir Workspace",
+        "add_desc": "Abrir un repositorio local"
+    },
+    "history": {
+        "subject": "GRÁFICO & ASUNTO",
+        "author": "AUTOR",
+        "time": "TIMEMPO",
+        "sha": "SHA",
+        "information": "INFORMACIÓN",
+        "committer": "COMMITTER"
+    },
+    "changes": {
+        "unstaged": "SIN PREPARAR",
+        "staged": "PREPARADOS",
+        "commit": "COMMIT",
+        "commit_placeholder": "Mensaje de commit...",
+        "select_file_diff": "Seleccione un archivo para diff"
+    },
+    "settings": {
+        "title": "Ajustes",
+        "appearance": "Apariencia",
+        "git": "Git",
+        "theme": "Tema",
+        "language": "Idioma",
+        "dark": "Oscuro",
+        "light": "Claro",
+        "system": "Sistema",
+        "user_name": "Nombre de Usuario",
+        "user_email": "Correo Electrónico",
+        "default_branch": "Branch Predeterminada"
+    }
+}
