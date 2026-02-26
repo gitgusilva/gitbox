@@ -65,20 +65,17 @@ npm run dev
 
 ## Third-party Components
 
-GitBox is made possible by these amazing open-source projects:
-
-- **[Electron](https://www.electronjs.org/)**: Desktop application framework.
-- **[Vue.js](https://vuejs.org/)**: Progressive JavaScript framework for the UI.
-- **[libgit2](https://libgit2.org/)**: Portable C implementation of Git core methods.
-- **[Monaco Editor](https://microsoft.github.io/monaco-editor/)**: The code editor that powers VS Code.
-- **[xterm.js](https://xtermjs.org/)**: Terminal front-end component.
-- **[node-pty](https://github.com/microsoft/node-pty)**: Fork pseudoterminals in Node.js.
-- **[Iconify](https://iconify.design/)**: Unified icon framework.
-- **[SimpleBar](https://grubba.org/simplebar/)**: Custom scrollbars with native scroll performance.
+GitBox is made possible by several incredible open-source projects. For a full list of dependencies and their respective licenses, please refer to [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ## Contributing
 
 We welcome contributions from the community! To get started, please read our [CONTRIBUTING.md](CONTRIBUTING.md) guide for details on our workflow, coding standards, and how to submit pull requests.
+
+## Contributors
+
+Thank you to all the people who have contributed to this project!
+
+[![Contributors](https://contrib.rocks/image?repo=gitgusilva/gitbox&columns=20)](https://github.com/gitgusilva/gitbox/graphs/contributors)
 
 ## License
 
