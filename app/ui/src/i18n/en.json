@@ -22,11 +22,28 @@
         "keyboard_shortcuts": "Keyboard Shortcuts",
         "checkout": "Checkout",
         "loading": "Loading",
-        "whats_new": "What's New"
+        "whats_new": "What's New",
+        "whats_new_title": "What's New in GitBox",
+        "prs": "Pull Requests",
+        "create_pr": "Create Pull Request",
+        "no_prs_found": "No pull requests found",
+        "github_pr_404": "Github App not authorized. This is a private repository, you must install or request GitBox access on GitHub for the Account or Organization that owns this repository.",
+        "empty": "Empty",
+        "original": "Original",
+        "modified": "Modified",
+        "file_not_in_parent": "File not in parent",
+        "file_deleted": "File deleted",
+        "active": "Active"
     },
     "workspace": {
         "add": "Add Workspace",
         "add_desc": "Open a local repository"
+    },
+    "prs": {
+        "my_prs": "My Pull Requests",
+        "assigned_to_me": "Assigned To Me",
+        "awaiting_review": "Awaiting My Review",
+        "all_prs": "All Pull Requests"
     },
     "history": {
         "subject": "GRAPH & SUBJECT",
@@ -43,11 +60,21 @@
         "staged": "STAGED",
         "commit": "COMMIT",
         "commit_placeholder": "Commit message...",
-        "select_file_diff": "Select a file to diff"
+        "select_file_diff": "Select a file to diff",
+        "summarize": "Explain changes",
+        "generate_commit": "Generate message",
+        "hunks_only": "Hunks Only",
+        "show_all": "Show All",
+        "inline": "Inline",
+        "side_by_side": "Side-by-Side",
+        "merging": "Merging",
+        "complete_merge": "Complete Merge",
+        "original_vs_resolution": "Original (Left) vs Resolution (Right)",
+        "untitled": "Untitled"
     },
     "settings": {
         "title": "Settings",
-        "appearance": "Appearance",
+        "general": "General",
         "git": "Git",
         "theme": "Theme",
         "language": "Language",
@@ -56,12 +83,77 @@
         "system": "System",
         "user_name": "User Name",
         "user_email": "User Email",
-        "default_branch": "Default Branch"
+        "default_branch": "Default Branch",
+        "ai": "AI Settings",
+        "ai_provider": "AI Provider",
+        "api_key": "API Key",
+        "api_key_placeholder": "Enter your API key",
+        "gemini": "Google Gemini",
+        "integrations": "Integrations",
+        "github": "GitHub",
+        "gitlab": "GitLab",
+        "bitbucket": "Bitbucket",
+        "connect": "Connect",
+        "connected": "Connected",
+        "disconnect": "Disconnect",
+        "integrations_description": "Connect your accounts to access advanced features like remote repository browsing and Pull Request management.",
+        "integrations_desc_short": "Sync remote repositories and PRs.",
+        "date_format": "Date Format",
+        "history_commits": "History Commits",
+        "show_tags_graph": "Show tags in commit graph",
+        "check_updates_startup": "Check for updates on startup",
+        "hide_icon_labels": "Hide icon labels in actions",
+        "highlight_branch_prefixes": "Highlight branch creation prefixes",
+        "create_pr": {
+            "title": "Create Pull Request",
+            "from_repo": "From Repository",
+            "to_repo": "To Repository",
+            "from_branch": "Source Branch",
+            "to_branch": "Target Branch",
+            "pr_title": "Title",
+            "description": "Description",
+            "submit_as_draft": "Submit as draft",
+            "generate": "Generate title & description",
+            "reviewers": "Reviewers",
+            "assignees": "Assignees",
+            "labels": "Labels",
+            "select_reviewers": "Select reviewers...",
+            "select_assignees": "Select assignees...",
+            "select_labels": "Select labels...",
+            "no_options": "No options available",
+            "merge_conflict": "Merge conflict detected",
+            "hidden_conflicts": "Conflicting files hidden or unavailable locally.",
+            "title_placeholder": "Pull request title...",
+            "desc_placeholder": "Pull request description..."
+        }
     },
     "time": {
         "just_now": "Just now",
         "mins_ago": "{count} mins ago",
         "hours_ago": "{count} hours ago",
-        "days_ago": "{count} days ago"
+        "days_ago": "{count} days ago",
+        "months_short": {
+            "jan": "Jan",
+            "feb": "Feb",
+            "mar": "Mar",
+            "apr": "Apr",
+            "may": "May",
+            "jun": "Jun",
+            "jul": "Jul",
+            "aug": "Aug",
+            "sep": "Sep",
+            "oct": "Oct",
+            "nov": "Nov",
+            "dec": "Dec"
+        }
+    },
+    "github_auth": {
+        "title": "GitHub Authentication",
+        "instruction": "To connect GitBox to your GitHub, enter the code below in your browser.",
+        "copy_code_tooltip": "Copy code",
+        "copied": "Code copied!",
+        "click_to_copy": "Click code to copy",
+        "open_browser": "Open Browser and Paste",
+        "waiting": "Waiting for authorization in browser..."
     }
 }

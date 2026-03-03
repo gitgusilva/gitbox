@@ -1,6 +1,8 @@
 # GitBox
 
-![GitBox](https://raw.githubusercontent.com/gitgusilva/gitbox/main/logo.png) (Coming soon)
+<p align="center">
+  <img src="images/logo.png" width="128" alt="GitBox Logo" />
+</p>
 
 [![stars](https://img.shields.io/github/stars/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/stargazers)
 [![forks](https://img.shields.io/github/forks/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/forks)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import Modal from './Common/Modal.vue';
 
 const props = defineProps<{ action: 'init' | 'clone' }>();
 const emit = defineEmits(['close', 'success']);
@@ -32,10 +33,9 @@ async function browseFolder(formType: 'clone' | 'init') {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-    <div class="bg-[#2A2B2E] border border-[#3E4044] rounded shadow-2xl w-[850px] h-[550px] flex overflow-hidden scale-in-center">
-      
+  <Modal :modelValue="true" @update:modelValue="!$event && emit('close')" width="850px" height="550px">
+     <template #header><div class="hidden"></div></template>
+     <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
       <aside class="w-64 bg-[#212224] border-r border-[#3E4044] py-3 flex flex-col">
         <div class="text-[15px] font-bold text-neutral-200 px-4 mb-4 mt-2">{{ props.action === 'init' ? 'Initialize a Repository' : 'Clone a Repository' }}</div>
@@ -131,16 +131,7 @@ async function browseFolder(formType: 'clone' | 'init') {
         </div>
       </main>
     </div>
-  </div>
-  </Teleport>
+  </Modal>
 </template>
 
-<style scoped>
-.scale-in-center {
-	animation: scale-in-center 0.1s cubic-bezier(0.250, 0.460, 0.450, 0.940) both;
-}
-@keyframes scale-in-center {
-  0% { transform: scale(0.95); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-</style>
+

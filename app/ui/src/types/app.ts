@@ -8,6 +8,15 @@ export interface AppSettings {
         userEmail: string;
         defaultBranch: string;
     };
+    ai?: {
+        provider: 'gemini';
+        apiKey: string;
+    };
+    integrations?: {
+        github?: { accessToken: string; user?: any };
+        gitlab?: { accessToken: string; user?: any };
+        bitbucket?: { accessToken: string; user?: any };
+    };
 }
 
 export interface ModalState<T> {

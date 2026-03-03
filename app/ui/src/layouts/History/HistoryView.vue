@@ -19,20 +19,27 @@ import { buildCommitGraph } from '../../GraphBuilder';
 import { GraphNode } from '../../types/git';
 import CommitGraph from '../../components/CommitGraph.vue';
 import { branches, tags } from '../../services/gitService';
-import { formatDistanceToNow, formatFullDate, renderMessageLinks, handleLinkClick } from '../../utils/formatters';
-import md5 from 'md5';
+import { formatFullDate, formatDate, renderMessageLinks, handleLinkClick } from '../../utils/formatters';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
+import { gravatarUrl } from '../../utils/avatars';
+import { generalSettings } from '../../services/settingsService';
 
 const { t } = useI18n();
+const showTagsInGraph = computed(() => generalSettings.value.showTagsInGraph);
 const graphOutput = shallowRef<Map<string, GraphNode>>(new Map());
 const activeDetailTab = ref('information');
 const commitFilesList = ref<any[]>([]);
 const selectedCommitFile = ref('');
 const commitOriginal = ref('');
 const commitModified = ref('');
+const fullRepoFilesList = ref<any[]>([]);
+const selectedFilesTabPath = ref('');
+const filesTabContent = ref('');
+const isTreeLoading = ref(false);
 
 import { repoPath } from '../../services/gitService';
+import { contextMenu } from '../../services/modalService';
 import FileTree from '../../components/Common/FileTree.vue';
 import DiffViewer from '../../components/Common/DiffViewer.vue';
 
@@ -41,17 +48,63 @@ const loadCommitDetails = async () => {
     selectedCommitFile.value = '';
     commitOriginal.value = '';
     commitModified.value = '';
+
     if (!selectedCommit.value || !repoPath.value) return;
+
     try {
         const files = await window.gitbox.commitFiles(repoPath.value, selectedCommit.value.id);
         commitFilesList.value = files;
+
         if (files.length > 0) {
             selectedCommitFile.value = files[0].path;
         }
     } catch(e) {}
 };
 
-watch(selectedCommit, loadCommitDetails, { immediate: true });
+watch(selectedCommit, () => {
+    fullRepoFilesList.value = [];
+    loadCommitDetails();
+}, { immediate: true });
+
+const loadFullRepoFiles = async () => {
+    fullRepoFilesList.value = [];
+    selectedFilesTabPath.value = '';
+    filesTabContent.value = '';
+
+    if (!selectedCommit.value || !repoPath.value) return;
+
+    isTreeLoading.value = true;
+
+    try {
+        const filePaths = await window.gitbox.listFiles(repoPath.value, selectedCommit.value.id);
+        fullRepoFilesList.value = filePaths.map((p: string) => ({ path: p, status: 'modified' }));
+    } catch(e) {
+        fullRepoFilesList.value = [];
+    } finally {
+        isTreeLoading.value = false;
+    }
+};
+
+watch([selectedCommit, activeDetailTab], () => {
+    if (activeDetailTab.value === 'files' && fullRepoFilesList.value.length === 0) {
+        loadFullRepoFiles();
+    }
+});
+
+watch(selectedFilesTabPath, async (newVal) => {
+    if (!newVal || !selectedCommit.value || !repoPath.value) {
+        filesTabContent.value = '';
+        return;
+    }
+
+    try {
+        // We can use diffCommitFile but only take the 'modified' side as the current content at that commit
+        const diff = await window.gitbox.diffCommitFile(repoPath.value, selectedCommit.value.id, newVal);
+        filesTabContent.value = diff.modified;
+    } catch(e) {
+        filesTabContent.value = '';
+    }
+});
 
 watch(selectedCommitFile, async (newVal) => {
     if (!newVal || !selectedCommit.value || !repoPath.value) {
@@ -59,6 +112,7 @@ watch(selectedCommitFile, async (newVal) => {
         commitModified.value = '';
         return;
     }
+
     try {
         const diff = await window.gitbox.diffCommitFile(repoPath.value, selectedCommit.value.id, newVal);
         commitOriginal.value = diff.original;
@@ -76,25 +130,13 @@ watch(log, (newLog, oldLog) => {
   } else {
       graphOutput.value = new Map();
   }
+
   // Scroll back to top ONLY if log content meaningfully changed (e.g branch switch)
   if (!oldLog || newLog?.length !== oldLog.length || (newLog.length > 0 && oldLog.length > 0 && newLog[0].id !== oldLog[0].id)) {
       setTimeout(scrollToTop, 50);
   }
 }, { immediate: true });
 
-const gravatarCache = new Map<string, string>();
-
-function gravatarUrl(email?: string) {
-  if (!email) return 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&s=100';
-  const trimmed = email.trim().toLowerCase();
-  
-  if (gravatarCache.has(trimmed)) return gravatarCache.get(trimmed)!;
-  
-  const hash = md5(trimmed);
-  const url = `https://www.gravatar.com/avatar/${hash}?d=identicon&s=100`;
-  gravatarCache.set(trimmed, url);
-  return url;
-}
 
 const commitRefsMap = computed(() => {
   const map = new Map<string, { name: string, type: 'branch' | 'tag' | 'remote', isHead?: boolean }[]>();
@@ -139,7 +181,25 @@ function stopMarquee(e: MouseEvent) {
     }, 200);
   }
 }
+function getStatusIcon(status: string) {
+  if (!status) return 'lucide:file';
+  const s = status.toLowerCase();
+  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'lucide:plus';
+  if (s.includes('deleted')) return 'lucide:minus';
+  if (s.includes('renamed') || s.includes('moved')) return 'lucide:repeat';
+  if (s.includes('modified') || s.includes('staged')) return 'lucide:file-text';
+  return 'lucide:file';
+}
 
+function getStatusColor(status: string) {
+  if (!status) return 'text-neutral-500';
+  const s = status.toLowerCase();
+  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
+  if (s.includes('deleted')) return 'text-red-500';
+  if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
+  if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
+  return 'text-neutral-500';
+}
 const commitListContainer = ref<any>(null);
 const showScrollToTop = ref(false);
 
@@ -227,6 +287,94 @@ function scrollToTop() {
     }
   }
 }
+
+function openContextMenu(e: MouseEvent, c: any) {
+  selectedCommit.value = c;
+  
+  const items: any[] = [];
+  
+  // Determine if it has branches
+  const refs = commitRefsMap.value.get(c.id) || [];
+  const localBranches = refs.filter(r => r.type === 'branch');
+  
+  for (const b of localBranches) {
+    items.push({
+      label: b.name,
+      icon: 'lucide:git-branch',
+      subItems: [
+        { label: 'Visibility in Graph', icon: 'lucide:eye' },
+        { type: 'separator' },
+        { label: `Fast-Forward to origin/${b.name}`, icon: 'lucide:fast-forward' },
+        { label: `Pull origin/${b.name}`, icon: 'lucide:download' },
+        { label: `Push ${b.name}`, icon: 'lucide:upload' },
+        { label: `Rename ${b.name}...`, icon: 'lucide:text-cursor-input' },
+        { type: 'separator' },
+        { label: `Git Flow - Finish ${b.name}`, icon: 'lucide:git-merge' },
+        { type: 'separator' },
+        { label: 'Copy Branch Name', icon: 'lucide:copy', action: () => navigator.clipboard.writeText(b.name) }
+      ]
+    });
+  }
+  
+  if (localBranches.length > 0) {
+    items.push({ type: 'separator' });
+  }
+
+  items.push(
+    { label: 'Create Branch...', icon: 'lucide:git-branch', shortcut: 'Ctrl+Shift+B', action: () => {} },
+    { label: 'Create Tag...', icon: 'lucide:tag', shortcut: 'Ctrl+Shift+T', action: () => {} },
+    { type: 'separator' },
+    { label: 'Reword', icon: 'lucide:edit-3', action: () => {} },
+    { label: 'Squash into Parent', icon: 'lucide:minimize-2', action: () => {} },
+    { label: 'Revert Commit', icon: 'lucide:undo-2', action: () => {} },
+    { type: 'separator' },
+    { label: 'Save as Patch...', icon: 'lucide:file-text', action: () => {} },
+    { label: 'Archive...', icon: 'lucide:archive', action: () => {} },
+    { type: 'separator' },
+    { label: 'Copy', icon: 'lucide:copy', subItems: [
+        { label: 'Copy Commit Message', action: () => { if (c.summary) navigator.clipboard.writeText(c.summary); } },
+        { label: 'Copy Commit SHA', action: () => { if (c.id) navigator.clipboard.writeText(c.id); } },
+    ]}
+  );
+
+  contextMenu.value = {
+    x: e.clientX,
+    y: e.clientY,
+    items
+  };
+}
+
+const navigateToCommit = async (p: any) => {
+    if (!p || !p.id) return;
+    
+    // 1. Try to find the full commit object in the currently loaded log
+    const found = log.value.find(c => c.id === p.id);
+    if (found) {
+        selectedCommit.value = found;
+        // Scroll the commit into view
+        setTimeout(() => {
+            const el = document.getElementById('commit-' + p.id);
+            if (el) {
+                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }, 50);
+        return;
+    }
+
+    // 2. If not found in current log (e.g. beyond maxCount), try to fetch its full details
+    try {
+        const singleLog = await window.gitbox.log(repoPath.value, 1, p.id);
+        if (singleLog && singleLog.length > 0) {
+            selectedCommit.value = singleLog[0];
+            return;
+        }
+    } catch (e) {
+        console.error('Failed to fetch commit details:', e);
+    }
+
+    // 3. Last resort fallback: use the parent object stub which has basic info
+    selectedCommit.value = p;
+};
 </script>
 
 <template>
@@ -267,18 +415,21 @@ function scrollToTop() {
                  class="grid px-3 items-center text-[11px] relative group border-b border-neutral-200 dark:border-neutral-800/30" 
                  :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }" 
                  :class="selectedCommit?.id === c.id ? 'bg-blue-100 dark:bg-[#143B66] text-black dark:text-white shadow-inner' : 'hover:bg-neutral-200 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300'" 
-                 @click="selectedCommit = c">
+                 @click="selectedCommit = c"
+                 @contextmenu.prevent="openContextMenu($event, c)">
               <div class="flex items-center gap-0 w-full h-full relative overflow-hidden">
                 <CommitGraph :node="graphOutput.get(c.id)" :selected="selectedCommit?.id === c.id" />
                 <div class="flex-1 min-w-0 pr-4 relative cursor-default h-full flex items-center gap-1">
-                   <div v-for="r in (commitRefsMap.get(c.id) || [])" :key="r.name" 
-                        class="flex-shrink-0 text-[10px] px-1 rounded-[3px] border flex items-center gap-[2px] h-[18px] z-10 bg-neutral-50 dark:bg-[#202020]"
-                        :class="r.type === 'branch' ? (r.isHead ? 'bg-green-600/20 border-green-500/50 text-green-700 dark:text-green-400 font-bold' : 'bg-transparent border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 font-medium') : (r.type === 'remote' ? 'bg-transparent border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 font-medium' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-500 font-medium')">
-                        <Icon :icon="r.type === 'tag' ? 'lucide:tag' : (r.type === 'remote' ? 'lucide:cloud' : 'lucide:git-branch')" class="text-[9px]" />
-                        {{ r.name.replace('refs/remotes/', '') }}
-                   </div>
+                   <template v-for="r in (commitRefsMap.get(c.id) || [])" :key="r.name">
+                     <div v-if="r.type !== 'tag' || showTagsInGraph"
+                          class="flex-shrink-0 text-[10px] px-1 rounded-[3px] border flex items-center gap-[2px] h-[18px] z-10 bg-neutral-50 dark:bg-[#202020]"
+                          :class="r.type === 'branch' ? (r.isHead ? 'bg-green-600/20 border-green-500/50 text-green-700 dark:text-green-400 font-bold' : 'bg-transparent border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 font-medium') : (r.type === 'remote' ? 'bg-transparent border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400 font-medium' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-500 font-medium')">
+                          <Icon :icon="r.type === 'tag' ? 'lucide:tag' : (r.type === 'remote' ? 'lucide:cloud' : 'lucide:git-branch')" class="text-[9px]" />
+                          {{ r.name.replace('refs/remotes/', '') }}
+                     </div>
+                   </template>
                    <div class="flex-1 min-w-0 h-full flex items-center overflow-hidden" @mouseenter="startMarquee" @mouseleave="stopMarquee">
-                       <span class="block truncate w-full" :class="selectedCommit?.id === c.id ? '' : (graphOutput.get(c.id)?.dotLane === 0 ? 'font-medium text-black dark:text-neutral-200' : 'text-neutral-500 dark:text-neutral-500')">{{ c.summary }}</span>
+                       <span class="block truncate w-full" :class="selectedCommit?.id === c.id ? '' : (graphOutput.get(c.id)?.dotLane === 0 ? 'font-medium text-black dark:text-neutral-200' : 'text-neutral-500 dark:text-neutral-500')" v-html="renderMessageLinks(c.summary)"></span>
                    </div>
                 </div>
               </div>
@@ -289,7 +440,7 @@ function scrollToTop() {
               </div>
               <div class="flex items-center truncate transition-colors pl-2 h-full w-full relative z-10" 
                    :class="selectedCommit?.id === c.id ? 'text-blue-500/80 dark:text-blue-300/50 bg-blue-100 dark:bg-[#143B66]' : (graphOutput.get(c.id)?.dotLane === 0 ? 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-500 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300' : 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400/70 dark:text-neutral-600 group-hover:text-neutral-500')">
-                   {{ formatDistanceToNow(c.timestamp) }}
+                   {{ formatDate(c.timestamp, generalSettings.dateFormat) }}
               </div>
             </div>
           </div>
@@ -349,7 +500,7 @@ function scrollToTop() {
                 </div>
 
                 <div class="flex items-center gap-3" v-if="(selectedCommit.committer && selectedCommit.committer !== selectedCommit.author) || (selectedCommit.committerEmail && selectedCommit.committerEmail !== selectedCommit.authorEmail)">
-                  <div v-if="selectedCommit.committer?.toLowerCase() === 'github' || selectedCommit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-[#24292e] text-white flex items-center justify-center border-2 border-neutral-200 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
+                  <div v-if="selectedCommit.committer?.toLowerCase() === 'github' || selectedCommit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-neutral-200 dark:bg-[#24292e] text-black dark:text-white flex items-center justify-center border-2 border-neutral-300 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
                       <Icon icon="mdi:github" class="text-3xl" />
                   </div>
                   <div v-else-if="selectedCommit.committer?.toLowerCase() === 'gitlab' || selectedCommit.committerEmail?.toLowerCase().includes('gitlab')" class="w-12 h-12 rounded bg-[#e24329] text-white flex items-center justify-center border-2 border-neutral-200 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
@@ -387,7 +538,7 @@ function scrollToTop() {
                    <div class="w-20 flex-shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-0.5">Parents</div>
                    <div class="flex-1 flex flex-wrap gap-2">
                       <button v-for="p in selectedCommit.parents" :key="p.id" 
-                              @click="selectedCommit = p as any"
+                              @click="navigateToCommit(p)"
                               class="text-blue-400 font-mono hover:text-blue-300 transition-colors border-b border-blue-900 border-dashed">
                         {{ p.id.substring(0, 8) }}
                       </button>
@@ -417,20 +568,52 @@ function scrollToTop() {
                       <div v-html="renderMessageLinks(selectedCommit.message || '')" @click="handleLinkClick"></div>
                    </div>
                 </div>
+
+                <div v-if="commitFilesList.length" class="flex flex-col gap-3 pt-6 border-t border-neutral-200 dark:border-neutral-800">
+                    <div class="text-neutral-500 font-bold uppercase tracking-widest text-[9px]">{{ commitFilesList.length }} Changed Files</div>
+                    <div class="flex flex-col gap-1">
+                        <div v-for="file in commitFilesList.slice(0, 15)" :key="file.path" 
+                             @click="activeDetailTab = 'changes'; selectedCommitFile = file.path"
+                             class="flex items-center gap-2 group cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800/50 p-1 px-2 rounded transition-colors">
+                            <Icon :icon="getStatusIcon(file.status)" 
+                                  :class="getStatusColor(file.status)" 
+                                  class="text-[12px]" />
+                            <span class="text-[11px] text-neutral-600 dark:text-neutral-400 truncate group-hover:text-blue-500">{{ file.path }}</span>
+                        </div>
+                        <div v-if="commitFilesList.length > 15" class="text-[10px] text-neutral-500 italic pl-2 pt-1">
+                            ... and {{ commitFilesList.length - 15 }} more. See CHANGES tab for all.
+                        </div>
+                    </div>
+                </div>
             </div>
           </div>
 
-          <div v-else-if="activeDetailTab === 'files'" class="h-full flex flex-col min-h-0 animate-in fade-in duration-300 bg-[#1A1A1A]">
-             <FileTree v-if="commitFilesList.length" :files="commitFilesList" :selectedPath="selectedCommitFile" @select="selectedCommitFile = $event" />
-             <div v-else class="p-8 text-center text-neutral-600 uppercase text-[10px] font-bold tracking-widest">
-                No files modified
+          <div v-else-if="activeDetailTab === 'files'" class="h-full flex flex-col min-h-0 animate-in fade-in duration-300 bg-[#1A1A1A] overflow-hidden">
+             <div class="flex-1 flex overflow-hidden">
+                <SimpleBar class="w-64 border-r border-neutral-800 bg-[#1A1A1A] flex-shrink-0" style="height: 100%;">
+                   <FileTree v-if="fullRepoFilesList.length" :files="fullRepoFilesList" :selectedPath="selectedFilesTabPath" @select="selectedFilesTabPath = $event" />
+                   <div v-else-if="isTreeLoading" class="p-8 text-center">
+                       <Icon icon="lucide:loader-2" class="animate-spin text-blue-500 mx-auto mb-2" />
+                       <span class="text-[9px] text-neutral-500 uppercase font-bold tracking-widest">Loading Tree...</span>
+                   </div>
+                   <div v-else-if="!isTreeLoading" class="p-8 text-center text-neutral-600 uppercase text-[9px] font-bold tracking-widest opacity-50">
+                       Empty repository tree
+                   </div>
+                </SimpleBar>
+                <div class="flex-1 flex flex-col min-w-0">
+                   <DiffViewer v-if="selectedFilesTabPath" :original="''" :modified="filesTabContent" :filename="selectedFilesTabPath" :readOnly="true" />
+                   <div v-else class="flex-1 flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-[#1e1e1e]">
+                       <Icon icon="lucide:file-text" class="text-5xl mb-4 opacity-10" />
+                       <div class="font-bold uppercase tracking-widest text-sm opacity-20">Select a file from the repository</div>
+                   </div>
+                </div>
              </div>
           </div>
           <div v-else-if="activeDetailTab === 'changes'" class="h-full flex flex-col min-h-0 animate-in fade-in duration-300 flex-1 overflow-hidden">
              <div class="flex-1 flex overflow-hidden">
-                <div class="w-64 border-r border-neutral-800 bg-[#1A1A1A] overflow-y-auto overflow-x-hidden flex-shrink-0">
-                   <FileTree v-if="commitFilesList.length" :files="commitFilesList" :selectedPath="selectedCommitFile" @select="selectedCommitFile = $event" />
-                </div>
+                <SimpleBar class="w-64 border-r border-neutral-800 bg-[#1A1A1A] flex-shrink-0" style="height: 100%;">
+                   <FileTree :files="commitFilesList" :selectedPath="selectedCommitFile" @select="selectedCommitFile = $event" />
+                </SimpleBar>
                 <div class="flex-1 flex flex-col min-w-0">
                    <DiffViewer v-if="selectedCommitFile" :original="commitOriginal" :modified="commitModified" :filename="selectedCommitFile" />
                    <div v-else class="flex-1 flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-[#1e1e1e]">

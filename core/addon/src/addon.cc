@@ -140,11 +140,9 @@ Napi::Value Status(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -157,7 +155,6 @@ Napi::Value Status(const Napi::CallbackInfo &info) {
   git_status_list *statusList = nullptr;
   if (git_status_list_new(&statusList, repo, &opts) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     Napi::Error::New(env, LastGitErrorOr("failed to get status list"))
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -189,7 +186,6 @@ Napi::Value Status(const Napi::CallbackInfo &info) {
 
   git_status_list_free(statusList);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -199,18 +195,15 @@ Napi::Value Branches(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_branch_iterator *it = nullptr;
   if (git_branch_iterator_new(&it, repo, GIT_BRANCH_ALL) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     Napi::Error::New(env, LastGitErrorOr("failed to iterate branches"))
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -229,7 +222,6 @@ Napi::Value Branches(const Napi::CallbackInfo &info) {
         git_reference_free(ref);
       git_branch_iterator_free(it);
       git_repository_free(repo);
-      git_libgit2_shutdown();
       Napi::Error::New(env, LastGitErrorOr("failed during branch iteration"))
           .ThrowAsJavaScriptException();
       return env.Null();
@@ -289,7 +281,6 @@ Napi::Value Branches(const Napi::CallbackInfo &info) {
     git_reference_free(ref);
   git_branch_iterator_free(it);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -299,11 +290,9 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -322,7 +311,6 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
   git_revwalk *walk = nullptr;
   if (git_revwalk_new(&walk, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     Napi::Error::New(env, LastGitErrorOr("failed to create revwalk"))
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -338,7 +326,6 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
     if (git_revwalk_push_head(walk) != 0) {
       git_revwalk_free(walk);
       git_repository_free(repo);
-      git_libgit2_shutdown();
       Napi::Error::New(env, LastGitErrorOr("failed to walk HEAD"))
           .ThrowAsJavaScriptException();
       return env.Null();
@@ -401,6 +388,10 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
             (pAuthorSig != nullptr && pAuthorSig->name != nullptr)
                 ? pAuthorSig->name
                 : "unknown";
+        const char *pAuthorEmail =
+            (pAuthorSig != nullptr && pAuthorSig->email != nullptr)
+                ? pAuthorSig->email
+                : "unknown@domain.com";
 
         Napi::Object pItem = Napi::Object::New(env);
         pItem.Set("id", Napi::String::New(env, pOidStr));
@@ -408,6 +399,7 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
                   Napi::String::New(env, pSummary != nullptr ? pSummary
                                                              : "(no message)"));
         pItem.Set("author", Napi::String::New(env, pAuthor));
+        pItem.Set("authorEmail", Napi::String::New(env, pAuthorEmail));
         pItem.Set("timestamp",
                   Napi::Number::New(env, static_cast<double>(
                                              git_commit_time(parent_commit))));
@@ -427,7 +419,6 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
 
   git_revwalk_free(walk);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -437,18 +428,15 @@ Napi::Value StageAll(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_index *index = nullptr;
   if (git_repository_index(&index, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to open index"), env.Null();
   }
 
@@ -458,13 +446,11 @@ Napi::Value StageAll(const Napi::CallbackInfo &info) {
       git_index_write(index) != 0) {
     git_index_free(index);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to stage files"), env.Null();
   }
 
   git_index_free(index);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -474,18 +460,15 @@ Napi::Value UnstageAll(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_object *headTarget = nullptr;
   if (git_revparse_single(&headTarget, repo, "HEAD^{tree}") != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to resolve HEAD tree"), env.Null();
   }
 
@@ -493,7 +476,6 @@ Napi::Value UnstageAll(const Napi::CallbackInfo &info) {
   if (git_repository_index(&index, repo) != 0) {
     git_object_free(headTarget);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to open index"), env.Null();
   }
 
@@ -503,14 +485,12 @@ Napi::Value UnstageAll(const Napi::CallbackInfo &info) {
     git_index_free(index);
     git_object_free(headTarget);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to unstage files"), env.Null();
   }
 
   git_index_free(index);
   git_object_free(headTarget);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -520,18 +500,15 @@ Napi::Value DiscardAll(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_object *target = nullptr;
   if (git_revparse_single(&target, repo, "HEAD^{tree}") != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to resolve HEAD tree"), env.Null();
   }
 
@@ -540,13 +517,11 @@ Napi::Value DiscardAll(const Napi::CallbackInfo &info) {
   if (git_checkout_tree(repo, target, &opts) != 0) {
     git_object_free(target);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to discard changes"), env.Null();
   }
 
   git_object_free(target);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -565,18 +540,15 @@ Napi::Value CommitAll(const Napi::CallbackInfo &info) {
     return env.Null();
   }
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_index *index = nullptr;
   if (git_repository_index(&index, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to open index"), env.Null();
   }
 
@@ -585,7 +557,6 @@ Napi::Value CommitAll(const Napi::CallbackInfo &info) {
       git_index_write(index) != 0) {
     git_index_free(index);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to write tree"), env.Null();
   }
 
@@ -593,7 +564,6 @@ Napi::Value CommitAll(const Napi::CallbackInfo &info) {
   if (git_tree_lookup(&tree, repo, &treeOid) != 0) {
     git_index_free(index);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to lookup tree"), env.Null();
   }
 
@@ -602,7 +572,6 @@ Napi::Value CommitAll(const Napi::CallbackInfo &info) {
     git_tree_free(tree);
     git_index_free(index);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to create commit signature"), env.Null();
   }
 
@@ -633,14 +602,12 @@ Napi::Value CommitAll(const Napi::CallbackInfo &info) {
 
   if (commitRc != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to create commit"), env.Null();
   }
 
   char oidStr[GIT_OID_HEXSZ + 1];
   git_oid_tostr(oidStr, sizeof(oidStr), &commitOid);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::String::New(env, oidStr);
 }
 
@@ -652,12 +619,10 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
   if (!EnsureStringArg(info, 1, "branchName"))
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   std::string branchName = info[1].As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -665,7 +630,6 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
   if (git_branch_lookup(&branchRef, repo, branchName.c_str(),
                         GIT_BRANCH_LOCAL) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to find branch"), env.Null();
   }
 
@@ -673,7 +637,6 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
   if (git_reference_peel(&target, branchRef, GIT_OBJECT_COMMIT) != 0) {
     git_reference_free(branchRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to peel branch target"), env.Null();
   }
 
@@ -683,7 +646,6 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
     git_object_free(target);
     git_reference_free(branchRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to checkout branch"), env.Null();
   }
 
@@ -691,14 +653,12 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
     git_object_free(target);
     git_reference_free(branchRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to set HEAD"), env.Null();
   }
 
   git_object_free(target);
   git_reference_free(branchRef);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -713,18 +673,15 @@ Napi::Value Fetch(const Napi::CallbackInfo &info) {
     remoteName = info[1].As<Napi::String>().Utf8Value();
   }
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_remote *remote = nullptr;
   if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to find remote"), env.Null();
   }
 
@@ -732,13 +689,11 @@ Napi::Value Fetch(const Napi::CallbackInfo &info) {
   if (git_remote_fetch(remote, nullptr, &opts, nullptr) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "fetch failed"), env.Null();
   }
 
   git_remote_free(remote);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -753,18 +708,15 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     remoteName = info[1].As<Napi::String>().Utf8Value();
   }
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   std::string branch = CurrentBranchName(repo);
   if (branch.empty()) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "detached HEAD is not supported for pull"),
            env.Null();
   }
@@ -772,14 +724,12 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
   git_remote *remote = nullptr;
   if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to find remote"), env.Null();
   }
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
   if (git_remote_fetch(remote, nullptr, &fetchOpts, nullptr) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "pull fetch failed"), env.Null();
   }
   git_remote_free(remote);
@@ -788,7 +738,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
   git_reference *remoteRef = nullptr;
   if (git_reference_lookup(&remoteRef, repo, remoteRefName.c_str()) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "remote tracking branch not found"), env.Null();
   }
 
@@ -796,7 +745,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
   if (git_annotated_commit_from_ref(&remoteHead, repo, remoteRef) != 0) {
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to read remote head"), env.Null();
   }
 
@@ -807,7 +755,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to analyze merge"), env.Null();
   }
 
@@ -815,7 +762,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return Napi::Boolean::New(env, true);
   }
 
@@ -823,7 +769,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     Napi::Error::New(env, "non-fast-forward pull is not supported yet")
         .ThrowAsJavaScriptException();
     return env.Null();
@@ -835,7 +780,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to lookup fetched commit"), env.Null();
   }
 
@@ -848,7 +792,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to fast-forward working tree"),
            env.Null();
   }
@@ -865,7 +808,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to update local branch"), env.Null();
   }
 
@@ -874,7 +816,6 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
   git_annotated_commit_free(remoteHead);
   git_reference_free(remoteRef);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -883,17 +824,14 @@ Napi::Value Remotes(const Napi::CallbackInfo &info) {
   auto repoValue = EnsureRepo(info);
   if (env.IsExceptionPending())
     return env.Null();
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
   git_strarray remotes = {0};
   if (git_remote_list(&remotes, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return env.Null();
   }
   Napi::Array result = Napi::Array::New(env);
@@ -902,7 +840,6 @@ Napi::Value Remotes(const Napi::CallbackInfo &info) {
   }
   git_strarray_free(&remotes);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -911,17 +848,14 @@ Napi::Value Tags(const Napi::CallbackInfo &info) {
   auto repoValue = EnsureRepo(info);
   if (env.IsExceptionPending())
     return env.Null();
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
   git_strarray tags = {0};
   if (git_tag_list(&tags, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return env.Null();
   }
   Napi::Array result = Napi::Array::New(env);
@@ -947,7 +881,6 @@ Napi::Value Tags(const Napi::CallbackInfo &info) {
   }
   git_strarray_free(&tags);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -989,11 +922,9 @@ Napi::Value Stashes(const Napi::CallbackInfo &info) {
   auto repoValue = EnsureRepo(info);
   if (env.IsExceptionPending())
     return env.Null();
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -1006,7 +937,6 @@ Napi::Value Stashes(const Napi::CallbackInfo &info) {
   }
 
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -1021,18 +951,15 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
     remoteName = info[1].As<Napi::String>().Utf8Value();
   }
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   std::string branch = CurrentBranchName(repo);
   if (branch.empty()) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "detached HEAD is not supported for push"),
            env.Null();
   }
@@ -1040,7 +967,6 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
   git_remote *remote = nullptr;
   if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "failed to find remote"), env.Null();
   }
 
@@ -1051,13 +977,11 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
   if (git_remote_push(remote, &refspecs, &opts) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "push failed"), env.Null();
   }
 
   git_remote_free(remote);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return Napi::Boolean::New(env, true);
 }
 
@@ -1069,12 +993,10 @@ Napi::Value DiffFile(const Napi::CallbackInfo &info) {
   if (!EnsureStringArg(info, 1, "filePath"))
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string repoPath = repoValue.As<Napi::String>().Utf8Value();
   std::string filePath = info[1].As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, repoPath, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -1087,10 +1009,6 @@ Napi::Value DiffFile(const Napi::CallbackInfo &info) {
   result.Set("modified", Napi::String::New(env, modified));
 
   git_repository_free(repo);
-  git_libgit2_shutdown();
-  return result;
-  git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -1102,27 +1020,23 @@ Napi::Value StashChanges(const Napi::CallbackInfo &info) {
   if (!EnsureStringArg(info, 1, "stashId"))
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string repoPath = repoValue.As<Napi::String>().Utf8Value();
   std::string stashId = info[1].As<Napi::String>().Utf8Value();
 
   if (!OpenRepoOrThrow(env, repoPath, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_oid oid;
   if (git_oid_fromstr(&oid, stashId.c_str()) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "invalid stash OID"), env.Null();
   }
 
   git_commit *stash_commit = nullptr;
   if (git_commit_lookup(&stash_commit, repo, &oid) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "stash commit not found"), env.Null();
   }
 
@@ -1130,7 +1044,6 @@ Napi::Value StashChanges(const Napi::CallbackInfo &info) {
   if (git_commit_parent(&parent_commit, stash_commit, 0) != 0) {
     git_commit_free(stash_commit);
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return ThrowGitError(env, "stash parent not found"), env.Null();
   }
 
@@ -1141,7 +1054,35 @@ Napi::Value StashChanges(const Napi::CallbackInfo &info) {
   git_commit_tree(&parent_tree, parent_commit);
 
   git_diff *diff = nullptr;
+  // Standard stash merge commit (W):
+  // - Parent 0: HEAD
+  // - Parent 1: Index commit
+  // - Parent 2: Untracked commit (optional)
+
+  // Diff W against HEAD to show all stashed worktree changes
   git_diff_tree_to_tree(&diff, repo, parent_tree, stash_tree, nullptr);
+
+  // If there's a 3rd parent (Parent 2), it's the untracked files commit
+  if (git_commit_parentcount(stash_commit) >= 3) {
+    git_commit *untracked_commit = nullptr;
+    if (git_commit_parent(&untracked_commit, stash_commit, 2) == 0) {
+      git_tree *untracked_tree = nullptr;
+      git_commit_tree(&untracked_tree, untracked_commit);
+
+      git_diff *untracked_diff = nullptr;
+      // Diff untracked_tree against empty tree (parent_tree is HEAD, we want
+      // untracked so empty->untracked)
+      git_diff_tree_to_tree(&untracked_diff, repo, nullptr, untracked_tree,
+                            nullptr);
+
+      if (untracked_diff) {
+        git_diff_merge(diff, untracked_diff);
+        git_diff_free(untracked_diff);
+      }
+      git_tree_free(untracked_tree);
+      git_commit_free(untracked_commit);
+    }
+  }
 
   Napi::Array result = Napi::Array::New(env);
   size_t num_deltas = git_diff_num_deltas(diff);
@@ -1159,7 +1100,10 @@ Napi::Value StashChanges(const Napi::CallbackInfo &info) {
       statusStr = "deleted";
       break;
     case GIT_DELTA_UNTRACKED:
-      statusStr = "untracked";
+      statusStr = "added";
+      break; // treat untracked as added in stash view
+    case GIT_DELTA_RENAMED:
+      statusStr = "renamed";
       break;
     default:
       break;
@@ -1174,7 +1118,6 @@ Napi::Value StashChanges(const Napi::CallbackInfo &info) {
   git_commit_free(parent_commit);
   git_commit_free(stash_commit);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
@@ -1188,14 +1131,12 @@ Napi::Value DiffStashFile(const Napi::CallbackInfo &info) {
   if (!EnsureStringArg(info, 2, "filePath"))
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string repoPath = repoValue.As<Napi::String>().Utf8Value();
   std::string stashId = info[1].As<Napi::String>().Utf8Value();
   std::string filePath = info[2].As<Napi::String>().Utf8Value();
 
   if (!OpenRepoOrThrow(env, repoPath, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -1246,11 +1187,204 @@ Napi::Value DiffStashFile(const Napi::CallbackInfo &info) {
   git_commit_free(parent_commit);
   git_commit_free(stash_commit);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
 } // namespace
+
+Napi::Value SetConfig(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "name") || !EnsureStringArg(info, 2, "email"))
+    return env.Null();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string name = info[1].As<Napi::String>().Utf8Value();
+  std::string email = info[2].As<Napi::String>().Utf8Value();
+
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_config *cfg = nullptr;
+  if (git_repository_config(&cfg, repo) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to open config"), env.Null();
+  }
+
+  if (git_config_set_string(cfg, "user.name", name.c_str()) != 0 ||
+      git_config_set_string(cfg, "user.email", email.c_str()) != 0) {
+    git_config_free(cfg);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to set config"), env.Null();
+  }
+
+  git_config_free(cfg);
+  git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
+Napi::Value CommitFiles(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "commitId"))
+    return env.Null();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string commitId = info[1].As<Napi::String>().Utf8Value();
+
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_oid oid;
+  if (git_oid_fromstr(&oid, commitId.c_str()) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "invalid commit ID"), env.Null();
+  }
+
+  git_commit *commit = nullptr;
+  if (git_commit_lookup(&commit, repo, &oid) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "commit not found"), env.Null();
+  }
+
+  git_tree *tree = nullptr;
+  git_commit_tree(&tree, commit);
+
+  git_tree *parentTree = nullptr;
+  if (git_commit_parentcount(commit) > 0) {
+    git_commit *parent = nullptr;
+    git_commit_parent(&parent, commit, 0);
+    git_commit_tree(&parentTree, parent);
+    git_commit_free(parent);
+  }
+
+  git_diff *diff = nullptr;
+  git_diff_tree_to_tree(&diff, repo, parentTree, tree, nullptr);
+
+  Napi::Array result = Napi::Array::New(env);
+  uint32_t idx = 0;
+  size_t num_deltas = git_diff_num_deltas(diff);
+
+  for (size_t i = 0; i < num_deltas; i++) {
+    const git_diff_delta *delta = git_diff_get_delta(diff, i);
+    Napi::Object item = Napi::Object::New(env);
+    item.Set("path", Napi::String::New(env, delta->new_file.path));
+
+    std::string status = "modified";
+    if (delta->status == GIT_DELTA_ADDED)
+      status = "added";
+    else if (delta->status == GIT_DELTA_DELETED)
+      status = "deleted";
+    else if (delta->status == GIT_DELTA_RENAMED)
+      status = "renamed";
+
+    item.Set("status", Napi::String::New(env, status));
+    result.Set(idx++, item);
+  }
+
+  git_diff_free(diff);
+  if (parentTree)
+    git_tree_free(parentTree);
+  git_tree_free(tree);
+  git_commit_free(commit);
+  git_repository_free(repo);
+  return result;
+}
+
+Napi::Value ListFiles(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+
+  std::string refName = "HEAD";
+  if (info.Length() > 1 && info[1].IsString()) {
+    refName = info[1].As<Napi::String>().Utf8Value();
+    if (refName.empty())
+      refName = "HEAD";
+  }
+
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_object *obj = nullptr;
+  if (git_revparse_single(&obj, repo, refName.c_str()) != 0) {
+    git_repository_free(repo);
+    return Napi::Array::New(env);
+  }
+
+  git_commit *commit = nullptr;
+  if (git_object_peel(reinterpret_cast<git_object **>(&commit), obj,
+                      GIT_OBJECT_COMMIT) != 0) {
+    git_object_free(obj);
+    git_repository_free(repo);
+    return Napi::Array::New(env);
+  }
+
+  git_tree *tree = nullptr;
+  git_commit_tree(&tree, commit);
+
+  Napi::Array result = Napi::Array::New(env);
+  uint32_t idx = 0;
+
+  struct WalkData {
+    Napi::Array arr;
+    uint32_t *idxPtr;
+    Napi::Env env;
+  } data = {result, &idx, env};
+
+  git_tree_walk(
+      tree, GIT_TREEWALK_PRE,
+      [](const char *root, const git_tree_entry *entry, void *payload) -> int {
+        WalkData *d = static_cast<WalkData *>(payload);
+        if (git_tree_entry_type(entry) == GIT_OBJECT_BLOB) {
+          std::string fullPath = std::string(root) + git_tree_entry_name(entry);
+          d->arr.Set((*d->idxPtr)++, Napi::String::New(d->env, fullPath));
+        }
+        return 0;
+      },
+      &data);
+
+  git_tree_free(tree);
+  git_commit_free(commit);
+  git_object_free(obj);
+  git_repository_free(repo);
+  return result;
+}
+
+Napi::Value GetFileContent(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "filePath"))
+    return env.Null();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string filePath = info[1].As<Napi::String>().Utf8Value();
+
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  std::string content = HeadFileContent(repo, filePath);
+
+  git_repository_free(repo);
+  return Napi::String::New(env, content);
+}
 
 Napi::Value GetConfig(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
@@ -1258,18 +1392,15 @@ Napi::Value GetConfig(const Napi::CallbackInfo &info) {
   if (env.IsExceptionPending())
     return env.Null();
 
-  git_libgit2_init();
   git_repository *repo = nullptr;
   std::string path = repoValue.As<Napi::String>().Utf8Value();
   if (!OpenRepoOrThrow(env, path, &repo)) {
-    git_libgit2_shutdown();
     return env.Null();
   }
 
   git_config *cfg = nullptr;
   if (git_repository_config(&cfg, repo) != 0) {
     git_repository_free(repo);
-    git_libgit2_shutdown();
     return env.Null();
   }
 
@@ -1292,12 +1423,13 @@ Napi::Value GetConfig(const Napi::CallbackInfo &info) {
 
   git_config_free(cfg);
   git_repository_free(repo);
-  git_libgit2_shutdown();
   return result;
 }
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  git_libgit2_init();
   exports.Set("getConfig", Napi::Function::New(env, GetConfig));
+  exports.Set("setConfig", Napi::Function::New(env, SetConfig));
   exports.Set("status", Napi::Function::New(env, Status));
   exports.Set("branches", Napi::Function::New(env, Branches));
   exports.Set("remotes", Napi::Function::New(env, Remotes));
@@ -1308,6 +1440,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("unstageAll", Napi::Function::New(env, UnstageAll));
   exports.Set("discardAll", Napi::Function::New(env, DiscardAll));
   exports.Set("commitAll", Napi::Function::New(env, CommitAll));
+  exports.Set("commitFiles", Napi::Function::New(env, CommitFiles));
   exports.Set("checkoutBranch", Napi::Function::New(env, CheckoutBranch));
   exports.Set("fetch", Napi::Function::New(env, Fetch));
   exports.Set("pull", Napi::Function::New(env, Pull));
@@ -1315,6 +1448,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("diffFile", Napi::Function::New(env, DiffFile));
   exports.Set("stashChanges", Napi::Function::New(env, StashChanges));
   exports.Set("diffStashFile", Napi::Function::New(env, DiffStashFile));
+  exports.Set("listFiles", Napi::Function::New(env, ListFiles));
+  exports.Set("getFileContent", Napi::Function::New(env, GetFileContent));
   return exports;
 }
 

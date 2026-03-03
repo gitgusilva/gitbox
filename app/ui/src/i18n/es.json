@@ -22,7 +22,12 @@
         "keyboard_shortcuts": "Atajos de Teclado",
         "checkout": "Checkout",
         "loading": "Cargando",
-        "whats_new": "Novedades"
+        "whats_new": "Novedades",
+        "whats_new_title": "Novedades en GitBox",
+        "prs": "Pull Requests",
+        "create_pr": "Crear Pull Request",
+        "no_prs_found": "No se encontraron Pull Requests",
+        "github_pr_404": "Github App no autorizado. Este es un repositorio privado, debes instalar o solicitar acceso a GitBox en GitHub para la Cuenta u Organización dueña de este repositorio."
     },
     "workspace": {
         "add": "Añadir Workspace",
@@ -34,6 +39,8 @@
         "time": "TIMEMPO",
         "sha": "SHA",
         "information": "INFORMACIÓN",
+        "changes": "CAMBIOS",
+        "files": "ARCHIVOS",
         "committer": "COMMITTER"
     },
     "changes": {
@@ -41,11 +48,21 @@
         "staged": "PREPARADOS",
         "commit": "COMMIT",
         "commit_placeholder": "Mensaje de commit...",
-        "select_file_diff": "Seleccione un archivo para diff"
+        "select_file_diff": "Seleccione un arquivo para diff",
+        "summarize": "Explicar cambios",
+        "generate_commit": "Generar mensaje",
+        "hunks_only": "Solo Hunks",
+        "show_all": "Mostrar Todo",
+        "inline": "En línea",
+        "side_by_side": "Lado a Lado",
+        "merging": "Mezclando",
+        "complete_merge": "Completar Mezcla",
+        "original_vs_resolution": "Original (Izquierda) vs Resolución (Derecha)",
+        "untitled": "Sin título"
     },
     "settings": {
         "title": "Ajustes",
-        "appearance": "Apariencia",
+        "general": "General",
         "git": "Git",
         "theme": "Tema",
         "language": "Idioma",
@@ -54,6 +71,65 @@
         "system": "Sistema",
         "user_name": "Nombre de Usuario",
         "user_email": "Correo Electrónico",
-        "default_branch": "Branch Predeterminada"
+        "default_branch": "Branch Predeterminada",
+        "ai": "Integraciones de IA",
+        "ai_provider": "Proveedor de IA",
+        "api_key": "Clave de API",
+        "api_key_placeholder": "Ingrese su clave de API",
+        "gemini": "Google Gemini",
+        "integrations": "Integraciones",
+        "github": "GitHub",
+        "gitlab": "GitLab",
+        "bitbucket": "Bitbucket",
+        "connect": "Conectar",
+        "connected": "Conectado",
+        "disconnect": "Desconectar",
+        "integrations_description": "Conecte sus cuentas para acceder a funciones avanzadas como la navegación por repositorios remotos e la gestión de Pull Requests.",
+        "date_format": "Formato de fecha",
+        "history_commits": "Commits en historial",
+        "show_tags_graph": "Mostrar etiquetas en el gráfico",
+        "check_updates_startup": "Buscar actualizaciones al iniciar",
+        "hide_icon_labels": "Ocultar etiquetas de iconos en acciones",
+        "highlight_branch_prefixes": "Resaltar prefijos al crear rama",
+        "create_pr": {
+            "title": "Crear Pull Request",
+            "from_repo": "Repositorio de Origen",
+            "to_repo": "Repositorio de Destino",
+            "from_branch": "Rama de Origen",
+            "to_branch": "Rama de Destino",
+            "pr_title": "Título",
+            "description": "Descripción",
+            "submit_as_draft": "Enviar como borrador",
+            "generate": "Generar título y descripción"
+        }
+    },
+    "time": {
+        "just_now": "Recién",
+        "mins_ago": "hace {count} mins",
+        "hours_ago": "hace {count} horas",
+        "days_ago": "hace {count} días",
+        "months_short": {
+            "jan": "Ene",
+            "feb": "Feb",
+            "mar": "Mar",
+            "apr": "Abr",
+            "may": "May",
+            "jun": "Jun",
+            "jul": "Jul",
+            "aug": "Ago",
+            "sep": "Sep",
+            "oct": "Oct",
+            "nov": "Nov",
+            "dec": "Dic"
+        }
+    },
+    "github_auth": {
+        "title": "Autenticación de GitHub",
+        "instruction": "Para conectar GitBox a tu GitHub, introduce el siguiente código en tu navegador.",
+        "copy_code_tooltip": "Copiar código",
+        "copied": "¡Código copiado!",
+        "click_to_copy": "Haz clic en el código para copiar",
+        "open_browser": "Abrir Navegador y Pegar",
+        "waiting": "Esperando autorización en el navegador..."
     }
 }

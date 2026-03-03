@@ -24,7 +24,8 @@ onMounted(() => {
 
 <style>
 /* Global SimpleBar overrides */
-.simplebar-scrollbar::before { background: rgba(255, 255, 255, 0.2) !important; }
+.simplebar-scrollbar::before { background: rgba(255, 255, 255, 0.2) !important; opacity: 1 !important; }
+.simplebar-scrollbar.simplebar-visible::before { opacity: 1 !important; }
 .simplebar-track.simplebar-vertical { width: 10px !important; }
 
 /* Theme Transitions - Optimized to not use '*' selector */

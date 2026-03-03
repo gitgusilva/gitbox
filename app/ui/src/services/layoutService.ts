@@ -11,6 +11,7 @@ export const sidebarWidth = ref(256);
 export const detailsWidth = ref(340);
 export const statusWidth = ref(300);
 export const unstagedHeight = ref(300);
+export const stashFilesHeight = ref(300);
 export const historyAuthorWidth = ref(120);
 export const historyDateWidth = ref(100);
 
@@ -30,6 +31,7 @@ export function onMouseMove(e: MouseEvent) {
         else if (isResizing.value === 'details') detailsWidth.value = Math.max(200, Math.min(800, document.body.clientWidth - e.clientX));
         else if (isResizing.value === 'status') statusWidth.value = Math.max(150, Math.min(800, e.clientX - sidebarWidth.value));
         else if (isResizing.value === 'unstaged') unstagedHeight.value = Math.max(100, startHeight + (e.clientY - startY));
+        else if (isResizing.value === 'stashFiles') stashFilesHeight.value = Math.max(100, startHeight - (e.clientY - startY));
         else if (isResizing.value === 'historyAuthor') historyAuthorWidth.value = Math.max(80, startHeight - (e.clientX - startY));
         else if (isResizing.value === 'historyDate') historyDateWidth.value = Math.max(80, startHeight - (e.clientX - startY));
     });
@@ -46,8 +48,9 @@ export function startResize(panel: string, e?: MouseEvent) {
     if (e) {
         startY = panel.startsWith('history') || panel === 'status' || panel === 'sidebar' ? e.clientX : e.clientY;
         startHeight = panel === 'unstaged' ? unstagedHeight.value :
-            panel === 'historyAuthor' ? historyAuthorWidth.value :
-                panel === 'historyDate' ? historyDateWidth.value : 0;
+            panel === 'stashFiles' ? stashFilesHeight.value :
+                panel === 'historyAuthor' ? historyAuthorWidth.value :
+                    panel === 'historyDate' ? historyDateWidth.value : 0;
     }
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);

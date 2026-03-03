@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import loader from '@monaco-editor/loader';
+import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
 import { useTheme } from '../../services/themeService';
+import { getLanguage, getMonacoTheme, monacoOptions, initMonaco } from '../../services/monacoService';
+import ImageDiffViewer from './ImageDiffViewer.vue';
+import MarkdownDiffViewer from './MarkdownDiffViewer.vue';
+import IconButton from './IconButton.vue';
 
+const { t } = useI18n();
 const { currentTheme } = useTheme();
 
 const props = defineProps<{
@@ -12,7 +17,6 @@ const props = defineProps<{
   filename?: string;
   readOnly?: boolean;
   inline?: boolean;
-  mode?: 'diff' | 'merge';
 }>();
 
 const emit = defineEmits<{
@@ -24,43 +28,36 @@ const container = ref<HTMLElement | null>(null);
 const isInline = ref(props.inline ?? false);
 const isHunkView = ref(false);
 
-let monaco: any;
+const isImage = computed(() => {
+    return props.filename && /\.(png|jpe?g|gif|webp|ico|svg)$/i.test(props.filename);
+});
+
+const isMarkdown = computed(() => {
+    return props.filename && /\.(md|markdown)$/i.test(props.filename);
+});
+
+const viewMode = ref<'visual' | 'code'>(isImage.value ? 'visual' : 'code');
+
+const monaco = ref<any>(null);
 let editor: any; // DiffEditor
 let originalModel: any;
 let modifiedModel: any;
 
-function getLanguage(path: string = '') {
-  const parts = path.split('.');
-  const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : '';
-  const map: Record<string, string> = {
-    'js': 'javascript', 'ts': 'typescript', 'vue': 'html', 'html': 'html',
-    'css': 'css', 'json': 'json', 'md': 'markdown', 'py': 'python',
-    'rs': 'rust', 'go': 'go', 'cpp': 'cpp', 'cc': 'cpp', 'h': 'cpp',
-    'php': 'php', 'rb': 'ruby', 'java': 'java', 'cs': 'csharp'
-  };
-  return (ext && map[ext]) || 'plaintext';
-}
-
-async function initEditor() {
-  if (!container.value) return;
-  monaco = await loader.init();
+async function setupEditor() {
+  if (!container.value || viewMode.value !== 'code') return;
+  monaco.value = await initMonaco();
   
   const language = getLanguage(props.filename);
-  originalModel = monaco.editor.createModel(props.original, language);
-  modifiedModel = monaco.editor.createModel(props.modified, language);
+  originalModel = monaco.value.editor.createModel(props.original, language);
+  modifiedModel = monaco.value.editor.createModel(props.modified, language);
 
-  const themeName = currentTheme.value === 'light' || (currentTheme.value === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'vs' : 'vs-dark';
-
-  editor = monaco.editor.createDiffEditor(container.value, {
-    theme: themeName,
+  editor = monaco.value.editor.createDiffEditor(container.value, {
+    ...monacoOptions,
+    theme: getMonacoTheme(currentTheme.value),
     renderSideBySide: !isInline.value,
     readOnly: props.readOnly ?? true,
-    automaticLayout: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    renderOverviewRuler: false,
     diffWordWrap: 'off',
-    hideUnchangedRegions: { enabled: isHunkView.value }
+    hideUnchangedRegions: { enabled: isHunkView.value },
   });
 
   editor.setModel({ original: originalModel, modified: modifiedModel });
@@ -70,14 +67,33 @@ async function initEditor() {
   });
 }
 
+function destroyEditor() {
+  if (editor) { editor.dispose(); editor = null; }
+  if (originalModel) { originalModel.dispose(); originalModel = null; }
+  if (modifiedModel) { modifiedModel.dispose(); modifiedModel = null; }
+}
+
+watch(viewMode, async (val) => {
+    if (val === 'code') {
+        await nextTick();
+        setupEditor();
+    } else {
+        destroyEditor();
+    }
+});
+
+watch(() => props.filename, () => {
+    viewMode.value = isImage.value ? 'visual' : 'code';
+});
+
 watch([() => props.original, () => props.modified], () => {
   if (originalModel) originalModel.setValue(props.original);
   if (modifiedModel) modifiedModel.setValue(props.modified);
   
   const language = getLanguage(props.filename);
-  if (monaco) {
-    monaco.editor.setModelLanguage(originalModel, language);
-    monaco.editor.setModelLanguage(modifiedModel, language);
+  if (monaco.value && originalModel && modifiedModel) {
+    monaco.value.editor.setModelLanguage(originalModel, language);
+    monaco.value.editor.setModelLanguage(modifiedModel, language);
   }
 });
 
@@ -94,55 +110,76 @@ watch(isHunkView, (val) => {
 });
 
 watch(currentTheme, (val) => {
-  if (monaco) {
-    const themeName = val === 'light' || (val === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'vs' : 'vs-dark';
-    monaco.editor.setTheme(themeName);
+  if (monaco.value) {
+    monaco.value.editor.setTheme(getMonacoTheme(val));
   }
 });
 
-onMounted(initEditor);
+onMounted(setupEditor);
 onBeforeUnmount(() => {
-  if (editor) editor.dispose();
-  if (originalModel) originalModel.dispose();
-  if (modifiedModel) modifiedModel.dispose();
+  destroyEditor();
 });
 </script>
 
 <template>
   <div class="flex-1 flex flex-col min-h-0 bg-[#1E1E1E]">
-    <div class="flex-shrink-0 bg-[#252526] border-b border-neutral-800 px-3 py-1 flex items-center justify-between">
+    <div class="flex-shrink-0 bg-[#252526] border-b border-neutral-800 px-3 py-1 flex items-center justify-between z-10">
       <div class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest truncate flex items-center gap-2">
         <Icon icon="lucide:file-code" class="text-neutral-600" />
-        {{ filename || 'Diff' }}
+        {{ filename || t('history.changes') }}
       </div>
       <div class="flex items-center gap-1">
-        <button @click="isHunkView = !isHunkView" 
-                class="p-1 rounded hover:bg-neutral-700 transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter px-2"
-                :class="isHunkView ? 'bg-orange-600/20 text-orange-400' : 'text-neutral-500'"
-                title="Toggle Hunk/Show All">
-          <Icon :icon="isHunkView ? 'lucide:layers-2' : 'lucide:layers'" class="text-xs" />
-          <span>{{ isHunkView ? 'Hunks Only' : 'Show All' }}</span>
-        </button>
+        <IconButton v-if="isImage || isMarkdown" 
+                    direction="row" 
+                    :showLabel="true"
+                    :icon="viewMode === 'visual' ? 'lucide:code' : (isMarkdown ? 'lucide:file-text' : 'lucide:image')" 
+                    :label="viewMode === 'visual' ? 'Code' : 'Visual'" 
+                    @click="viewMode = viewMode === 'visual' ? 'code' : 'visual'" 
+                    class="mr-2" />
 
-        <button @click="isInline = !isInline" 
-                class="p-1 rounded hover:bg-neutral-700 transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter px-2"
-                :class="isInline ? 'bg-blue-600/20 text-blue-400' : 'text-neutral-500'"
-                title="Toggle Inline/Side-by-Side">
-          <Icon :icon="isInline ? 'lucide:rows' : 'lucide:columns'" class="text-xs" />
-          <span>{{ isInline ? 'Inline' : 'Side-by-Side' }}</span>
-        </button>
-        <button v-if="!(props.readOnly ?? true)" @click="emit('save', modifiedModel.getValue())"
-                class="ml-2 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter text-white"
-                title="Save Merge Resolution">
-          <Icon icon="lucide:save" class="text-xs" />
-          <span>Save Merge</span>
-        </button>
+        <template v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)">
+        <IconButton direction="row"
+                    :showLabel="true"
+                    :icon="isHunkView ? 'lucide:layers-2' : 'lucide:layers'"
+                    :label="isHunkView ? t('changes.hunks_only') : t('changes.show_all')"
+                    :active="isHunkView"
+                    :tooltip="t('changes.hunks_only')"
+                    @click="isHunkView = !isHunkView" />
+
+        <IconButton direction="row"
+                    :showLabel="true"
+                    :icon="isInline ? 'lucide:rows' : 'lucide:columns'"
+                    :label="isInline ? t('changes.inline') : t('changes.side_by_side')"
+                    :active="isInline"
+                    tooltip="Toggle Inline/Side-by-Side"
+                    @click="isInline = !isInline" />
+        </template>
       </div>
     </div>
-    <div ref="container" class="flex-1"></div>
+    
+    <div v-show="viewMode === 'code'" ref="container" class="flex-1"></div>
+    
+    <ImageDiffViewer v-if="viewMode === 'visual' && isImage" 
+                     :original="original" 
+                     :modified="modified" 
+                     :filename="filename" />
+                     
+    <MarkdownDiffViewer v-if="viewMode === 'visual' && isMarkdown" 
+                      :original="original"
+                      :modified="modified"
+                      :is-inline="isInline"
+                      :is-hunk-view="isHunkView" />
   </div>
 </template>
 
 <style>
 .monaco-editor .scroll-decoration { box-shadow: none !important; }
+.monaco-editor .scrollbar .slider {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  transition: background 0.2s;
+}
+.monaco-editor .scrollbar .slider:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
 </style>

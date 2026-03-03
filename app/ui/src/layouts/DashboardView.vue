@@ -12,7 +12,9 @@ import {
 import HistoryView from './History/HistoryView.vue';
 import ChangesView from './Changes/ChangesView.vue';
 import StashView from './Stashes/StashView.vue';
+import FilesView from './Files/FilesView.vue';
 import ChangelogView from './ChangelogView.vue';
+import PullRequestView from '../components/PullRequestView.vue';
 </script>
 
 <template>
@@ -22,9 +24,8 @@ import ChangelogView from './ChangelogView.vue';
     <HistoryView v-if="activeTab === 'history'" />
     <ChangesView v-else-if="activeTab === 'local_changes'" />
     <StashView v-else-if="activeTab === 'stashes'" />
+    <FilesView v-else-if="activeTab === 'files'" />
     <ChangelogView v-else-if="activeTab === 'changelog'" version="1.0.0" />
-    <div v-else-if="activeTab === 'files'" class="flex-1 flex items-center justify-center text-neutral-600 font-bold uppercase tracking-widest pointer-events-none">
-       All Repo Files Tree (Coming Soon)
-    </div>
+    <PullRequestView v-else-if="activeTab === 'pull_request'" />
   </div>
 </template>

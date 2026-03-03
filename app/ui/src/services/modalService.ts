@@ -22,8 +22,25 @@ export const contextMenu = ref<{
     items: any[]
 } | null>(null);
 
+export const deviceFlowModal = ref<{
+    userCode: string;
+    verificationUri: string;
+    onCancel: () => void;
+} | null>(null);
+
 export const isSettingsOpen = ref(false);
 export const isShortcutsModalOpen = ref(false);
+export const isCreatePROpen = ref(false);
+export const isPullRequestDetailOpen = ref(false);
+export const activePullRequest = ref<any>(null);
+export const settingsActiveSection = ref('general');
+
+export const branchActionModal = ref<{
+    type: 'checkout_conflict' | 'create_branch';
+    targetBranch?: string;
+    hasChanges?: boolean;
+    onConfirm: (action: 'stash' | 'discard' | 'keep', newBranchName?: string) => void;
+} | null>(null);
 
 export function requestConfirm(title: string, message: string, danger: boolean, action: () => void) {
     confirmModal.value = {

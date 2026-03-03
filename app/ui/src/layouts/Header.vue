@@ -12,7 +12,8 @@ import {
   isTerminalOpen,
   repoPath,
   branches,
-  checkoutBranch
+  checkoutBranch,
+  createBranchAction
 } from '../services/gitService';
 import { 
   addWorkspaceFlow, 
@@ -24,6 +25,7 @@ import {
 import { isSettingsOpen } from '../services/modalService';
 import SettingsModal from '../components/Settings/SettingsModal.vue';
 import SelectMenu from '../components/SelectMenu.vue';
+import IconButton from '../components/Common/IconButton.vue';
 
 const { t } = useI18n();
 
@@ -85,7 +87,7 @@ const openBranchMenu = (e: MouseEvent) => {
 </script>
 
 <template>
-  <header class="flex-shrink-0 bg-neutral-100 dark:bg-[#2D2D2D] border-b border-neutral-200 dark:border-[#1E1E1E] flex items-center gap-2 px-3 py-1.5 z-20 shadow-sm pointer-events-auto" style="-webkit-app-region: drag;">
+  <header class="flex-shrink-0 bg-neutral-100 dark:bg-[#2D2D2D] border-b border-neutral-200 dark:border-[#1E1E1E] flex items-center gap-2 px-3 py-1.5 z-20 shadow-sm pointer-events-auto relative" style="-webkit-app-region: drag;">
       
       <!-- Left side: Repo and Branch context -->
       <div class="flex items-center gap-2 mr-2 h-full py-0 min-w-[150px]" style="-webkit-app-region: no-drag;">
@@ -110,22 +112,14 @@ const openBranchMenu = (e: MouseEvent) => {
           </div>
       </div>
 
-      <div class="h-4 w-px bg-neutral-300 dark:bg-neutral-600 mx-2"></div>
-
-      <!-- Actions -->
-      <div class="flex items-center" style="-webkit-app-region: no-drag;">
-          <button @click="doFetch" :disabled="isLoading" class="text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600 px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors text-xs disabled:opacity-50 disabled:cursor-wait">
-            <Icon :icon="isLoading ? 'lucide:loader-2' : 'lucide:download-cloud'" :class="{ 'animate-spin': isLoading }" /> <span>{{ t('common.fetch') }}</span>
-          </button>
-          <button @click="doPull" :disabled="isLoading" class="text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600 px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors text-xs disabled:opacity-50 disabled:cursor-wait">
-            <Icon :icon="isLoading ? 'lucide:loader-2' : 'lucide:arrow-down-to-line'" :class="{ 'animate-spin': isLoading }" /> <span>{{ t('common.pull') }}</span>
-          </button>
-          <button @click="doPush" :disabled="isLoading" class="text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600 px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors text-xs disabled:opacity-50 disabled:cursor-wait">
-            <Icon :icon="isLoading ? 'lucide:loader-2' : 'lucide:arrow-up-from-line'" :class="{ 'animate-spin': isLoading }" /> <span>{{ t('common.push') }}</span>
-          </button>
-          <button @click="discardAll" class="text-neutral-500 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600 px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors text-xs mx-1">
-            <Icon icon="lucide:archive-restore" /> <span>{{ t('common.discard') }}</span>
-          </button>
+      <!-- Actions (Centered) -->
+      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1" style="-webkit-app-region: no-drag;">
+          <IconButton icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.fetch')" :action="doFetch" />
+          <IconButton icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.pull')" :action="doPull" />
+          <IconButton icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.push')" :action="doPush" />
+          <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-600 mx-1"></div>
+          <IconButton icon="lucide:git-branch-plus" :label="'Create Branch'" :action="createBranchAction" />
+          <IconButton icon="lucide:archive-restore" :label="t('common.discard')" :action="discardAll" />
       </div>
       
       <div class="flex items-center gap-1 ml-auto" style="-webkit-app-region: no-drag;">

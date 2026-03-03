@@ -27,11 +27,14 @@ const isMaximized = ref(false);
 
 const teleportTarget = computed(() => {
     if (isMaximized.value) return 'body';
+
     // If we're on a supported tab, teleport there, else fallback to a container or just don't render
     const t = activeTab.value;
+
     if (t === 'history' || t === 'local_changes' || t === 'stashes') {
         return `#terminal-target-${t}`;
     }
+
     return null;
 });
 
@@ -192,17 +195,29 @@ watch(isTerminalOpen, async (isOpen) => {
     }
 });
 
-watch(activeTab, async () => {
+watch([activeTab, isMaximized], () => {
     isTeleportReady.value = false;
-    await nextTick();
-    // Wait for the new view to mount its target
-    setTimeout(() => {
+    
+    let retries = 0;
+    const checkTarget = () => {
+        const target = teleportTarget.value;
+        if (!target) return;
+        
+        if (target !== 'body' && !document.querySelector(target)) {
+            if (retries < 10) {
+                retries++;
+                setTimeout(checkTarget, 50);
+            }
+            return;
+        }
+        
         isTeleportReady.value = true;
         nextTick(() => fitActiveTerminal());
-    }, 100);
-}, { immediate: true });
-
-import { registerShortcut } from '../services/shortcutService';
+    };
+    
+    // Wait for the new view to mount its target
+    setTimeout(checkTarget, 50);
+}, { immediate: true });;
 
 onMounted(() => {
     window.gitbox.onTerminalData((id, data) => {

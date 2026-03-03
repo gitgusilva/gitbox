@@ -22,11 +22,28 @@
         "keyboard_shortcuts": "Atalhos de Teclado",
         "checkout": "Checkout",
         "loading": "Carregando",
-        "whats_new": "O que há de novo"
+        "whats_new": "O que há de novo",
+        "whats_new_title": "Novidades no GitBox",
+        "prs": "Pull Requests",
+        "create_pr": "Criar Pull Request",
+        "no_prs_found": "Nenhum Pull Request encontrado",
+        "github_pr_404": "Github App não autorizado. Este é um repositório privado, você deve instalar ou solicitar a liberação do GitBox pelo GitHub na mesma Conta ou Organização que possui este repositório.",
+        "empty": "Vazio",
+        "original": "Original",
+        "modified": "Modificado",
+        "file_not_in_parent": "Arquivo não no pai",
+        "file_deleted": "Arquivo Excluído",
+        "active": "Ativo"
     },
     "workspace": {
         "add": "Adicionar Workspace",
         "add_desc": "Abrir um repositório local"
+    },
+    "prs": {
+        "my_prs": "Meus Pull Requests",
+        "assigned_to_me": "Atribuídos a Mim",
+        "awaiting_review": "Aguardando Minha Revisão",
+        "all_prs": "Todos os Pull Requests"
     },
     "history": {
         "subject": "GRÁFICO & ASSUNTO",
@@ -43,11 +60,21 @@
         "staged": "PREPARADOS",
         "commit": "COMMIT",
         "commit_placeholder": "Mensagem de commit...",
-        "select_file_diff": "Selecione um arquivo para diff"
+        "select_file_diff": "Selecione um arquivo para diff",
+        "summarize": "Explicar alterações",
+        "generate_commit": "Gerar mensagem",
+        "hunks_only": "Apenas Hunks",
+        "show_all": "Mostrar Tudo",
+        "inline": "Em linha",
+        "side_by_side": "Lado a Lado",
+        "merging": "Mesclando",
+        "complete_merge": "Completar Merge",
+        "original_vs_resolution": "Original (Esquerda) vs Resolução (Direita)",
+        "untitled": "Sem título"
     },
     "settings": {
         "title": "Configurações",
-        "appearance": "Aparência",
+        "general": "Geral",
         "git": "Git",
         "theme": "Tema",
         "language": "Language",
@@ -56,12 +83,77 @@
         "system": "Sistema",
         "user_name": "Nome de Usuário",
         "user_email": "E-mail de Usuário",
-        "default_branch": "Branch Padrão"
+        "default_branch": "Branch Padrão",
+        "ai": "Configurações AI",
+        "ai_provider": "Provedor AI",
+        "api_key": "Chave da API",
+        "api_key_placeholder": "Informe sua chave da API",
+        "gemini": "Google Gemini",
+        "integrations": "Integrações",
+        "github": "GitHub",
+        "gitlab": "GitLab",
+        "bitbucket": "Bitbucket",
+        "connect": "Conectar",
+        "connected": "Conectado",
+        "disconnect": "Desconectar",
+        "integrations_description": "Conecte suas contas para acessar recursos avançados, como navegação em repositórios remotos e gerenciamento de Pull Requests.",
+        "integrations_desc_short": "Sincronize P.Rs e repositórios remotos.",
+        "date_format": "Formato de Data",
+        "history_commits": "Commits no Histórico",
+        "show_tags_graph": "Mostrar tags no gráfico de commit",
+        "check_updates_startup": "Buscar atualizações ao iniciar",
+        "hide_icon_labels": "Ocultar labels de ícones nas ações",
+        "highlight_branch_prefixes": "Destacar prefixos ao criar branch",
+        "create_pr": {
+            "title": "Criar Pull Request",
+            "from_repo": "Repositório de Origem",
+            "to_repo": "Repositório de Destino",
+            "from_branch": "Branch de Origem",
+            "to_branch": "Branch de Destino",
+            "pr_title": "Título",
+            "description": "Descrição",
+            "submit_as_draft": "Enviar como rascunho",
+            "generate": "Gerar título e descrição",
+            "reviewers": "Revisores",
+            "assignees": "Responsáveis",
+            "labels": "Etiquetas",
+            "select_reviewers": "Selecionar revisores...",
+            "select_assignees": "Selecionar responsáveis...",
+            "select_labels": "Selecionar etiquetas...",
+            "no_options": "Nenhuma opção...",
+            "merge_conflict": "Conflito de mesclagem detectado",
+            "hidden_conflicts": "Arquivos conflitantes ocultos ou indisponíveis.",
+            "title_placeholder": "Título do pull request...",
+            "desc_placeholder": "Descrição do pull request..."
+        }
     },
     "time": {
         "just_now": "Agora mesmo",
         "mins_ago": "há {count} mins",
         "hours_ago": "há {count} horas",
-        "days_ago": "há {count} dias"
+        "days_ago": "{count} dias atrás",
+        "months_short": {
+            "jan": "Jan",
+            "feb": "Fev",
+            "mar": "Mar",
+            "apr": "Abr",
+            "may": "Mai",
+            "jun": "Jun",
+            "jul": "Jul",
+            "aug": "Ago",
+            "sep": "Set",
+            "oct": "Out",
+            "nov": "Nov",
+            "dec": "Dez"
+        }
+    },
+    "github_auth": {
+        "title": "Autenticação GitHub",
+        "instruction": "Para conectar o GitBox ao seu GitHub, insira o código abaixo no seu navegador.",
+        "copy_code_tooltip": "Copiar código",
+        "copied": "Código copiado!",
+        "click_to_copy": "Clique no código para copiar",
+        "open_browser": "Abrir Navegador e Colar",
+        "waiting": "Aguardando autorização no navegador..."
     }
 }

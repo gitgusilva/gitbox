@@ -7,7 +7,8 @@ import {
   setActiveWorkspace, 
   removeWorkspace, 
   addWorkspace,
-  updateWorkspace
+  updateWorkspace,
+  isChangelogVisible
 } from '../services/workspaceService';
 import { repoPath, loadRepoData, isLoadingData } from '../services/gitService';
 import { ref, watch, onMounted } from 'vue';
@@ -295,7 +296,8 @@ watch(activeWorkspaceId, async (val) => {
         <SimpleBar ref="tabsContainer" class="flex-1 min-w-0 h-full w-full custom-toolbar-sb" @wheel.prevent="onTabScroll">
             <TransitionGroup name="tab-drag" tag="div" class="flex h-full items-end pl-2 min-w-max">
                 <!-- What's New special tab -->
-                <div @click="activeWorkspaceId = 'changelog'"
+                <div v-if="isChangelogVisible"
+                     @click="activeWorkspaceId = 'changelog'"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 min-w-[120px] px-3 flex items-center justify-between gap-2 rounded-t-md mx-[1px] cursor-pointer group transition-colors relative"
                      :class="activeWorkspaceId === 'changelog' ? 'bg-[#2D2D2D] text-white' : 'bg-[#1E1E1E] text-neutral-400 hover:bg-[#252525] hover:text-neutral-200'">
@@ -303,7 +305,7 @@ watch(activeWorkspaceId, async (val) => {
                         <Icon icon="lucide:megaphone" class="w-3.5 h-3.5 text-blue-500" />
                         <span class="truncate text-xs font-medium">{{ t('common.whats_new') }}</span>
                      </div>
-                     <Icon icon="lucide:x" @click.stop="activeWorkspaceId = workspaces.length > 0 ? workspaces[0].id : null" class="opacity-0 group-hover:opacity-100 w-3 h-3 hover:text-red-400 transition-opacity flex-shrink-0 ml-2" />
+                     <Icon icon="lucide:x" @click.stop="isChangelogVisible = false; if (activeWorkspaceId === 'changelog') activeWorkspaceId = workspaces.length > 0 ? workspaces[0].id : null" class="opacity-0 group-hover:opacity-100 w-3 h-3 hover:text-red-400 transition-opacity flex-shrink-0 ml-2" />
                      <div v-if="activeWorkspaceId === 'changelog'" class="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500 rounded-t"></div>
                 </div>
 

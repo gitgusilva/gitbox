@@ -9,17 +9,23 @@ import WelcomeView from './WelcomeView.vue';
 import ContextMenu from '../components/ContextMenu.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import InputModal from '../components/InputModal.vue';
-import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen } from '../services/modalService';
-import { onMouseMove, onMouseUp } from '../services/layoutService';
-import { activeWorkspaceId, workspaces } from '../services/workspaceService';
+import DeviceFlowModal from '../components/DeviceFlowModal.vue';
+import ToastContainer from '../components/ToastContainer.vue';
+import BranchActionModal from '../components/BranchActionModal.vue';
+import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
+import { activeWorkspaceId, workspaces, isChangelogVisible } from '../services/workspaceService';
 import TerminalPanel from './TerminalPanel.vue';
 import AppFooter from './Footer.vue';
 import { initGlobalShortcuts } from '../services/shortcutService';
 import { computed, onMounted } from 'vue';
 import { getItem, setItem } from '../services/storageService';
-import { activeTab, toggleTerminal } from '../services/gitService';
+import { toggleTerminal } from '../services/gitService';
 import ChangelogView from './ChangelogView.vue';
+import CreatePRModal from '../components/CreatePRModal.vue';
 import { registerShortcut } from '../services/shortcutService';
+import { initProtocolHandler } from '../services/protocol';
+
+
 
 const activeWorkspacePath = computed(() => {
     const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
@@ -33,14 +39,16 @@ onMounted(() => {
     registerShortcut('ctrl+,', () => isSettingsOpen.value = true, { descriptionKey: 'Settings', category: 'global' });
     registerShortcut('ctrl+/', () => isShortcutsModalOpen.value = true, { descriptionKey: 'Keyboard Shortcuts', category: 'global' });
     
-    const neverShow = getItem('gitbox_hide_changelog_forever');
-    const seenVersion = getItem(`gitbox_changelog_seen_${currentVersion}`);
-    if (neverShow !== 'true' && seenVersion !== 'true') {
+    const lastVersion = getItem('gitbox_last_version');
+    if (lastVersion !== currentVersion) {
         setTimeout(() => {
+            isChangelogVisible.value = true;
             activeWorkspaceId.value = 'changelog';
-            setItem(`gitbox_changelog_seen_${currentVersion}`, 'true');
+            setItem('gitbox_last_version', currentVersion);
         }, 1000); // Small delay before switching
     }
+
+    initProtocolHandler();
 });
 
 initGlobalShortcuts();
@@ -51,7 +59,11 @@ const { t } = useI18n();
 <template>
   <div class="flex flex-col h-screen bg-[#F3F3F3] dark:bg-[#18181A] text-neutral-800 dark:text-neutral-300 font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
     
+    <CreatePRModal />
     <ContextMenu v-if="contextMenu" :x="contextMenu.x" :y="contextMenu.y" :items="contextMenu.items" @close="contextMenu = null" />
+    <DeviceFlowModal v-if="deviceFlowModal" />
+    <BranchActionModal v-if="branchActionModal" />
+    <ToastContainer />
 
     <ConfirmModal v-if="confirmModal"
       :title="confirmModal.title"

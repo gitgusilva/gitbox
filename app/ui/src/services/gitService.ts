@@ -1,5 +1,7 @@
-import { ref, computed, shallowRef } from 'vue';
+import { ref, computed, shallowRef, watch } from 'vue';
 import { getItem, setItem } from './storageService';
+import { generalSettings } from './settingsService';
+import { activeWorkspaceId, workspaces } from './workspaceService';
 import {
     GitStatusEntry,
     Branch,
@@ -8,6 +10,9 @@ import {
     FileDiff,
     TabKey
 } from '../types/git';
+import { branchActionModal } from './modalService';
+
+export interface Submodule { path: string; sha: string; ref: string; status: string }
 
 // State
 export const repoPath = ref(getItem('gitbox_repo_path') || '');
@@ -16,6 +21,7 @@ export const branches = ref<Branch[]>([]);
 export const remotes = ref<string[]>([]);
 export const tags = ref<{ name: string, target?: string }[]>([]);
 export const stashes = ref<Stash[]>([]);
+export const submodules = ref<Submodule[]>([]);
 export const log = shallowRef<Commit[]>([]);
 export const error = ref('');
 
@@ -23,17 +29,41 @@ export const activeTab = ref<TabKey>('history');
 export const isTerminalOpen = ref(false);
 export const selectedCommit = ref<Commit | null>(null);
 export const selectedFile = ref<string>('');
+export const selectedFiles = ref<string[]>([]);
 export const selectedStash = ref<Stash | null>(null);
 export const selectedStashFile = ref<string>('');
 export const commitMessage = ref('');
 export const userName = ref('');
 export const userEmail = ref('');
 export const isLoadingData = ref(false);
+export const includeUntracked = ref(getItem('gitbox_include_untracked') !== 'false');
 
 // Computed
-export const unstagedFiles = computed(() => status.value.filter(s => (s.status.includes('untracked') || s.status.includes('modified') || s.status.includes('deleted') || s.status.includes('conflicted')) && !s.status.startsWith('staged_')));
+export const unstagedFiles = computed(() => status.value.filter(s => {
+    const isUntracked = s.status.includes('untracked') || s.status.includes('new');
+    if (isUntracked && !includeUntracked.value) return false;
+    return (isUntracked || s.status.includes('modified') || s.status.includes('deleted') || s.status.includes('conflicted')) && !s.status.startsWith('staged_');
+}));
 export const stagedFiles = computed(() => status.value.filter(s => s.status.startsWith('staged_')));
 export const selectedLogRef = ref('');
+
+// Sync with workspace
+watch(() => {
+    const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
+    return ws ? ws.path : null;
+}, (newPath) => {
+    if (newPath && newPath !== repoPath.value) {
+        repoPath.value = newPath;
+
+        // Reset local repo state
+        selectedLogRef.value = '';
+        selectedCommit.value = null;
+        selectedFile.value = '';
+        selectedFiles.value = [];
+
+        loadRepoData(true);
+    }
+}, { immediate: true });
 
 let pollingTimer: any = null;
 
@@ -47,12 +77,13 @@ export async function loadRepoData(showLoader = false) {
 
     try {
         // Fetch light metadata always
-        const [newStatus, newBranches, newRemotes, newTags, newStashes, newConfig] = await Promise.all([
+        const [newStatus, newBranches, newRemotes, newTags, newStashes, newSubmodules, newConfig] = await Promise.all([
             window.gitbox.status(repoPath.value),
             window.gitbox.branches(repoPath.value),
             window.gitbox.remotes(repoPath.value),
             window.gitbox.tags(repoPath.value),
             window.gitbox.stashes(repoPath.value),
+            window.gitbox.getSubmodules(repoPath.value),
             window.gitbox.getConfig(repoPath.value)
         ]);
 
@@ -61,6 +92,7 @@ export async function loadRepoData(showLoader = false) {
         remotes.value = newRemotes;
         tags.value = newTags;
         stashes.value = newStashes;
+        submodules.value = newSubmodules;
         userName.value = newConfig ? newConfig.userName : '';
         userEmail.value = newConfig ? newConfig.userEmail : '';
 
@@ -68,7 +100,7 @@ export async function loadRepoData(showLoader = false) {
         // or a manual refresh was requested, or if the active tab is 'history'.
         // This avoids hammering the CPU with git logs every 5s in the background.
         if (showLoader || activeTab.value === 'history' || log.value.length === 0) {
-            const newLog = await window.gitbox.log(repoPath.value, 1500, selectedLogRef.value || 'ALL');
+            const newLog = await window.gitbox.log(repoPath.value, generalSettings.value.historyCount, selectedLogRef.value || 'ALL');
             log.value = newLog;
         }
 
@@ -141,8 +173,11 @@ async function runAction(action: () => unknown, showLoader = false) {
 }
 
 export const stageAll = () => runAction(() => window.gitbox.stageAll(repoPath.value));
+export const stageFile = (path: string) => runAction(() => window.gitbox.stageFile(repoPath.value, path));
 export const unstageAll = () => runAction(() => window.gitbox.unstageAll(repoPath.value));
+export const unstageFile = (path: string) => runAction(() => window.gitbox.unstageFile(repoPath.value, path));
 export const discardAll = () => runAction(() => window.gitbox.discardAll(repoPath.value));
+export const discardFile = (path: string) => runAction(() => window.gitbox.discardFile(repoPath.value, path));
 export const doFetch = () => runAction(() => window.gitbox.fetch(repoPath.value));
 export const doPull = () => runAction(() => window.gitbox.pull(repoPath.value));
 export const doPush = () => runAction(() => window.gitbox.push(repoPath.value));
@@ -156,9 +191,80 @@ export const toggleTerminal = () => {
     isTerminalOpen.value = !isTerminalOpen.value;
 };
 
-export const checkoutBranch = (name: string) => runAction(() => window.gitbox.checkoutBranch(repoPath.value, name), true);
+export const checkoutBranch = async (name: string) => {
+    isLoading.value = true;
+    try {
+        await window.gitbox.checkoutBranch(repoPath.value, name);
+        await loadRepoData(true);
+    } catch (err: any) {
+        if (err.message && err.message.includes('conflicts prevent checkout')) {
+            const hasChanges = unstagedFiles.value.length > 0 || stagedFiles.value.length > 0;
+            branchActionModal.value = {
+                type: 'checkout_conflict',
+                targetBranch: name,
+                hasChanges,
+                onConfirm: async (action) => {
+                    await handleBranchActionFlow(action, async () => {
+                        await window.gitbox.checkoutBranch(repoPath.value, name);
+                    });
+                }
+            };
+        } else {
+            error.value = String(err);
+        }
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+export const createBranchAction = () => {
+    const hasChanges = unstagedFiles.value.length > 0 || stagedFiles.value.length > 0;
+    branchActionModal.value = {
+        type: 'create_branch',
+        hasChanges,
+        onConfirm: async (action, newName) => {
+            if (!newName) return;
+            await handleBranchActionFlow(action, async () => {
+                await window.gitbox.createBranch(repoPath.value, newName);
+            });
+        }
+    };
+};
+
+async function handleBranchActionFlow(action: 'stash' | 'discard' | 'keep', coreTask: () => Promise<void>) {
+    isLoading.value = true;
+    try {
+        if (action === 'discard') {
+            await window.gitbox.discardAll(repoPath.value);
+            await coreTask();
+        } else if (action === 'stash') {
+            await window.gitbox.stashSave(repoPath.value, 'Auto-stash before branch switch');
+            await coreTask();
+            try {
+                // Wait briefly for FS before popping
+                await new Promise(r => setTimeout(r, 500));
+                await window.gitbox.stashPop(repoPath.value, '');
+            } catch (e) {
+                error.value = 'Failed to pop stash automatically: ' + String(e);
+            }
+        } else {
+            // keep
+            await coreTask();
+        }
+        await loadRepoData(true);
+    } catch (err: any) {
+        error.value = String(err);
+    } finally {
+        isLoading.value = false;
+    }
+}
 export const commitAll = async () => {
     if (!commitMessage.value.trim()) return;
     await runAction(() => window.gitbox.commitAll(repoPath.value, commitMessage.value.trim()));
     commitMessage.value = '';
 };
+
+export const deleteBranch = (name: string) => runAction(() => window.gitbox.deleteBranch(repoPath.value, name));
+export const stashPop = (stashId?: string) => runAction(() => window.gitbox.stashPop(repoPath.value, stashId));
+export const dropStash = (stashId?: string) => runAction(() => window.gitbox.stashDrop(repoPath.value, stashId));
+

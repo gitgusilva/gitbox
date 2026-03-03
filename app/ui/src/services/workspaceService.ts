@@ -18,6 +18,8 @@ export interface Workspace {
 export const workspaces = ref<Workspace[]>(JSON.parse(getItem('gitbox_workspaces') || '[]'));
 export const activeWorkspaceId = ref<string | null>(getItem('gitbox_active_workspace'));
 
+export const isChangelogVisible = ref<boolean>(getItem('gitbox_is_changelog_visible') === 'true');
+
 export const recentRepositories = ref<RecentRepo[]>(JSON.parse(getItem('gitbox_recent_repos') || '[]'));
 
 watch(recentRepositories, (val) => {
@@ -31,6 +33,10 @@ watch(workspaces, (val) => {
 watch(activeWorkspaceId, (val) => {
     if (val) setItem('gitbox_active_workspace', val);
     else removeItem('gitbox_active_workspace');
+});
+
+watch(isChangelogVisible, (val) => {
+    setItem('gitbox_is_changelog_visible', val.toString());
 });
 
 export function addWorkspace(name: string, path: string, color: string) {
