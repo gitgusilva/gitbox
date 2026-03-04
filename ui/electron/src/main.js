@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } = require('ele
 app.setName('GitBox');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-const addon = require(isDev ? '../../../core/addon' : '../core/addon');
+const addon = require('gitbox-addon');
 const os = require('os');
 const fs = require('fs');
 

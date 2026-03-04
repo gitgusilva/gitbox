@@ -40,7 +40,8 @@
       "target": [
         "AppImage",
         "deb",
-        "rpm"
+        "rpm",
+        "pacman"
       ],
       "category": "Development",
       "executableArgs": [
@@ -57,6 +58,11 @@
         "libgit2"
       ]
     },
+    "pacman": {
+      "depends": [
+        "libgit2"
+      ]
+    },
     "win": {
       "target": [
         "nsis",
@@ -68,22 +74,13 @@
       "assets/**/*",
       "package.json",
       {
-        "from": "../../core/addon",
-        "to": "core/addon",
-        "filter": [
-          "index.js",
-          "package.json",
-          "build/Release/**/*.node",
-          "node_modules/**/*"
-        ]
-      },
-      {
         "from": "../../dist",
         "to": "dist"
       }
     ]
   },
   "dependencies": {
+    "gitbox-addon": "file:../../core/addon",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
