@@ -8,6 +8,9 @@ export interface GeneralSettings {
     checkForUpdates: boolean;
     hideIconLabels: boolean;
     highlightBranchPrefixes: boolean;
+    showClosedPRs: boolean;
+    rememberTabs: boolean;
+    autoFetchInterval: number;
 }
 
 const defaultSettings: GeneralSettings = {
@@ -16,7 +19,10 @@ const defaultSettings: GeneralSettings = {
     showTagsInGraph: true,
     checkForUpdates: true,
     hideIconLabels: false,
-    highlightBranchPrefixes: true
+    highlightBranchPrefixes: true,
+    showClosedPRs: false,
+    rememberTabs: true,
+    autoFetchInterval: 1
 };
 
 function loadSettings(): GeneralSettings {

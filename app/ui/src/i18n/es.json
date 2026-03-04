@@ -27,7 +27,9 @@
         "prs": "Pull Requests",
         "create_pr": "Crear Pull Request",
         "no_prs_found": "No se encontraron Pull Requests",
-        "github_pr_404": "Github App no autorizado. Este es un repositorio privado, debes instalar o solicitar acceso a GitBox en GitHub para la Cuenta u Organización dueña de este repositorio."
+        "github_pr_404": "Github App no autorizado. Este es un repositorio privado, debes instalar o solicitar acceso a GitBox en GitHub para la Cuenta u Organización dueña de este repositorio.",
+        "submodules": "Submódulos",
+        "copy": "Copiar"
     },
     "workspace": {
         "add": "Añadir Workspace",
@@ -131,5 +133,33 @@
         "click_to_copy": "Haz clic en el código para copiar",
         "open_browser": "Abrir Navegador y Pegar",
         "waiting": "Esperando autorización en el navegador..."
+    },
+    "submodule": {
+        "add_title": "Añadir Submódulo",
+        "remote_url": "URL Remota",
+        "name_path": "Nombre/Ruta (opcional)",
+        "add_button": "Añadir Submódulo",
+        "url_required": "URL remota es obligatoria."
+    },
+    "pr_view": {
+        "no_description": "Sin descripción proporcionada.",
+        "save": "Guardar",
+        "comments": "Comentarios",
+        "no_comments": "No hay comentarios aún.",
+        "add_comment": "Añadir un comentario...",
+        "comment": "Comentar",
+        "files_changed": "{count} archivos cambiados",
+        "not_fetched": "(No obtenido)",
+        "review_suggest": "Revisar Código y Sugerir Cambios",
+        "submit_review": "Enviar Revisión",
+        "close_pr": "Cerrar Pull Request",
+        "reopen_pr": "Reabrir Pull Request",
+        "no_reviews": "Sin revisiones",
+        "still_in_progress": "¿Todavía en progreso?",
+        "convert_to_draft": "Convertir a borrador",
+        "draft": "Borrador",
+        "none_yet": "Ninguno aún",
+        "participants": "Participantes",
+        "branch": "Branch"
     }
 }

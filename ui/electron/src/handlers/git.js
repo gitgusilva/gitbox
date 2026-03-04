@@ -7,25 +7,103 @@ const isImage = (f) => /\.(png|jpe?g|gif|webp|ico|svg)$/i.test(f);
 
 module.exports = function (addon) {
     ipcMain.handle('gitbox:status', async (_, repoPath) => addon.status(repoPath));
-    ipcMain.handle('gitbox:branches', async (_, repoPath) => addon.branches(repoPath));
+    ipcMain.handle('gitbox:branches', async (_, repoPath) => {
+        const branches = await addon.branches(repoPath);
+        return branches.filter(b => !(b.is_remote && b.name.endsWith('/HEAD')));
+    });
     ipcMain.handle('gitbox:remotes', async (_, repoPath) => addon.remotes(repoPath));
     ipcMain.handle('gitbox:getSubmodules', async (_, repoPath) => {
         try {
             const { stdout } = await execAsync('git submodule status', { cwd: repoPath, maxBuffer: 1024 * 1024 });
             const lines = stdout.split('\n').filter(l => l.trim().length > 0);
-            return lines.map(line => {
+
+            // Collect submodule info
+            let submodules = lines.map(line => {
                 const parts = line.trim().split(' ');
+                let status = 'clean';
+                if (line.startsWith('-')) status = 'uninitialized';
+                else if (line.startsWith('+')) status = 'modified';
+                else if (line.startsWith('U')) status = 'conflicted';
+
                 return {
-                    sha: parts[0].replace(/^[+-]/, ''),
+                    sha: parts[0].replace(/^[+-U]/, ''),
                     path: parts[1],
                     ref: parts[2] ? parts[2].replace(/[()]/g, '') : '',
-                    status: line.startsWith('-') ? 'uninitialized' : (line.startsWith('+') ? 'modified' : 'clean')
+                    status
                 };
             });
+
+            // Overwrite with detailed git status to catch uncommitted (A) newly added submodules
+            try {
+                const { stdout: statusOut } = await execAsync('git status --porcelain=v1', { cwd: repoPath });
+                const statusLines = statusOut.split('\n').filter(l => l.trim());
+                for (const line of statusLines) {
+                    const statusCode = line.substring(0, 2);
+                    const path = line.substring(3).trim();
+                    const sub = submodules.find(s => s.path === path);
+                    if (sub) {
+                        if (statusCode.includes('A')) sub.status = 'uncommitted'; // Newly added
+                        else if (statusCode !== '  ') sub.status = 'modified'; // Has uncommitted changes
+                    }
+                }
+            } catch (e) { }
+
+            // Try fetching the URLs for each submodule
+            try {
+                const { stdout: urlOut } = await execAsync('git config -f .gitmodules --get-regexp url', { cwd: repoPath });
+                const urlLines = urlOut.split('\n').filter(l => l.trim());
+                for (const line of urlLines) {
+                    const match = line.match(/submodule\.(.+)\.url (.+)/);
+                    if (match) {
+                        const path = match[1];
+                        const url = match[2];
+                        const sub = submodules.find(s => s.path === path);
+                        if (sub) sub.url = url;
+                    }
+                }
+            } catch (e) {
+                // Ignore if .gitmodules doesn't exist or is empty
+            }
+
+            return submodules;
         } catch (e) {
             return [];
         }
     });
+
+    ipcMain.handle('gitbox:addSubmodule', async (_, repoPath, url, targetPath) => {
+        try {
+            await execAsync(`git submodule add --force "${url}" ${targetPath ? `"${targetPath}"` : ''}`, { cwd: repoPath, timeout: 60000 });
+            return true;
+        } catch (e) {
+            if (e.message.includes('does not have a commit checked out')) {
+                const match = e.message.match(/fatal: '(.+)' does not have a commit checked out/);
+                const folder = match ? match[1] : 'the target folder';
+                throw new Error(`The folder "${folder}" already exists but is empty/corrupted. Please delete the "${folder}" folder in your project and try again.`);
+            }
+            throw new Error(e.message);
+        }
+    });
+    ipcMain.handle('gitbox:deleteSubmodule', async (_, repoPath, submodulePath) => {
+        try {
+            await execAsync(`git submodule deinit -f "${submodulePath}"`, { cwd: repoPath, timeout: 60000 });
+            await execAsync(`git rm -f "${submodulePath}"`, { cwd: repoPath, timeout: 60000 });
+            await execAsync(`rm -rf .git/modules/"${submodulePath}"`, { cwd: repoPath, timeout: 60000 });
+            return true;
+        } catch (e) {
+            throw new Error(e.message);
+        }
+    });
+
+    ipcMain.handle('gitbox:updateSubmodule', async (_, repoPath, submodulePath) => {
+        try {
+            await execAsync(`git submodule update --init --remote "${submodulePath}"`, { cwd: repoPath, timeout: 120000 });
+            return true;
+        } catch (e) {
+            throw new Error(e.message);
+        }
+    });
+
     ipcMain.handle('gitbox:tags', async (_, repoPath) => addon.tags(repoPath));
     ipcMain.handle('gitbox:stashes', async (_, repoPath) => addon.stashes(repoPath));
     ipcMain.handle('gitbox:log', async (_, repoPath, maxCount, refName) => addon.log(repoPath, maxCount, refName));
@@ -90,6 +168,50 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:commitFiles', async (_, repoPath, commitId) => addon.commitFiles(repoPath, commitId));
     ipcMain.handle('gitbox:getConfig', async (_, repoPath) => addon.getConfig(repoPath));
     ipcMain.handle('gitbox:setConfig', async (_, repoPath, name, email) => addon.setConfig(repoPath, name, email));
+
+    ipcMain.handle('gitbox:getFileBlame', async (_, repoPath, filePath) => {
+        try {
+            const { stdout } = await execAsync(`git blame -p "${filePath}"`, { cwd: repoPath, maxBuffer: 1024 * 1024 * 10 });
+            const lines = stdout.split('\n');
+            const commits = {};
+            const result = [];
+
+            let currentCommit = null;
+            let currentLine = 1;
+
+            for (const line of lines) {
+                if (!line) continue;
+
+                if (!line.startsWith('\t')) {
+                    const parts = line.split(' ');
+
+                    if (parts[0].length === 40) {
+                        currentCommit = parts[0];
+
+                        if (!commits[currentCommit]) commits[currentCommit] = {};
+                    } else if (currentCommit) {
+                        const firstSpace = line.indexOf(' ');
+                        const key = line.substring(0, firstSpace);
+                        const val = line.substring(firstSpace + 1);
+
+                        commits[currentCommit][key] = val;
+                    }
+                } else {
+                    result.push({
+                        line: currentLine++,
+                        commit: currentCommit,
+                        author: commits[currentCommit]['author'] || 'Unknown',
+                        email: (commits[currentCommit]['author-mail'] || '').replace(/[<>]/g, ''),
+                        time: commits[currentCommit]['author-time'] || 0,
+                        summary: commits[currentCommit]['summary'] || ''
+                    });
+                }
+            }
+            return result;
+        } catch (e) {
+            return []; // Uncommitted / Tracked new files return empty array or fail silently
+        }
+    });
 
     ipcMain.handle('gitbox:stageFile', async (_, repoPath, filePath) => {
         try { await execAsync(`git add "${filePath}"`, { cwd: repoPath }); return true; } catch (e) { throw new Error(e.message); }

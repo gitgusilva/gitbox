@@ -70,8 +70,8 @@ onMounted(() => {
         <LocalBranchesSection :branchFilter="branchFilter" />
         <RemotesSection :branchFilter="branchFilter" />
         <TagsSection :branchFilter="branchFilter" />
-        <SubmodulesSection :branchFilter="branchFilter" />
         <PullRequestsSection :branchFilter="branchFilter" />
+        <SubmodulesSection :branchFilter="branchFilter" />
       </div>
     </div>
   </aside>

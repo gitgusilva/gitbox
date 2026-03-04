@@ -56,7 +56,19 @@ const conflictingFiles = ref<string[]>([]);
 const isCheckingConflicts = ref(false);
 
 const { t } = useI18n();
-const { list: integrationsList, getValidSession } = useIntegrations();
+const { list: integrationsList, getValidSession, getSession } = useIntegrations();
+
+const currentUserLogin = computed(() => getSession(selectedProviderId.value)?.user?.login);
+
+const reviewerOptions = computed(() => {
+    return availableUsers.value
+        .filter(u => u.login !== currentUserLogin.value)
+        .map(u => ({
+            value: u.login,
+            label: u.login,
+            iconUrl: u.avatar_url
+        }));
+});
 
 onMounted(async () => {
     if (connectedProviders.value.length > 0) {
@@ -204,11 +216,21 @@ async function handleCreatePR() {
             }
 
             if (selectedReviewers.value.length) {
-                await fetch(`https://api.github.com/repos/${toRepo.value}/pulls/${data.number}/requested_reviewers`, {
+                const reqRevRes = await fetch(`https://api.github.com/repos/${toRepo.value}/pulls/${data.number}/requested_reviewers`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' },
                     body: JSON.stringify({ reviewers: selectedReviewers.value })
                 });
+
+                if (!reqRevRes.ok) {
+                    try {
+                        const errData = await reqRevRes.json();
+                        const specificError = errData.errors && errData.errors[0] ? errData.errors[0].message : null;
+                        showToast('Reviewers Warning', specificError || errData.message || 'Could not request reviewers.', 'warning');
+                    } catch {
+                        showToast('Reviewers Warning', 'Could not request reviewers.', 'warning');
+                    }
+                }
             }
 
             isCreatePROpen.value = false;
@@ -335,7 +357,7 @@ function openIntegrationsSettings() {
                     <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
                         {{ t('settings.create_pr.reviewers') }}
                     </label>
-                    <MultiSelect v-model="selectedReviewers" :options="userOptions" :placeholder="t('settings.create_pr.select_reviewers')" />
+                    <MultiSelect v-model="selectedReviewers" :options="reviewerOptions" :placeholder="t('settings.create_pr.select_reviewers')" />
                  </div>
                  
                  <!-- Assignees -->

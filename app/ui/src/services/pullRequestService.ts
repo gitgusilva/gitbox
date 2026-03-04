@@ -1,6 +1,9 @@
 import { ref, computed, watch } from 'vue';
 import { repoPath, branches, isLoadingData, selectedLogRef, activeTab } from './gitService';
 import { useIntegrations } from './integrations';
+import { showToast } from './toastService';
+import { isCreatePROpen } from './modalService';
+import { generalSettings } from './settingsService';
 
 export interface PullRequest {
     id: string | number;
@@ -19,6 +22,9 @@ export interface PullRequest {
     sourceBranch: string;
     targetBranch: string;
     createdAt: string;
+    changed_files?: number;
+    draft: boolean;
+    nodeId: string;
 }
 
 export const pullRequests = ref<PullRequest[]>([]);
@@ -84,7 +90,8 @@ async function fetchGitHubPRs(remoteUrl: string) {
 
     console.log(`[PullRequests] Fetching PRs for repo: ${repo}`);
 
-    const response = await fetch(`https://api.github.com/repos/${repo}/pulls?state=open&sort=updated&direction=desc`, {
+    const stateParam = generalSettings.value.showClosedPRs ? 'all' : 'open';
+    const response = await fetch(`https://api.github.com/repos/${repo}/pulls?state=${stateParam}&sort=updated&direction=desc`, {
         headers: {
             'Authorization': `Bearer ${session.accessToken}`,
             'Accept': 'application/json'
@@ -109,7 +116,9 @@ async function fetchGitHubPRs(remoteUrl: string) {
             labels: pr.labels?.map((l: any) => ({ name: l.name, color: l.color })) || [],
             sourceBranch: pr.head.ref,
             targetBranch: pr.base.ref,
-            createdAt: pr.created_at
+            createdAt: pr.created_at,
+            draft: pr.draft,
+            nodeId: pr.node_id
         }));
     } else {
         const errorData = await response.json().catch(() => ({}));
@@ -122,7 +131,304 @@ async function fetchGitHubPRs(remoteUrl: string) {
 }
 
 export async function createPullRequest() {
-    activeTab.value = 'create_pr';
+    isCreatePROpen.value = true;
+}
+
+export async function closePullRequest(pr: PullRequest) {
+    return updatePullRequest(pr, { state: 'closed' });
+}
+
+export async function convertPullRequestToDraft(pr: PullRequest) {
+    if (!repoPath.value || !window.gitbox || !pr.nodeId) return false;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return false;
+
+        const response = await fetch('https://api.github.com/graphql', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${session.accessToken}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: `mutation { convertPullRequestToDraft(input: {pullRequestId: "${pr.nodeId}"}) { clientMutationId } }`
+            })
+        });
+
+        if (response.ok) {
+            loadPullRequests();
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+export async function updatePullRequest(pr: PullRequest, data: any) {
+    if (!repoPath.value || !window.gitbox) return false;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return false;
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        const response = await fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${session.accessToken}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const updated = await response.json();
+            const index = pullRequests.value.findIndex(p => p.number === pr.number);
+            if (index !== -1) {
+                if (data.state) pullRequests.value[index].state = data.state;
+                if (data.title) pullRequests.value[index].title = data.title;
+                if (data.body !== undefined) pullRequests.value[index].body = data.body;
+            }
+            return true;
+        } else {
+            console.error(`[PullRequests] Failed to update PR ${response.status}`);
+            return false;
+        }
+    } catch (e) {
+        console.error('Failed to update PR', e);
+        return false;
+    }
+}
+
+export async function fetchPullRequestComments(pr: PullRequest) {
+    if (!repoPath.value || !window.gitbox) return [];
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return [];
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return [];
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        // Fetch both issue comments and review comments then merge
+        const headers = { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' };
+
+        const [issueRes, reviewRes] = await Promise.all([
+            fetch(`https://api.github.com/repos/${repo}/issues/${pr.number}/comments`, { headers }),
+            fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}/comments`, { headers })
+        ]);
+
+        let comments: any[] = [];
+        if (issueRes.ok) comments = comments.concat(await issueRes.json());
+        if (reviewRes.ok) comments = comments.concat(await reviewRes.json());
+
+        // Process and sort
+        return comments.map(c => ({
+            id: c.id,
+            body: c.body,
+            user: { login: c.user.login, avatar_url: c.user.avatar_url },
+            createdAt: c.created_at,
+            url: c.html_url
+        })).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    } catch (e) {
+        console.error('Failed to fetch PR comments', e);
+        return [];
+    }
+}
+
+export async function addPullRequestComment(pr: PullRequest, body: string) {
+    if (!repoPath.value || !window.gitbox) return false;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return false;
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        const response = await fetch(`https://api.github.com/repos/${repo}/issues/${pr.number}/comments`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${session.accessToken}`,
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ body })
+        });
+
+        return response.ok;
+    } catch (e) {
+        console.error('Failed to add PR comment', e);
+        return false;
+    }
+}
+
+export async function fetchPullRequestMetadata() {
+    if (!repoPath.value || !window.gitbox) return { users: [], labels: [] };
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return { users: [], labels: [] };
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return { users: [], labels: [] };
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        const headers = { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' };
+
+        const [usersRes, labelsRes] = await Promise.all([
+            fetch(`https://api.github.com/repos/${repo}/assignees?per_page=100`, { headers }),
+            fetch(`https://api.github.com/repos/${repo}/labels?per_page=100`, { headers })
+        ]);
+
+        return {
+            users: usersRes.ok ? await usersRes.json() : [],
+            labels: labelsRes.ok ? await labelsRes.json() : []
+        };
+    } catch {
+        return { users: [], labels: [] };
+    }
+}
+
+export async function updatePullRequestReviewers(pr: PullRequest, reviewers: string[]) {
+    // Note: GitHub API takes reviewers to be requested in one endpoint
+    if (!repoPath.value || !window.gitbox) return false;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return false;
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        // We need to request all new, since we can't easily sync without deleting old ones.
+        // For simplicity we will request reviewers
+        const response = await fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}/requested_reviewers`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reviewers })
+        });
+
+        if (!response.ok) {
+            try {
+                const errorData = await response.json();
+                if (errorData.message) {
+                    showToast('Failed to update reviewers', errorData.message, 'error');
+                } else {
+                    showToast('Failed to update reviewers', `Status: ${response.status}`, 'error');
+                }
+            } catch {
+                showToast('Failed to update reviewers', `Status: ${response.status}`, 'error');
+            }
+            return false;
+        }
+
+        // Refresh PR
+        loadPullRequests();
+        return true;
+    } catch {
+        showToast('Error', 'Failed to update reviewers', 'error');
+        return false;
+    }
+}
+
+export async function updatePullRequestAssigneesAndLabels(pr: PullRequest, assignees: string[], labels: string[]) {
+    if (!repoPath.value || !window.gitbox) return false;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return false;
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        // Patch PR issues endpoint for assignees and labels
+        await fetch(`https://api.github.com/repos/${repo}/issues/${pr.number}`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignees, labels })
+        });
+
+        // Refresh PR
+        loadPullRequests();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function fetchPullRequestDetails(prNumber: number) {
+    if (!repoPath.value || !window.gitbox) return null;
+    try {
+        const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+        if (!remoteUrl || !remoteUrl.includes('github.com')) return null;
+
+        const session = await getValidSession('github');
+        if (!session?.accessToken) return null;
+
+        let repo = '';
+        if (remoteUrl.includes('github.com:')) repo = remoteUrl.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = remoteUrl.split('github.com/')[1].split('/');
+            repo = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+
+        const response = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}`, {
+            headers: {
+                'Authorization': `Bearer ${session.accessToken}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch {
+        return null;
+    }
 }
 
 // Watch for changes to refresh PRs

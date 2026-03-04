@@ -1,4 +1,5 @@
 import i18n from '../i18n';
+import { generalSettings } from '../services/settingsService';
 
 export function renderMessageLinks(message: string) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -50,8 +51,20 @@ export function parseStashMessage(message: string) {
     return { branch: '', message };
 }
 
-export function formatDate(timestamp: number, fmt: string) {
-    const now = new Date(timestamp * 1000);
+export function formatDate(timestamp: number | string | Date, fmt?: string) {
+    let now: Date;
+    if (timestamp instanceof Date) {
+        now = timestamp;
+    } else if (typeof timestamp === 'string') {
+        now = new Date(timestamp);
+    } else {
+        now = new Date(timestamp * 1000);
+    }
+
+    if (!fmt) {
+        fmt = generalSettings.value.dateFormat;
+    }
+
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -61,7 +74,7 @@ export function formatDate(timestamp: number, fmt: string) {
     const monthShortKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
     const monthName = i18n.global.t(`time.months_short.${monthShortKeys[now.getMonth()]}`);
 
-    return fmt
+    return (fmt as string)
         .replace('yyyy', String(year))
         .replace('MMM', monthName)
         .replace('MM', month)

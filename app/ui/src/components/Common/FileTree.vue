@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import TreeItem from './TreeItem.vue';
 
 interface FileNode {
@@ -30,6 +31,7 @@ const tree = computed(() => {
     const parts = f.path.split('/');
     let current = root;
     let currentPath = '';
+
     parts.forEach((part, i) => {
       currentPath += (i === 0 ? '' : '/') + part;
       if (i === parts.length - 1) {
@@ -49,11 +51,13 @@ const tree = computed(() => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
+
     const sorted: Record<string, TreeNode> = {};
     childrenValues.forEach(c => {
       sorted[c.name] = c;
       if (c.isDir) sortNodes(c);
     });
+
     node.children = sorted;
   };
   
@@ -74,21 +78,26 @@ function isDirOpen(path: string) {
 function getStatusIcon(status: string) {
   if (!status) return 'lucide:file';
   const s = status.toLowerCase();
+
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'lucide:plus';
   if (s.includes('deleted')) return 'lucide:minus';
   if (s.includes('renamed') || s.includes('moved')) return 'lucide:repeat';
   if (s.includes('modified') || s.includes('staged')) return 'lucide:file-text';
+
   return 'lucide:file';
 }
 
 function getStatusColor(status: string, isSelected: boolean) {
   if (isSelected) return 'text-white';
   if (!status) return 'text-neutral-500';
+
   const s = status.toLowerCase();
+
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
   if (s.includes('deleted')) return 'text-red-500';
   if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
   if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
+
   return 'text-neutral-500';
 }
 </script>

@@ -33,7 +33,9 @@
         "modified": "Modified",
         "file_not_in_parent": "File not in parent",
         "file_deleted": "File deleted",
-        "active": "Active"
+        "active": "Active",
+        "submodules": "Submodules",
+        "copy": "Copy"
     },
     "workspace": {
         "add": "Add Workspace",
@@ -43,7 +45,8 @@
         "my_prs": "My Pull Requests",
         "assigned_to_me": "Assigned To Me",
         "awaiting_review": "Awaiting My Review",
-        "all_prs": "All Pull Requests"
+        "all_prs": "All Pull Requests",
+        "closed_prs": "Closed PRs"
     },
     "history": {
         "subject": "GRAPH & SUBJECT",
@@ -99,11 +102,15 @@
         "integrations_description": "Connect your accounts to access advanced features like remote repository browsing and Pull Request management.",
         "integrations_desc_short": "Sync remote repositories and PRs.",
         "date_format": "Date Format",
+        "auto_fetch_interval": "Auto-fetch Interval",
+        "auto_fetch_desc": "Set the interval in minutes for automatic fetching. Setting it to 0 disables auto-fetch.",
         "history_commits": "History Commits",
         "show_tags_graph": "Show tags in commit graph",
         "check_updates_startup": "Check for updates on startup",
         "hide_icon_labels": "Hide icon labels in actions",
         "highlight_branch_prefixes": "Highlight branch creation prefixes",
+        "show_closed_prs": "Show closed Pull Requests locally",
+        "remember_tabs": "Remember Tabs",
         "create_pr": {
             "title": "Create Pull Request",
             "from_repo": "From Repository",
@@ -155,5 +162,33 @@
         "click_to_copy": "Click code to copy",
         "open_browser": "Open Browser and Paste",
         "waiting": "Waiting for authorization in browser..."
+    },
+    "submodule": {
+        "add_title": "Add Submodule",
+        "remote_url": "Remote URL",
+        "name_path": "Name/Path (optional)",
+        "add_button": "Add Submodule",
+        "url_required": "Remote URL is required."
+    },
+    "pr_view": {
+        "no_description": "No description provided.",
+        "save": "Save",
+        "comments": "Comments",
+        "no_comments": "No comments yet.",
+        "add_comment": "Add a comment...",
+        "comment": "Comment",
+        "files_changed": "{count} files changed",
+        "not_fetched": "(Not fetched)",
+        "review_suggest": "Review Code and Suggest Changes",
+        "submit_review": "Submit a Review",
+        "close_pr": "Close Pull Request",
+        "reopen_pr": "Reopen Pull Request",
+        "no_reviews": "No reviews",
+        "still_in_progress": "Still in progress?",
+        "convert_to_draft": "Convert to draft",
+        "draft": "Draft",
+        "none_yet": "None yet",
+        "participants": "Participants",
+        "branch": "Branch"
     }
 }

@@ -2,8 +2,10 @@
 import { ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
-import { submodules } from '../../../services/gitService';
-import { contextMenu, requestConfirm } from '../../../services/modalService';
+import { submodules, repoPath, activeTab, loadRepoData } from '../../../services/gitService';
+import { contextMenu, requestConfirm, isAddSubmoduleOpen, isEditSubmoduleOpen, activeSubmodule } from '../../../services/modalService';
+import { showToast } from '../../../services/toastService';
+import { openRepository, activeWorkspaceId, workspaces } from '../../../services/workspaceService';
 
 const props = defineProps<{
   branchFilter: string;
@@ -28,33 +30,81 @@ function openSubmoduleContextMenu(e: MouseEvent, index: number, sub: any) {
         x: e.clientX,
         y: e.clientY,
         items: [
-            { label: 'Copy Path', icon: 'lucide:copy', action: () => navigator.clipboard.writeText(sub.path) },
-            { label: 'Copy SHA', icon: 'lucide:copy', action: () => navigator.clipboard.writeText(sub.sha) }
+            { label: 'Commit Changes', icon: 'lucide:git-commit', action: () => openSubmodule(sub, 'local_changes') },
+            { label: 'Update ' + sub.path, icon: 'lucide:refresh-cw', action: () => updateSubmodule(sub) },
+            { label: 'Edit ' + sub.path, icon: 'lucide:edit-3', action: () => editSubmodule(sub) },
+            { label: 'Open this submodule', icon: 'lucide:folder-open', action: () => openSubmodule(sub) },
+            { label: 'Delete this submodule', icon: 'lucide:trash-2', action: () => deleteSubmodule(sub) }
         ]
     };
+}
+
+function openSubmodule(sub: any, tab?: 'local_changes') {
+    const parentName = repoPath.value.split(/[/\\]/).pop() || 'Repo';
+    openRepository(repoPath.value + '/' + sub.path, sub.path, true, parentName, repoPath.value);
+    if (tab) {
+        activeTab.value = tab;
+    }
+}
+
+async function updateSubmodule(sub: any) {
+    try {
+        await window.gitbox.updateSubmodule(repoPath.value, sub.path);
+        showToast('Success', `Submodule ${sub.path} updated successfully.`, 'success');
+        loadRepoData(true);
+    } catch (e: any) {
+        showToast('Error', e.message, 'error');
+    }
+}
+
+function editSubmodule(sub: any) {
+    activeSubmodule.value = sub;
+    isEditSubmoduleOpen.value = true;
+}
+
+function deleteSubmodule(sub: any) {
+    requestConfirm('Delete Submodule', `Are you sure you want to delete ${sub.path}? This cannot be undone.`, true, async () => {
+        try {
+            await window.gitbox.deleteSubmodule(repoPath.value, sub.path);
+            showToast('Success', `Submodule ${sub.path} deleted successfully.`, 'success');
+            loadRepoData(true);
+        } catch (e: any) {
+            showToast('Error', e.message, 'error');
+        }
+    });
+}
+
+function addSubmodule() {
+    isAddSubmoduleOpen.value = true;
 }
 </script>
 
 <template>
-  <div v-if="filteredSubmodules.length > 0" class="flex flex-col select-none">
-     <button class="flex items-center gap-1.5 px-3 py-1.5 w-full hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors group" @click="isCollapsed = !isCollapsed">
-        <Icon :icon="isCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'" class="text-xs transition-transform" />
-        <span class="font-bold text-xs tracking-tight">SUBMODULES</span>
-        <span class="bg-neutral-800 text-neutral-400 group-hover:bg-neutral-700 text-[10px] px-1.5 rounded-full ml-auto">{{ filteredSubmodules.length }}</span>
-     </button>
+  <div class="mb-2">
+    <div class="px-2 py-1 flex items-center gap-1.5 text-xs font-bold text-neutral-500 cursor-pointer select-none group">
+      <div class="flex items-center gap-1.5 flex-1 hover:text-neutral-300" @click="isCollapsed = !isCollapsed">
+        <Icon :icon="isCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-down'" />
+        <Icon icon="lucide:package" class="text-sm" /> <span>{{ $t('common.submodules') || 'Submodules' }} ({{ filteredSubmodules.length }})</span>
+      </div>
+      <button @click.stop="addSubmodule()" class="p-1 hover:bg-neutral-700 rounded transition-colors group/btn" title="Add Submodule">
+        <Icon icon="lucide:plus" class="text-xs group-hover/btn:text-blue-400" />
+      </button>
+    </div>
      
-     <ul v-show="!isCollapsed" class="flex flex-col py-1">
+     <ul v-show="!isCollapsed" class="pb-1 mt-1">
         <li v-for="(sub, i) in filteredSubmodules" :key="sub.path" 
             @contextmenu="openSubmoduleContextMenu($event, i, sub)"
-            class="pl-[26px] pr-2 py-1 flex items-center gap-2 hover:bg-neutral-800 cursor-pointer group/sub relative transition-all text-neutral-300 hover:text-white">
-            
+            class="pl-[16px] pr-2 py-1 flex items-center gap-2 hover:bg-neutral-800 cursor-pointer group/sub relative transition-all text-neutral-300 hover:text-white">
+            <div class="w-3 flex-shrink-0 flex items-center justify-center">
+               <Icon v-if="sub.status === 'uninitialized' || sub.status === 'modified' || sub.status === 'uncommitted'" icon="lucide:plus" class="text-[12px] font-bold text-green-500" title="Your submodule has been added and initialized but not committed." />
+            </div>
             <Icon icon="lucide:package" class="text-xs flex-shrink-0" :class="{'text-yellow-500': sub.status === 'uninitialized', 'text-blue-500': sub.status === 'modified'}" />
             <span class="text-xs truncate flex-1 font-mono leading-tight whitespace-nowrap">{{ sub.path }}</span>
             
             <!-- Quick Action Buttons -->
             <div class="hidden group-hover/sub:flex items-center gap-1 absolute right-2 bg-gradient-to-l from-neutral-800 via-neutral-800 pl-4 py-0.5">
-               <button class="p-1 hover:bg-neutral-700 rounded text-neutral-400 hover:text-white transition-colors" title="Open terminal" @click.stop="">
-                  <Icon icon="lucide:terminal" class="text-[10px]" />
+               <button class="p-1 hover:bg-neutral-700 rounded text-neutral-400 hover:text-white transition-colors" title="More actions" @click.stop="openSubmoduleContextMenu($event, i, sub)">
+                  <Icon icon="lucide:more-vertical" class="text-[10px]" />
                </button>
             </div>
             

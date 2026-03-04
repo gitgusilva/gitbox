@@ -22,6 +22,8 @@ import { getItem, setItem } from '../services/storageService';
 import { toggleTerminal } from '../services/gitService';
 import ChangelogView from './ChangelogView.vue';
 import CreatePRModal from '../components/CreatePRModal.vue';
+import AddSubmoduleModal from '../components/AddSubmoduleModal.vue';
+import EditSubmoduleModal from '../components/EditSubmoduleModal.vue';
 import { registerShortcut } from '../services/shortcutService';
 import { initProtocolHandler } from '../services/protocol';
 
@@ -60,6 +62,8 @@ const { t } = useI18n();
   <div class="flex flex-col h-screen bg-[#F3F3F3] dark:bg-[#18181A] text-neutral-800 dark:text-neutral-300 font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
     
     <CreatePRModal />
+    <AddSubmoduleModal />
+    <EditSubmoduleModal />
     <ContextMenu v-if="contextMenu" :x="contextMenu.x" :y="contextMenu.y" :items="contextMenu.items" @close="contextMenu = null" />
     <DeviceFlowModal v-if="deviceFlowModal" />
     <BranchActionModal v-if="branchActionModal" />

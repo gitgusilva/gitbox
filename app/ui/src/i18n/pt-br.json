@@ -33,7 +33,9 @@
         "modified": "Modificado",
         "file_not_in_parent": "Arquivo não no pai",
         "file_deleted": "Arquivo Excluído",
-        "active": "Ativo"
+        "active": "Ativo",
+        "submodules": "Submódulos",
+        "copy": "Copiar"
     },
     "workspace": {
         "add": "Adicionar Workspace",
@@ -43,7 +45,8 @@
         "my_prs": "Meus Pull Requests",
         "assigned_to_me": "Atribuídos a Mim",
         "awaiting_review": "Aguardando Minha Revisão",
-        "all_prs": "Todos os Pull Requests"
+        "all_prs": "Todos os Pull Requests",
+        "closed_prs": "PRs Fechados"
     },
     "history": {
         "subject": "GRÁFICO & ASSUNTO",
@@ -99,11 +102,15 @@
         "integrations_description": "Conecte suas contas para acessar recursos avançados, como navegação em repositórios remotos e gerenciamento de Pull Requests.",
         "integrations_desc_short": "Sincronize P.Rs e repositórios remotos.",
         "date_format": "Formato de Data",
+        "auto_fetch_interval": "Intervalo de Auto-fetch",
+        "auto_fetch_desc": "Defina o intervalo em minutos para a busca automática de dados (fetch). Definir como 0 desativa o auto-fetch.",
         "history_commits": "Commits no Histórico",
         "show_tags_graph": "Mostrar tags no gráfico de commit",
         "check_updates_startup": "Buscar atualizações ao iniciar",
         "hide_icon_labels": "Ocultar labels de ícones nas ações",
         "highlight_branch_prefixes": "Destacar prefixos ao criar branch",
+        "show_closed_prs": "Mostrar PRs fechados localmente",
+        "remember_tabs": "Lembrar Abas Abertas",
         "create_pr": {
             "title": "Criar Pull Request",
             "from_repo": "Repositório de Origem",
@@ -155,5 +162,33 @@
         "click_to_copy": "Clique no código para copiar",
         "open_browser": "Abrir Navegador e Colar",
         "waiting": "Aguardando autorização no navegador..."
+    },
+    "submodule": {
+        "add_title": "Adicionar Submódulo",
+        "remote_url": "URL Remota",
+        "name_path": "Nome/Caminho (opcional)",
+        "add_button": "Adicionar Submódulo",
+        "url_required": "URL remota é obrigatória."
+    },
+    "pr_view": {
+        "no_description": "Nenhuma descrição fornecida.",
+        "save": "Salvar",
+        "comments": "Comentários",
+        "no_comments": "Nenhum comentário ainda.",
+        "add_comment": "Adicionar um comentário...",
+        "comment": "Comentar",
+        "files_changed": "{count} arquivos alterados",
+        "not_fetched": "(Não buscado)",
+        "review_suggest": "Revisar Código e Sugerir Mudanças",
+        "submit_review": "Enviar Revisão",
+        "close_pr": "Fechar Pull Request",
+        "reopen_pr": "Reabrir Pull Request",
+        "no_reviews": "Sem revisões",
+        "still_in_progress": "Ainda em progresso?",
+        "convert_to_draft": "Converter para Rascunho",
+        "draft": "Rascunho",
+        "none_yet": "Nenhuma ainda",
+        "participants": "Participantes",
+        "branch": "Branch"
     }
 }

@@ -34,17 +34,24 @@ const prs = computed(() => {
   );
 });
 
-const myPRs = computed(() => prs.value.filter(pr => pr.user.login === currentUserLogin.value));
-const assignedPRs = computed(() => prs.value.filter(pr => pr.assignees?.some(a => a.login === currentUserLogin.value)));
-const reviewPRs = computed(() => prs.value.filter(pr => pr.requestedReviewers?.some(a => a.login === currentUserLogin.value)));
-const allPRs = computed(() => prs.value);
+const myPRs = computed(() => prs.value.filter(pr => pr.user.login === currentUserLogin.value && pr.state !== 'closed'));
+const assignedPRs = computed(() => prs.value.filter(pr => pr.assignees?.some(a => a.login === currentUserLogin.value) && pr.state !== 'closed'));
+const reviewPRs = computed(() => prs.value.filter(pr => pr.requestedReviewers?.some(a => a.login === currentUserLogin.value) && pr.state !== 'closed'));
+const allPRs = computed(() => prs.value.filter(pr => pr.state !== 'closed'));
+const closedPRs = computed(() => prs.value.filter(pr => pr.state === 'closed'));
 
-const prGroups = computed(() => [
-   { id: 'my', title: t('prs.my_prs'), list: myPRs.value },
-   { id: 'assigned', title: t('prs.assigned_to_me'), list: assignedPRs.value },
-   { id: 'review', title: t('prs.awaiting_review'), list: reviewPRs.value },
-   { id: 'all', title: t('prs.all_prs'), list: allPRs.value }
-]);
+const prGroups = computed(() => {
+    const groups = [
+       { id: 'my', title: t('prs.my_prs'), list: myPRs.value },
+       { id: 'assigned', title: t('prs.assigned_to_me'), list: assignedPRs.value },
+       { id: 'review', title: t('prs.awaiting_review'), list: reviewPRs.value },
+       { id: 'all', title: t('prs.all_prs'), list: allPRs.value }
+    ];
+    if (closedPRs.value.length > 0) {
+       groups.push({ id: 'closed', title: t('prs.closed_prs') || 'Closed PRs', list: closedPRs.value });
+    }
+    return groups;
+});
 
 function openPullRequest(pr: any) {
     activePullRequest.value = pr;

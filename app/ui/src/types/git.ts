@@ -61,7 +61,7 @@ export interface GraphNode {
     isMerge?: boolean;
 }
 
-export type TabKey = 'history' | 'local_changes' | 'stashes' | 'files' | 'changelog' | 'pull_request';
+export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr';
 
 export interface GitboxAPI {
     selectFolder: () => Promise<string | null>;
@@ -79,6 +79,9 @@ export interface GitboxAPI {
     tags: (repoPath: string) => Promise<{ name: string, target?: string }[]>;
     stashes: (repoPath: string) => Promise<Stash[]>;
     getSubmodules: (repoPath: string) => Promise<{ path: string; sha: string; ref: string; status: string }[]>;
+    addSubmodule: (repoPath: string, url: string, targetPath: string) => Promise<boolean>;
+    updateSubmodule: (repoPath: string, path: string) => Promise<boolean>;
+    deleteSubmodule: (repoPath: string, path: string) => Promise<boolean>;
     log: (repoPath: string, maxCount?: number, refName?: string) => Promise<Commit[]>;
     stageAll: (repoPath: string) => Promise<boolean>;
     stageFile: (repoPath: string, filePath: string) => Promise<boolean>;

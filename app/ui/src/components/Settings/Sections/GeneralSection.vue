@@ -87,6 +87,29 @@ const sampleTime = Date.now() / 1000;
 
       <div>
           <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold text-neutral-500 uppercase">{{ t('settings.auto_fetch_interval') }}</label>
+              <span class="text-[11px] font-mono text-blue-400">{{ generalSettings.autoFetchInterval === 0 ? 'Disabled' : generalSettings.autoFetchInterval + ' min' }}</span>
+          </div>
+          <div class="flex flex-col gap-2 group/range w-full pt-1">
+              <RangeSlider 
+                 v-model="generalSettings.autoFetchInterval" 
+                 :min="0" 
+                 :max="60" 
+                 :step="1" 
+              >
+                  <div class="flex justify-between w-full px-1 text-[8px] text-neutral-700 font-mono pointer-events-none mt-1">
+                      <span>0 (Off)</span>
+                      <span>60 min</span>
+                  </div>
+              </RangeSlider>
+              <p class="text-[10px] text-neutral-500 leading-relaxed">
+                  {{ t('settings.auto_fetch_desc') }}
+              </p>
+          </div>
+      </div>
+
+      <div>
+          <div class="flex items-center justify-between mb-2">
               <label class="text-xs font-bold text-neutral-500 uppercase">{{ t('settings.history_commits') }}</label>
               <span class="text-[11px] font-mono text-blue-400">{{ generalSettings.historyCount }}</span>
           </div>
@@ -112,6 +135,8 @@ const sampleTime = Date.now() / 1000;
         <Checkbox v-model="generalSettings.checkForUpdates" :label="t('settings.check_updates_startup')" />
         <Checkbox v-model="generalSettings.hideIconLabels" :label="t('settings.hide_icon_labels')" />
         <Checkbox v-model="generalSettings.highlightBranchPrefixes" :label="t('settings.highlight_branch_prefixes')" />
+        <Checkbox v-model="generalSettings.showClosedPRs" :label="t('settings.show_closed_prs') || 'Show Closed PRs'" />
+        <Checkbox v-model="generalSettings.rememberTabs" :label="t('settings.remember_tabs') || 'Remember Tabs'" />
     </section>
 
   </div>

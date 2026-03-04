@@ -29,7 +29,12 @@ import IconButton from '../components/Common/IconButton.vue';
 
 const { t } = useI18n();
 
-const repoName = computed(() => {
+const activeWorkspace = computed(() => workspaces.value.find(w => w.id === activeWorkspaceId.value));
+
+const repoDisplayName = computed(() => {
+    if (activeWorkspace.value?.isSubmodule && activeWorkspace.value.parentName) {
+        return activeWorkspace.value.parentName;
+    }
     if (!repoPath.value) return 'No Repository';
     const parts = repoPath.value.split(/[\/\\]/);
     return parts[parts.length - 1] || 'Unknown';
@@ -95,10 +100,21 @@ const openBranchMenu = (e: MouseEvent) => {
           <div @click="openRepoMenu" class="flex flex-col justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#333333] px-2 py-0.5 rounded transition-colors group">
               <span class="text-[10px] text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 h-[14px]">repository</span>
               <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-black dark:text-neutral-300">
-                  <span class="truncate block max-w-[120px]">{{ repoName }}</span>
+                  <span class="truncate block max-w-[120px]">{{ repoDisplayName }}</span>
                   <Icon icon="lucide:chevron-down" class="w-3.5 h-3.5 text-neutral-500 font-bold" />
               </div>
           </div>
+
+          <template v-if="activeWorkspace?.isSubmodule">
+              <Icon icon="lucide:chevron-right" class="w-4 h-4 text-neutral-400 dark:text-neutral-600" />
+              <!-- Submodule -->
+              <div class="flex flex-col justify-center px-2 py-0.5 rounded transition-colors group">
+                  <span class="text-[10px] text-neutral-500 h-[14px]">submodule</span>
+                  <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-black dark:text-neutral-300">
+                      <span class="truncate block max-w-[120px]">{{ activeWorkspace.name }}</span>
+                  </div>
+              </div>
+          </template>
 
           <Icon icon="lucide:chevron-right" class="w-4 h-4 text-neutral-400 dark:text-neutral-600" />
 

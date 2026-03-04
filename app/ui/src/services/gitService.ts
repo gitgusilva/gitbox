@@ -15,7 +15,7 @@ import { branchActionModal } from './modalService';
 export interface Submodule { path: string; sha: string; ref: string; status: string }
 
 // State
-export const repoPath = ref(getItem('gitbox_repo_path') || '');
+export const repoPath = ref((generalSettings.value.rememberTabs ? getItem('gitbox_repo_path') : '') || '');
 export const status = ref<GitStatusEntry[]>([]);
 export const branches = ref<Branch[]>([]);
 export const remotes = ref<string[]>([]);
@@ -123,36 +123,66 @@ export function startPolling() {
     if (pollingTimer) clearTimeout(pollingTimer);
 
     const poll = async () => {
-        // Only poll if window is focused AND not currently doing an action
-        if (!document.hidden && !isLoading.value) {
+        const interval = generalSettings.value.autoFetchInterval;
+
+        // If interval is 0, we don't do background fetch. 
+        // We still might want to poll status every 1 min for UI responsiveness, 
+        // but let's follow the "0 removes the auto fetch" literally for now.
+        if (interval > 0 && !document.hidden && !isLoading.value && repoPath.value) {
+            try {
+                // Perform the actual git fetch
+                await window.gitbox.fetch(repoPath.value);
+                await loadRepoData();
+                lastManualRefresh = Date.now();
+            } catch (e) {
+                // Background fetch failed, ignore
+            }
+        } else if (interval === 0 && !document.hidden && !isLoading.value && repoPath.value) {
+            // Even if auto-fetch is off, we refresh the UI status every 1 min 
+            // so the user sees local file changes.
             await loadRepoData();
             lastManualRefresh = Date.now();
         }
-        pollingTimer = setTimeout(poll, 60000); // 1 minute
+
+        // Poll again after the specified interval (at least 1 min for UI status)
+        const nextTick = interval > 0 ? interval * 60000 : 60000;
+        pollingTimer = setTimeout(poll, nextTick);
     };
 
     // Immediate refresh when coming back from background, but with a 10s cooldown
     window.addEventListener('focus', () => {
         const now = Date.now();
-        if (now - lastManualRefresh > 10000 && !isLoading.value) {
+        if (now - lastManualRefresh > 10000 && !isLoading.value && repoPath.value) {
             loadRepoData();
             lastManualRefresh = now;
 
-            // Reset the 1-minute timer to start counting from now
+            // Reset the timer
             if (pollingTimer) clearTimeout(pollingTimer);
-            pollingTimer = setTimeout(poll, 60000);
+            const interval = generalSettings.value.autoFetchInterval;
+            const nextTick = interval > 0 ? interval * 60000 : 60000;
+            pollingTimer = setTimeout(poll, nextTick);
         }
     });
 
-    pollingTimer = setTimeout(poll, 60000);
+    const initialTick = generalSettings.value.autoFetchInterval > 0
+        ? generalSettings.value.autoFetchInterval * 60000
+        : 60000;
+    pollingTimer = setTimeout(poll, initialTick);
 }
+
+// Watch for interval changes and restart polling
+watch(() => generalSettings.value.autoFetchInterval, () => {
+    startPolling();
+});
 
 export async function openRepo() {
     if (!window.gitbox) return;
     const path = await window.gitbox.selectFolder();
     if (path) {
         repoPath.value = path;
-        setItem('gitbox_repo_path', path);
+        if (generalSettings.value.rememberTabs) {
+            setItem('gitbox_repo_path', path);
+        }
         await loadRepoData(true);
     }
 }
