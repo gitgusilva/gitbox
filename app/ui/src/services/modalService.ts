@@ -16,9 +16,15 @@ export const inputModal = ref<{
     onConfirm: (val: string) => void
 } | null>(null);
 
+/**
+ * Position and items for a context menu.
+ */
 export const contextMenu = ref<{
+    /** X coordinate in pixels. */
     x: number,
+    /** Y coordinate in pixels. */
     y: number,
+    /** List of menu items to render. */
     items: any[]
 } | null>(null);
 
@@ -31,6 +37,7 @@ export const deviceFlowModal = ref<{
 export const isSettingsOpen = ref(false);
 export const isShortcutsModalOpen = ref(false);
 export const isCreatePROpen = ref(false);
+export const isPushModalOpen = ref(false);
 export const isAddSubmoduleOpen = ref(false);
 export const isEditSubmoduleOpen = ref(false);
 export const activeSubmodule = ref<any>(null);
@@ -45,6 +52,14 @@ export const branchActionModal = ref<{
     onConfirm: (action: 'stash' | 'discard' | 'keep', newBranchName?: string) => void;
 } | null>(null);
 
+/**
+ * Requests a simple confirmation modal.
+ * 
+ * @param title - Modal title.
+ * @param message - Detailed message.
+ * @param danger - If true, highlights the confirm button as destructive.
+ * @param action - Callback to execute if confirmed.
+ */
 export function requestConfirm(title: string, message: string, danger: boolean, action: () => void) {
     confirmModal.value = {
         title, message, danger, onConfirm: () => {

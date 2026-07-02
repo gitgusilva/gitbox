@@ -1,7 +1,10 @@
 import { BaseIntegrationProvider } from '../core/BaseProvider';
 import { IntegrationSession } from '../core/types';
 import { deviceFlowModal } from '../../modalService';
-
+import { IPRProvider } from '../../pullRequests/providers/IPRProvider';
+import { GitHubPRProvider } from '../../pullRequests/providers/GitHubPRProvider';
+import { showToast } from '../../toastService';
+import i18n from '../../../i18n';
 
 export class GitHubProvider extends BaseIntegrationProvider {
     readonly id = 'github';
@@ -10,9 +13,23 @@ export class GitHubProvider extends BaseIntegrationProvider {
     readonly color = '#24292e';
 
     private readonly clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
-    async connectAction(onSuccess: (session: IntegrationSession) => void): Promise<void> {
-        console.log('[GitHub Auth] Initiating Device Flow...');
 
+    matchUrl(url: string): string | null {
+        if (!url || (!url.includes('github.com:') && !url.includes('github.com/'))) return null;
+        let repoId = '';
+        if (url.includes('github.com:')) repoId = url.split('github.com:')[1].replace('.git', '');
+        else {
+            const parts = url.split('github.com/')[1].split('/');
+            repoId = `${parts[0]}/${parts[1].replace('.git', '')}`;
+        }
+        return repoId;
+    }
+
+    getPRProvider(getAccessToken: (force?: boolean) => Promise<string | undefined>): IPRProvider {
+        return new GitHubPRProvider(getAccessToken);
+    }
+
+    async connectAction(onSuccess: (session: IntegrationSession) => void): Promise<void> {
         // 1. Request device code
         const deviceResponse = await fetch('https://github.com/login/device/code', {
             method: 'POST',
@@ -34,7 +51,6 @@ export class GitHubProvider extends BaseIntegrationProvider {
         const { device_code, user_code, verification_uri, interval } = deviceData;
 
         // 2. Notify User and Open Browser
-        console.log(`[GitHub Auth] User Code: ${user_code}`);
         try {
             await navigator.clipboard.writeText(user_code);
         } catch (e) {
@@ -53,7 +69,11 @@ export class GitHubProvider extends BaseIntegrationProvider {
 
         // 3. Poll for the token
         let polling = true;
-        const pollInterval = (interval || 5) * 1000;
+
+        // GitHub usually suggests 5s. We use a base of 5s, clamped to avoid excessively large intervals
+        // while still respecting the server's recommendation if it's within [5, 10] range.
+        const baseInterval = Math.max(5, Math.min(10, interval || 5));
+        let currentInterval = baseInterval * 1000;
 
         const poll = async () => {
             if (cancelled) return;
@@ -77,14 +97,16 @@ export class GitHubProvider extends BaseIntegrationProvider {
             if (tokenData.error) {
                 if (tokenData.error === 'authorization_pending') {
                     // Continue polling
-                    setTimeout(poll, pollInterval);
+                    setTimeout(poll, currentInterval);
                 } else if (tokenData.error === 'slow_down') {
                     // GitHub asked to slow down
-                    setTimeout(poll, pollInterval + 5000);
+                    currentInterval += 5000;
+                    setTimeout(poll, currentInterval);
                 } else if (tokenData.error === 'expired_token') {
                     polling = false;
                     deviceFlowModal.value = null;
-                    alert('O tempo para autorizar o GitHub expirou. Tente conectar novamente.');
+                    const { t } = i18n.global;
+                    showToast(t('common.error'), t('github_auth.expired'), 'error');
                 } else {
                     polling = false;
                     deviceFlowModal.value = null;
@@ -126,16 +148,13 @@ export class GitHubProvider extends BaseIntegrationProvider {
                     email: user.email
                 } : undefined
             });
-            console.log('[GitHub Auth] Device Flow complete!');
         };
 
         // Start polling
-        setTimeout(poll, pollInterval);
+        setTimeout(poll, currentInterval);
     }
 
     async refreshToken(token: string): Promise<IntegrationSession> {
-        console.log('[GitHub Auth] Refreshing expired token...');
-
         const response = await fetch('https://github.com/login/oauth/access_token', {
             method: 'POST',
             headers: {

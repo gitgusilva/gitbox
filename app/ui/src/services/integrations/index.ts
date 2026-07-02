@@ -5,7 +5,7 @@ import { GitHubProvider } from './providers/GitHubProvider';
 import { GitLabProvider } from './providers/GitLabProvider';
 import { BitbucketProvider } from './providers/BitbucketProvider';
 
-const providers: IIntegrationProvider[] = [
+export const providers: IIntegrationProvider[] = [
     new GitHubProvider(),
     new GitLabProvider(),
     new BitbucketProvider()
@@ -96,16 +96,18 @@ export function useIntegrations() {
         return sessions.value[providerId];
     }
 
-    async function getValidSession(providerId: string): Promise<IntegrationSession | undefined> {
+    async function getValidSession(providerId: string, forceRefresh = false): Promise<IntegrationSession | undefined> {
         let session = sessions.value[providerId];
         if (!session) return undefined;
 
-        // Verifica se expirou ou está perto de expirar (ex: 5 minutos)
-        if (session.expiresAt && Date.now() > session.expiresAt - 5 * 60 * 1000) {
+        // Verifica se expirou ou está perto de expirar (ex: 5 minutos) OU se foi forçado
+        const isNearExpiry = session.expiresAt && Date.now() > session.expiresAt - 5 * 60 * 1000;
+
+        if (forceRefresh || isNearExpiry) {
             const provider = providers.find(p => p.id === providerId);
             if (provider && provider.refreshToken && session.refreshToken) {
                 try {
-                    console.log(`[Integrations] Refreshing session for ${providerId}...`);
+                    console.log(`[Integrations] Refreshing session for ${providerId} (forced: ${forceRefresh})...`);
                     const newSessionData = await provider.refreshToken(session.refreshToken);
 
                     // Atualiza a sessão mantendo dados do usuário que não vêm no refresh

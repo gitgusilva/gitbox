@@ -124,8 +124,16 @@ export function initGlobalShortcuts() {
  */
 export function getShortcutsRegistry(): ShortcutMeta[] {
     const items: ShortcutMeta[] = [];
+    const seen = new Set<string>();
+
     registry.forEach(lists => {
-        items.push(...lists);
+        lists.forEach(item => {
+            const key = `${item.pattern}:${item.titleKey || item.descriptionKey || ''}`;
+            if (!seen.has(key)) {
+                items.push(item);
+                seen.add(key);
+            }
+        });
     });
     return items;
 }

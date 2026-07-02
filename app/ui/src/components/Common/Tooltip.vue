@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount, nextTick } from 'vue';
 import { calculateFloatingPosition, Placement } from '../../utils/floating';
+import { cn } from '../../utils/cn';
 
 const props = withDefaults(defineProps<{
-    text: string;
-    position?: 'top' | 'bottom' | 'left' | 'right';
+    text?: string;
+    position?: 'top' | 'bottom' | 'left' | 'right' | 'auto';
     delay?: number;
+    class?: string;
 }>(), {
-    position: 'top',
+    position: 'auto',
     delay: 200
 });
 
@@ -30,7 +32,7 @@ function calculatePosition() {
     const pos = calculateFloatingPosition({
         targetRect: targetRect,
         floatingRect: tooltipRect,
-        placement: props.position,
+        placement: props.position as Placement,
         alignment: 'center',
         margin: 8
     });
@@ -63,13 +65,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="targetRef" class="inline-flex items-center justify-center align-middle" @mouseenter="onEnter" @mouseleave="onLeave">
+  <div ref="targetRef" :class="cn('inline-center align-middle', props.class)" @mouseenter="onEnter" @mouseleave="onLeave">
     <slot></slot>
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="isVisible && text" 
              ref="tooltipRef"
-             class="fixed z-[99999] px-2 py-1 text-[10px] font-medium text-white bg-[#252526] border border-neutral-700/50 rounded shadow-xl whitespace-nowrap pointer-events-none"
+             :class="cn(
+               'fixed z-[99999] px-2 py-1 text-[10px] font-medium text-neutral-900 dark:text-white bg-neutral-100 dark:bg-[#252526] border border-neutral-300/50 dark:border-neutral-700/50 rounded shadow-xl whitespace-pre-wrap max-w-xs pointer-events-none'
+             )"
              :style="tooltipStyle">
           {{ text }}
         </div>

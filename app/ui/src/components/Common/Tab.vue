@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { inject, onMounted, onUnmounted, computed, watch } from 'vue';
+import { inject, onMounted, onUnmounted, computed, watch, unref, Ref } from 'vue';
+import { cn } from '../../utils/cn';
 
 const props = defineProps({
   id: {
@@ -17,7 +18,7 @@ const props = defineProps({
 });
 
 const context = inject<{ 
-  activeTab: string | undefined, 
+  activeTab: Ref<string | undefined> | string | undefined, 
   register: (id: string, label: string, icon?: string) => void, 
   unregister: (id: string) => void,
   update: (id: string, label: string, icon?: string) => void
@@ -41,11 +42,11 @@ watch(() => [props.label, props.icon], () => {
   }
 }, { deep: true });
 
-const isActive = computed(() => context.activeTab === props.id);
+const isActive = computed(() => unref(context.activeTab) === props.id);
 </script>
 
 <template>
-  <div v-show="isActive" class="h-full w-full overflow-hidden content-tab">
+  <div v-show="isActive" :class="cn('h-full w-full overflow-hidden content-tab')">
     <slot></slot>
   </div>
 </template>

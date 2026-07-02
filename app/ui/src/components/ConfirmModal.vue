@@ -39,7 +39,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown));
     <template #header>
         <div class="flex items-center justify-between p-6 pb-2" v-bind="$attrs">
           <div class="font-bold text-base tracking-tight" :class="danger ? 'text-red-400' : 'text-neutral-100'">{{ title }}</div>
-          <button @click="emit('cancel')" class="text-neutral-500 hover:text-neutral-300 transition-colors outline-none cursor-pointer">
+          <button @click="emit('cancel')" class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors outline-none cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
@@ -48,12 +48,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeyDown));
     <div class="px-6 pb-6 pt-2">
       <div class="flex flex-col gap-4 mb-8">
         <slot>
-          <div v-if="message" class="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap">{{ message }}</div>
+          <div v-if="message" class="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap">{{ message }}</div>
         </slot>
       </div>
       
       <div v-if="!hideButtons" class="flex justify-end gap-3">
-        <button v-if="!hideCancel" @click="emit('cancel')" class="px-5 py-2 rounded border border-neutral-700 text-xs font-bold bg-[#252526] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all outline-none uppercase tracking-widest">{{ t('common.cancel') }}</button>
+        <button v-if="!hideCancel" @click="emit('cancel')" class="px-5 py-2 rounded border border-neutral-300 dark:border-neutral-700 text-xs font-bold bg-neutral-100 dark:bg-[#252526] hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all outline-none uppercase tracking-widest">{{ t('common.cancel') }}</button>
         <button @click="emit('confirm')" :disabled="confirmDisabled" 
                 class="px-5 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest" 
                 :class="danger ? 'bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20'">

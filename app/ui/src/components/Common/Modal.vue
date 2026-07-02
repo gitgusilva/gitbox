@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
+import { cn } from '../../utils/cn';
+import ScrollArea from './ScrollArea.vue';
 
 interface Props {
   modelValue: boolean;
@@ -13,6 +15,10 @@ interface Props {
   minHeight?: string;
   maxHeight?: string;
   hideCloseBtn?: boolean;
+  /** When false, the body is a plain flex container (no scroll wrapper) so the
+   *  slotted content can manage its own height/scrolling and fill the modal. */
+  scrollBody?: boolean;
+  class?: string;
 }
 
 const props = defineProps<Props>();
@@ -31,9 +37,13 @@ function close() {
 <template>
   <Teleport to="body">
     <div v-if="modelValue" 
-         class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" 
+         class="fixed inset-0 z-[100] center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" 
          @click.self="close">
-      <div class="bg-[#1e1e20] border border-neutral-800 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden scale-in-center flex flex-col"
+      <div :class="cn(
+            'bg-white dark:bg-[#1e1e20] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden scale-in-center v-stack',
+            height ? '' : 'h-min',
+            props.class
+           )"
            :style="{ 
              width: width || '600px', 
              height: height,
@@ -44,26 +54,31 @@ function close() {
         
         <!-- Header slot or Default Header -->
         <slot name="header">
-          <header v-if="title" class="h-14 border-b border-neutral-800 flex items-center justify-between px-6 bg-[#252526] flex-shrink-0">
-            <div class="flex items-center gap-2.5">
-              <Icon v-if="icon" :icon="icon" :class="iconColor || 'text-blue-500'" class="text-lg" />
-              <h1 class="font-bold text-sm text-neutral-200 tracking-tight">
+          <header v-if="title" class="h-14 border-b border-neutral-200 dark:border-neutral-800 h-stack justify-between px-6 bg-neutral-100 dark:bg-[#252526] shrink-0">
+            <div class="h-stack gap-2.5">
+              <Icon v-if="icon" :icon="icon" :class="cn(iconColor || 'text-blue-500', 'text-lg')" />
+              <h1 class="font-bold text-sm text-neutral-800 dark:text-neutral-200 tracking-tight">
                 {{ title }}
               </h1>
             </div>
-            <button v-if="!hideCloseBtn" @click="close" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-neutral-500 hover:text-white transition-all">
+            <button v-if="!hideCloseBtn" @click="close" class="w-8 h-8 center rounded-lg hover:bg-white/5 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-all">
               <Icon icon="lucide:x" class="text-lg" />
             </button>
           </header>
         </slot>
 
         <!-- Body -->
-        <div class="flex-1 overflow-y-auto flex flex-col min-h-0 min-w-0">
+        <ScrollArea v-if="scrollBody !== false" class="flex-1 v-stack min-h-0 min-w-0">
+            <slot />
+        </ScrollArea>
+        <div v-else class="flex-1 v-stack min-h-0 min-w-0 overflow-hidden">
             <slot />
         </div>
 
         <!-- Footer -->
-        <slot name="footer"></slot>
+        <div v-if="$slots.footer" class="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-white dark:bg-[#1e1e20]">
+          <slot name="footer"></slot>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -73,6 +88,7 @@ function close() {
 .scale-in-center {
   animation: scale-in-center 0.2s cubic-bezier(0.250, 0.460, 0.450, 0.940) both;
 }
+
 @keyframes scale-in-center {
   0% { transform: scale(0.95); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }

@@ -20,7 +20,7 @@ export function getMonacoTheme(theme: string) {
 }
 
 export const monacoOptions = {
-    automaticLayout: true,
+    automaticLayout: false,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     renderOverviewRuler: false,
@@ -32,7 +32,13 @@ export const monacoOptions = {
         horizontalHasArrows: false,
         verticalScrollbarSize: 10,
         horizontalScrollbarSize: 10,
-    }
+    },
+    lightbulb: { enabled: false },
+    hideUnchangedRegions: { enabled: false },
+    renderMarginRevertIcon: false,
+    renderIndicators: false,
+    diffCodeLens: false,
+    useInlineViewWhenSpaceIsLimited: false,
 };
 
 export function useMonacoTheme(currentTheme: any, monacoRef: any) {

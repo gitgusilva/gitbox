@@ -57,13 +57,13 @@ function handleCancel() {
 </script>
 
 <template>
-  <Modal v-if="branchActionModal" :modelValue="true" @update:modelValue="!$event && handleCancel()" :title="branchActionModal.type === 'create_branch' ? 'Create New Branch' : 'Checkout Conflicts'" width="512px">
+  <Modal v-if="branchActionModal" :modelValue="true" @update:modelValue="!$event && handleCancel()" :title="branchActionModal.type === 'create_branch' ? t('modal.create_new_branch') : t('modal.checkout_conflicts')" width="512px">
         
         <div class="p-6 pb-2">
           <div class="flex flex-col gap-4 mb-6">
 
           <div v-if="branchActionModal.type === 'create_branch'" class="space-y-2">
-            <span class="text-xs text-neutral-400">Branch Name:</span>
+            <span class="text-xs text-neutral-600 dark:text-neutral-400">{{ t('modal.branch_name') }}</span>
             <div class="relative w-full">
                 <!-- Highlight Overlay -->
                 <template v-if="generalSettings.highlightBranchPrefixes">
@@ -71,36 +71,35 @@ function handleCancel() {
                        <div v-html="highlightedBranchName" class="translate-y-[1px]"></div>
                     </div>
                     <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden text-neutral-600" aria-hidden="true" v-else>
-                       e.g. feature/new-component
+                       {{ t('modal.branch_name_placeholder') }}
                     </div>
                     <!-- Actual Input -->
-                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-transparent border border-neutral-700/50 rounded px-3 py-2 text-xs text-transparent caret-white focus:border-blue-500 outline-none font-mono placeholder-transparent" placeholder="e.g. feature/new-component" @keydown.enter="handleAction('keep')" />
+                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-transparent border border-neutral-300 dark:border-neutral-700/50 rounded px-3 py-2 text-xs text-transparent caret-white focus:border-blue-500 outline-none font-mono placeholder-transparent" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
                 </template>
                 <template v-else>
-                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-[#252526] border border-neutral-700/50 rounded px-3 py-2 text-xs text-white focus:border-blue-500 outline-none placeholder-neutral-500" placeholder="e.g. feature/new-component" @keydown.enter="handleAction('keep')" />
+                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-neutral-100 dark:bg-[#252526] border border-neutral-300 dark:border-neutral-700/50 rounded px-3 py-2 text-xs text-neutral-900 dark:text-white focus:border-blue-500 outline-none placeholder-neutral-500" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
                 </template>
             </div>
           </div>
 
-          <div v-else-if="branchActionModal.type === 'checkout_conflict'" class="text-xs text-neutral-400">
-            You have uncommitted changes that conflict with the destination branch <b class="text-blue-400">{{ branchActionModal.targetBranch }}</b>.
+          <div v-else-if="branchActionModal.type === 'checkout_conflict'" class="text-xs text-neutral-600 dark:text-neutral-400" v-html="t('modal.checkout_conflict_text', { branch: branchActionModal.targetBranch })">
           </div>
-          
+
           <div v-if="branchActionModal.hasChanges" class="text-xs text-yellow-500 bg-yellow-500/10 p-3 rounded border-l-2 border-yellow-500 mt-2">
-             You have local changes. How would you like to handle them before proceeding?
+             {{ t('modal.local_changes_prompt') }}
           </div>
         </div>
         
         <div class="flex justify-end gap-3 flex-wrap">
-          <button @click="handleCancel" class="px-5 py-2 rounded border border-neutral-700 text-xs font-bold bg-[#252526] hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all outline-none uppercase tracking-widest">{{ t('common.cancel') }}</button>
+          <button @click="handleCancel" class="px-5 py-2 rounded border border-neutral-300 dark:border-neutral-700 text-xs font-bold bg-neutral-100 dark:bg-[#252526] hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all outline-none uppercase tracking-widest">{{ t('common.cancel') }}</button>
           
           <template v-if="branchActionModal.hasChanges">
-             <button @click="handleAction('discard')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-red-600 hover:bg-red-500">Discard & Proceed</button>
-             <button @click="handleAction('stash')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-orange-600 hover:bg-orange-500">Stash & Proceed</button>
+             <button @click="handleAction('discard')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-red-600 hover:bg-red-500">{{ t('modal.discard_and_proceed') }}</button>
+             <button @click="handleAction('stash')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-orange-600 hover:bg-orange-500">{{ t('modal.stash_and_proceed') }}</button>
           </template>
 
           <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-blue-600 hover:bg-blue-500">
-              {{ branchActionModal.hasChanges ? 'Keep & Proceed' : 'Proceed' }}
+              {{ branchActionModal.hasChanges ? t('modal.keep_and_proceed') : t('modal.proceed') }}
           </button>
         </div>
         </div>

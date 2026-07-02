@@ -1,4 +1,4 @@
-export type Placement = 'top' | 'bottom' | 'left' | 'right';
+export type Placement = 'top' | 'bottom' | 'left' | 'right' | 'auto';
 export type Alignment = 'start' | 'center' | 'end';
 
 export interface FloatingOptions {
@@ -13,7 +13,7 @@ export interface FloatingOptions {
 export function calculateFloatingPosition({
     targetRect,
     floatingRect,
-    placement = 'bottom',
+    placement = 'top',
     alignment = 'center',
     margin = 8,
     matchWidth = false
@@ -24,9 +24,31 @@ export function calculateFloatingPosition({
 
     let pos = placement;
 
-    // Flip logic based on vertical constraints
+    if (pos === 'auto') {
+        const spaces = {
+            top: targetRect.top - margin,
+            bottom: window.innerHeight - targetRect.bottom - margin,
+            left: targetRect.left - margin,
+            right: window.innerWidth - targetRect.right - margin
+        };
+
+        // Prefer vertical if enough space, otherwise pick max
+        if (spaces.top >= floatingRect.height) {
+            pos = 'top';
+        } else if (spaces.bottom >= floatingRect.height) {
+            pos = 'bottom';
+        } else {
+            const maxSpace = Math.max(spaces.top, spaces.bottom, spaces.left, spaces.right);
+            if (maxSpace === spaces.bottom) pos = 'bottom';
+            else if (maxSpace === spaces.top) pos = 'top';
+            else if (maxSpace === spaces.right) pos = 'right';
+            else pos = 'left';
+        }
+    }
+
+    // Flip logic based on vertical constraints if not auto or if preferred side is full
     if (pos === 'bottom' && targetRect.bottom + margin + floatingRect.height > window.innerHeight) {
-        if (targetRect.top - floatingRect.height - margin > 0) pos = 'top';
+        if (targetRect.top - floatingRect.height - margin > (window.innerHeight - targetRect.bottom - margin)) pos = 'top';
     }
     if (pos === 'top' && targetRect.top - floatingRect.height - margin < 0) {
         if (targetRect.bottom + margin + floatingRect.height <= window.innerHeight) pos = 'bottom';
@@ -74,7 +96,7 @@ export function calculateFloatingPosition({
         }
     }
 
-    // Final boundary checks to ensure the element doesn't flow off-screen
+    // Final boundary checks to ensure the element doesn't flow off-screen (Shift)
     if (left < margin) left = margin;
     if (top < margin) top = margin;
 

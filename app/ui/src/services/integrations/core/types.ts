@@ -21,6 +21,8 @@ export interface IntegrationInfo {
     user?: IntegrationUser;
 }
 
+import { IPRProvider } from '../../pullRequests/providers/IPRProvider';
+
 export interface IIntegrationProvider {
     readonly id: string;
     readonly name: string;
@@ -31,4 +33,7 @@ export interface IIntegrationProvider {
     handleCallback?(params: URLSearchParams): Promise<IntegrationSession>;
     refreshToken?(token: string): Promise<IntegrationSession>;
     connectAction?(onSuccess: (session: IntegrationSession) => void): Promise<void>;
+
+    matchUrl?(url: string): string | null;
+    getPRProvider?(getAccessToken: (force?: boolean) => Promise<string | undefined>): IPRProvider;
 }

@@ -1,11 +1,24 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { toasts, removeToast } from '../services/toastService';
+import { generalSettings } from '../services/settingsService';
+
+const positionClass = computed(() => {
+  switch (generalSettings.value.notificationPosition) {
+    // bottom-9 clears the 22px status-bar footer so toasts don't sit glued to it.
+    case 'bottom-left': return 'bottom-9 left-6 items-start';
+    case 'top-right': return 'top-6 right-6 items-end flex-col-reverse';
+    case 'top-left': return 'top-6 left-6 items-start flex-col-reverse';
+    case 'bottom-right':
+    default: return 'bottom-9 right-6 items-end';
+  }
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+    <div class="fixed z-[9999] flex flex-col gap-3 pointer-events-none" :class="positionClass">
       <TransitionGroup 
           enter-active-class="transition-all duration-300 ease-out"
           enter-from-class="opacity-0 translate-y-4 scale-95"
@@ -15,7 +28,7 @@ import { toasts, removeToast } from '../services/toastService';
           leave-to-class="opacity-0 translate-y-2 scale-95">
           
         <div v-for="toast in toasts" :key="toast.id" 
-             class="w-[380px] rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto bg-[#2b2d31] border border-neutral-700/50"
+             class="w-[380px] rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto bg-white dark:bg-[#2b2d31] border border-neutral-200 dark:border-neutral-700/50"
              :class="{
                  'border-l-4 border-l-red-500': toast.type === 'error',
                  'border-l-4 border-l-green-500': toast.type === 'success',
@@ -39,11 +52,11 @@ import { toasts, removeToast } from '../services/toastService';
 
           <!-- Content Section -->
           <div class="flex-1 p-3 pr-8 relative">
-              <button @click="removeToast(toast.id)" class="absolute top-2 right-2 text-neutral-500 hover:text-white transition-colors">
+              <button @click="removeToast(toast.id)" class="absolute top-2 right-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
                   <Icon icon="lucide:x" class="text-sm" />
               </button>
-              <h3 class="font-bold text-sm text-neutral-200 mb-1 leading-tight">{{ toast.title }}</h3>
-              <p class="text-xs text-neutral-400 leading-relaxed">{{ toast.message }}</p>
+              <h3 class="font-bold text-sm text-neutral-800 dark:text-neutral-200 mb-1 leading-tight">{{ toast.title }}</h3>
+              <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{{ toast.message }}</p>
               <a v-if="toast.link" :href="toast.link" target="_blank" class="block mt-2 text-xs text-blue-400 hover:underline">
                   {{ toast.link }}
               </a>

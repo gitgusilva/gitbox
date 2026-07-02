@@ -14,6 +14,7 @@ import { repoPath, loadRepoData, isLoadingData } from '../services/gitService';
 import { ref, watch, onMounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
+import Tooltip from '../components/Common/Tooltip.vue';
 
 const isOverflowing = ref(false);
 let observer: ResizeObserver | null = null;
@@ -36,26 +37,27 @@ function scrollTabsBy(amount: number) {
 
 function onTabScroll(e: WheelEvent) {
     const el = getScrollEl();
-    if (el && e.deltaY !== 0) {
-        el.scrollLeft += e.deltaY;
+    if (el) {
+        // If there's a horizontal delta (touchpad swipe), use it. 
+        // Otherwise use vertical delta (mouse wheel) for horizontal scrolling.
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+            el.scrollLeft += e.deltaX;
+        } else {
+            el.scrollLeft += e.deltaY;
+        }
     }
 }
 
 const { t } = useI18n();
 const isColorPickerOpen = ref(false);
 const editingWorkspaceId = ref<string | null>(null);
+const colorPickerX = ref(8);
+const customColor = ref('#3949AB');
 
 const draggingId = ref<string | null>(null);
 
 const colors = ['#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB', '#1E88E5', '#039BE5', '#00ACC1', '#00897B', '#43A047', '#7CB342', '#C0CA33', '#FDD835', '#FFB300', '#FB8C00', '#F4511E'];
 
-watch(activeWorkspaceId, (id) => {
-  const ws = workspaces.value.find(w => w.id === id);
-  if (ws) {
-    repoPath.value = ws.path;
-    loadRepoData(true);
-  }
-});
 
 let checkOverflow: (() => void) | undefined;
 
@@ -68,6 +70,7 @@ watch(workspaces, () => {
 onMounted(() => {
     if (activeWorkspaceId.value) {
         const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
+
         if (ws) {
             repoPath.value = ws.path;
             loadRepoData(true);
@@ -89,6 +92,7 @@ onMounted(() => {
     observer = new ResizeObserver(() => {
         if (checkOverflow) checkOverflow();
     });
+
     if (tabsContainer.value && tabsContainer.value.$el) {
         observer.observe(tabsContainer.value.$el);
         setTimeout(() => {
@@ -96,11 +100,12 @@ onMounted(() => {
             if (inner && observer) observer.observe(inner);
         }, 100);
     }
+    
     setTimeout(() => { if (checkOverflow) checkOverflow(); }, 100);
 });
 
 import { addNewTab, addWorkspaceFlow } from '../services/workspaceService';
-import { contextMenu, requestInput } from '../services/modalService';
+import { contextMenu, requestInput, isSettingsOpen, settingsActiveSection } from '../services/modalService';
 
 async function handleAddWorkspaceFlow() {
   addNewTab();
@@ -131,6 +136,12 @@ onMounted(() => {
 
 function openColorPicker(wsId: string) {
     editingWorkspaceId.value = wsId;
+    const el = document.getElementById(`workspace-tab-${wsId}`);
+    const rawLeft = el ? el.getBoundingClientRect().left : 8;
+    // Clamp so the popup never spills off either screen edge (popup ~ 200px wide).
+    colorPickerX.value = Math.max(8, Math.min(rawLeft, window.innerWidth - 210));
+    const ws = workspaces.value.find(w => w.id === wsId);
+    if (ws?.color) customColor.value = ws.color;
     isColorPickerOpen.value = true;
 }
 
@@ -140,19 +151,19 @@ function openTabMenu(e: MouseEvent, wsId: string) {
         y: e.clientY,
         items: [
             {
-                label: 'Close tab',
+                label: t('workspace.close_tab'),
                 icon: 'lucide:x',
                 action: () => removeWorkspace(wsId)
             },
             {
-                label: 'Close other tabs',
+                label: t('workspace.close_other_tabs'),
                 action: () => {
                     workspaces.value = workspaces.value.filter(w => w.id === wsId);
                     if (activeWorkspaceId.value !== wsId) setActiveWorkspace(wsId);
                 }
             },
             {
-                label: 'Close tabs to the right',
+                label: t('workspace.close_tabs_right'),
                 action: () => {
                     const idx = workspaces.value.findIndex(w => w.id === wsId);
                     if (idx >= 0) {
@@ -166,12 +177,12 @@ function openTabMenu(e: MouseEvent, wsId: string) {
             },
             { separator: true },
             {
-                label: 'Alias repository',
+                label: t('workspace.alias_repo'),
                 icon: 'lucide:edit-2',
                 action: () => {
                     const ws = workspaces.value.find(w => w.id === wsId);
                     if (ws) {
-                        requestInput('Alias Repository', 'Enter a new name for this tab:', 'Repository Name', ws.name, 'Save', (val) => {
+                        requestInput(t('workspace.alias_repo'), t('workspace.alias_message'), t('workspace.repo_name'), ws.name, t('common.save') || 'Save', (val) => {
                             if (val) updateWorkspace(wsId, { name: val });
                         });
                     }
@@ -179,7 +190,7 @@ function openTabMenu(e: MouseEvent, wsId: string) {
             },
             { separator: true },
             {
-                label: 'Change color...',
+                label: t('workspace.change_color'),
                 icon: 'lucide:palette',
                 action: () => openColorPicker(wsId)
             }
@@ -192,24 +203,27 @@ function openMainMenu(e: MouseEvent) {
         x: e.clientX,
         y: e.clientY + 20,
         items: [
-            { label: 'New Tab', shortcut: 'Ctrl+T', action: () => handleAddWorkspaceFlow() },
-            { label: 'Close Tab', shortcut: 'Ctrl+W', action: () => {
+            { label: t('workspace.new_tab'), shortcut: 'Ctrl+T', action: () => handleAddWorkspaceFlow() },
+            { label: t('workspace.close_tab'), shortcut: 'Ctrl+W', action: () => {
                 if (activeWorkspaceId.value) removeWorkspace(activeWorkspaceId.value);
             }},
-            { label: 'Reopen Closed Tab', shortcut: 'Ctrl+Shift+T', action: () => {} },
+            { label: t('workspace.reopen_closed_tab'), shortcut: 'Ctrl+Shift+T', action: () => {} },
             { separator: true },
-            { label: 'Clone Repo...', shortcut: 'Ctrl+N', action: () => {} },
-            { label: 'Init Repo...', shortcut: 'Ctrl+I', action: () => {} },
-            { label: 'Open Repo...', shortcut: 'Ctrl+O', action: () => addWorkspaceFlow() },
-            { label: 'Open Repo Management', shortcut: 'Alt+Ctrl+O', action: () => {} },
-            { label: 'Open Repo in External Editor', shortcut: 'Ctrl+Shift+E', action: () => {} },
+            { label: t('workspace.clone_repo'), shortcut: 'Ctrl+N', action: () => {} },
+            { label: t('workspace.init_repo'), shortcut: 'Ctrl+I', action: () => {} },
+            { label: t('workspace.open_repo'), shortcut: 'Ctrl+O', action: () => addWorkspaceFlow() },
+            { label: t('workspace.open_repo_management'), shortcut: 'Alt+Ctrl+O', action: () => {} },
+            { label: t('workspace.open_in_external_editor'), shortcut: 'Ctrl+Shift+E', action: () => {} },
             { separator: true },
-            { label: 'Open External Terminal', shortcut: 'Alt+T', action: () => {} },
-            { label: 'Open in File Manager', shortcut: 'Alt+O', action: () => {} },
+            { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', action: () => {} },
+            { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', action: () => {} },
             { separator: true },
-            { label: 'Preferences...', shortcut: 'Ctrl+,', action: () => {} },
+            { label: t('settings.preferences') + '...', shortcut: 'Ctrl+,', action: () => {
+                settingsActiveSection.value = 'preferences';
+                isSettingsOpen.value = true;
+            }},
             { separator: true },
-            { label: 'Quit', shortcut: 'Ctrl+Q', action: () => handleClose() }
+            { label: t('common.quit') || 'Quit', shortcut: 'Ctrl+Q', action: () => handleClose() }
         ]
     };
 }
@@ -267,7 +281,9 @@ watch(activeWorkspaceId, async (val) => {
     // Update repo and load data
     repoPath.value = ws.path;
     setItem('gitbox_repo_path', ws.path);
-    await loadRepoData();
+    
+    // Pass the current ID to avoid race conditions resetting wrong tabs on error
+    await loadRepoData(true, val);
     
     // Scroll tab into view
     setTimeout(() => {
@@ -278,15 +294,15 @@ watch(activeWorkspaceId, async (val) => {
 </script>
 
 <template>
-  <div class="flex-shrink-0 h-10 bg-[#202020] dark:bg-[#18181A] border-b border-light-border dark:border-[#2D2D2D] flex items-center shadow-sm select-none" style="-webkit-app-region: drag;">
+  <div class="flex-shrink-0 h-10 bg-neutral-100 dark:bg-[#18181A] border-b border-light-border dark:border-[#2D2D2D] flex items-center shadow-sm select-none" style="-webkit-app-region: drag;">
     
     <!-- Left actions -->
     <div class="flex items-center px-4 gap-3 relative z-10" style="-webkit-app-region: no-drag;">
-       <div class="p-1 hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-neutral-400 hover:text-white" @click="openMainMenu">
+       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="openMainMenu">
            <Icon icon="lucide:menu" />
        </div>
        <!-- Removed the folder from here entirely? Or leave it? User only complained about + button -> let's leave it as is. -->
-       <div class="p-1 hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center text-neutral-400 hover:text-white" @click="handleAddWorkspaceFlow">
+       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
            <Icon icon="lucide:folder" />
        </div>
     </div>
@@ -300,7 +316,7 @@ watch(activeWorkspaceId, async (val) => {
                      @click="activeWorkspaceId = 'changelog'"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 min-w-[120px] px-3 flex items-center justify-between gap-2 rounded-t-md mx-[1px] cursor-pointer group transition-colors relative"
-                     :class="activeWorkspaceId === 'changelog' ? 'bg-[#2D2D2D] text-white' : 'bg-[#1E1E1E] text-neutral-400 hover:bg-[#252525] hover:text-neutral-200'">
+                     :class="activeWorkspaceId === 'changelog' ? 'bg-neutral-100 dark:bg-[#2D2D2D] text-neutral-900 dark:text-white' : 'bg-white dark:bg-[#1E1E1E] text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                         <Icon icon="lucide:megaphone" class="w-3.5 h-3.5 text-blue-500" />
                         <span class="truncate text-xs font-medium">{{ t('common.whats_new') }}</span>
@@ -320,11 +336,11 @@ watch(activeWorkspaceId, async (val) => {
                      @dragend="onDragEnd"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 max-w-[200px] min-w-[120px] px-3 flex items-center justify-between rounded-t-md mx-[1px] cursor-pointer group transition-colors relative border-b-2 border-transparent"
-                     :class="activeWorkspaceId === ws.id ? 'bg-[#2D2D2D] text-white border-blue-500' : 'bg-[#1E1E1E] text-neutral-400 hover:bg-[#252525] hover:text-neutral-200'">
+                     :class="activeWorkspaceId === ws.id ? 'bg-neutral-100 dark:bg-[#2D2D2D] text-neutral-900 dark:text-white border-blue-500' : 'bg-white dark:bg-[#1E1E1E] text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
                      
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                          <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: ws.color }"></div>
-                         <span class="truncate text-xs font-medium">{{ ws.name }}</span>
+                         <span class="truncate text-xs font-medium">{{ ws.name || t('workspace.new_tab') }}</span>
                      </div>
                      <div class="flex items-center justify-center w-4 h-4 ml-2">
                         <Icon v-if="isLoadingData && activeWorkspaceId === ws.id" icon="lucide:loader-2" class="w-3 h-3 text-blue-500 animate-spin" />
@@ -333,43 +349,70 @@ watch(activeWorkspaceId, async (val) => {
                 </div>
 
                 <!-- Inline + button -->
-                <div v-if="!isOverflowing" class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-[#2D2D2D] rounded-t-md text-neutral-400 hover:text-white transition-colors" @click="handleAddWorkspaceFlow" title="Add Workspace" style="-webkit-app-region: no-drag;">
-                    <Icon icon="lucide:plus" class="w-4 h-4" />
-                </div>
+                <Tooltip v-if="!isOverflowing" :text="t('ui.add_workspace')" position="bottom">
+                  <div class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded-t-md text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors" @click="handleAddWorkspaceFlow" style="-webkit-app-region: no-drag;">
+                      <Icon icon="lucide:plus" class="w-4 h-4" />
+                  </div>
+                </Tooltip>
             </TransitionGroup>
         </SimpleBar>
 
         <!-- Right Controls (Arrows +) -->
-        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-[#202020] dark:bg-[#18181A] z-20" style="-webkit-app-region: no-drag;">
-             <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-[#2D2D2D] rounded text-neutral-400 hover:text-white" @click="scrollTabsBy(-200)">
-                 <Icon icon="lucide:chevron-left" class="w-4 h-4" />
-             </div>
-             <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-[#2D2D2D] rounded text-neutral-400 hover:text-white" @click="scrollTabsBy(200)">
-                 <Icon icon="lucide:chevron-right" class="w-4 h-4" />
-             </div>
-             <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-[#2D2D2D] rounded text-neutral-400 hover:text-white ml-0.5" @click="handleAddWorkspaceFlow" title="Add Workspace">
-                 <Icon icon="lucide:plus" class="w-4 h-4" />
-             </div>
+        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-neutral-100 dark:bg-[#18181A] z-20" style="-webkit-app-region: no-drag;">
+             <Tooltip :text="t('ui.scroll_left')" position="bottom">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(-200)">
+                   <Icon icon="lucide:chevron-left" class="w-4 h-4" />
+               </div>
+             </Tooltip>
+             <Tooltip :text="t('ui.scroll_right')" position="bottom">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(200)">
+                   <Icon icon="lucide:chevron-right" class="w-4 h-4" />
+               </div>
+             </Tooltip>
+             <Tooltip :text="t('ui.add_workspace')" position="bottom" class="ml-0.5">
+               <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
+                   <Icon icon="lucide:plus" class="w-4 h-4" />
+               </div>
+             </Tooltip>
         </div>
     </div>
 
     <!-- Right Window Controls -->
     <div class="flex h-full" style="-webkit-app-region: no-drag;">
-        <div class="w-12 h-full flex items-center justify-center text-neutral-400 hover:bg-neutral-700 hover:text-white transition-colors cursor-pointer" @click="handleMinimize">
+        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMinimize">
             <Icon icon="lucide:minus" class="w-4 h-4" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-neutral-400 hover:bg-neutral-700 hover:text-white transition-colors cursor-pointer" @click="handleMaximize">
+        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMaximize">
             <Icon icon="lucide:square" class="w-3.5 h-3.5" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-neutral-400 hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
+        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
             <Icon icon="lucide:x" class="w-4 h-4" />
         </div>
     </div>
 
-    <!-- Color Picker Modal -->
-    <div v-if="isColorPickerOpen" class="absolute top-10 flex flex-wrap gap-2 w-48 p-3 bg-neutral-800 border border-neutral-700 rounded-md shadow-xl z-50" style="-webkit-app-region: no-drag;">
-        <div v-for="c in colors" :key="c" @click="selectColor(c)" class="w-6 h-6 rounded cursor-pointer hover:scale-110 transition-transform" :style="{ backgroundColor: c }"></div>
-    </div>
+    <!-- Color Picker Popover -->
+    <template v-if="isColorPickerOpen">
+        <!-- Click-away backdrop -->
+        <div class="fixed inset-0 z-40" style="-webkit-app-region: no-drag;" @click="isColorPickerOpen = false; editingWorkspaceId = null"></div>
+        <div class="fixed w-48 p-3 bg-neutral-200 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-xl z-50"
+             :style="{ top: '40px', left: colorPickerX + 'px' }" style="-webkit-app-region: no-drag;">
+            <div class="flex flex-wrap gap-2">
+                <div v-for="c in colors" :key="c" @click="selectColor(c)"
+                     class="w-6 h-6 rounded cursor-pointer hover:scale-110 transition-transform border border-white/10"
+                     :style="{ backgroundColor: c }"></div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-neutral-300 dark:border-neutral-700 flex items-center gap-2">
+                <label class="relative w-7 h-7 rounded overflow-hidden border border-neutral-400 dark:border-neutral-600 cursor-pointer shrink-0" :style="{ backgroundColor: customColor }">
+                    <input type="color" v-model="customColor" class="absolute inset-0 opacity-0 cursor-pointer" />
+                </label>
+                <span class="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 flex-1 truncate">{{ customColor }}</span>
+                <button @click="selectColor(customColor)"
+                        class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                    {{ t('common.apply') || 'Apply' }}
+                </button>
+            </div>
+        </div>
+    </template>
   </div>
 </template>
 

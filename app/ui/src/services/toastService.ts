@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { generalSettings } from './settingsService';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -15,6 +16,9 @@ export const toasts = ref<Toast[]>([]);
 let toastIdCount = 0;
 
 export function showToast(title: string, message: string, type: ToastType = 'info', options?: { duration?: number, link?: string }) {
+    // Respect the user's notification preference (master on/off switch).
+    if (generalSettings.value.notificationsEnabled === false) return;
+
     const id = ++toastIdCount;
     const toast: Toast = { id, title, message, type, ...options };
     toasts.value.push(toast);

@@ -134,11 +134,11 @@ const diffRows = computed(() => {
 </script>
 
 <template>
-    <div class="flex-1 flex flex-col bg-[#1e1e1e] overflow-hidden gap-1 border-t border-neutral-800">
+    <div class="flex-1 flex flex-col bg-white dark:bg-[#1e1e1e] overflow-hidden gap-1 border-t border-neutral-200 dark:border-neutral-800">
         
         <!-- INLINE VIEW -->
-        <div v-if="props.isInline" class="flex-1 overflow-auto bg-neutral-900 border-r border-neutral-800 relative">
-            <div class="p-6 text-neutral-300 prose prose-invert prose-sm max-w-none flex flex-col gap-2">
+        <div v-if="props.isInline" class="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 relative">
+            <div class="p-6 text-neutral-700 dark:text-neutral-300 prose prose-invert prose-sm max-w-none flex flex-col gap-2">
                 <template v-for="(row, idx) in diffRows" :key="idx">
                     <!-- Unchanged -->
                     <div v-if="row.type === 'unchanged'" class="flex gap-4 opacity-70">
@@ -179,8 +179,8 @@ const diffRows = computed(() => {
 
         <!-- SIDE-BY-SIDE VIEW -->
         <div v-else class="flex-1 flex flex-row overflow-hidden">
-            <div class="flex flex-col w-1/2 h-full bg-neutral-900 border-r border-neutral-800 relative">
-                <div ref="leftPane" @scroll="onScrollLeft" class="text-neutral-300 prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
+            <div class="flex flex-col w-1/2 h-full bg-neutral-100 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 relative">
+                <div ref="leftPane" @scroll="onScrollLeft" class="text-neutral-700 dark:text-neutral-300 prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
                     <template v-for="(row, idx) in diffRows" :key="idx">
                         <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-red-900/10 border-l-[3px] border-red-500 !pl-[5px]': row.type === 'removed' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'added' }">
                            <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-red-500': row.type === 'removed' || row.type === 'modified', 'opacity-0': row.type === 'added' }">{{ row.leftLine || ' ' }}</div>
@@ -190,8 +190,8 @@ const diffRows = computed(() => {
                 </div>
             </div>
             
-            <div class="flex flex-col w-1/2 h-full bg-neutral-900 relative">
-                <div ref="rightPane" @scroll="onScrollRight" class="text-neutral-300 prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
+            <div class="flex flex-col w-1/2 h-full bg-neutral-100 dark:bg-neutral-900 relative">
+                <div ref="rightPane" @scroll="onScrollRight" class="text-neutral-700 dark:text-neutral-300 prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
                     <template v-for="(row, idx) in diffRows" :key="idx">
                         <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-green-900/10 border-l-[3px] border-green-500 !pl-[5px]': row.type === 'added' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'removed' }">
                            <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-green-500': row.type === 'added' || row.type === 'modified', 'opacity-0': row.type === 'removed' }">{{ row.rightLine || ' ' }}</div>

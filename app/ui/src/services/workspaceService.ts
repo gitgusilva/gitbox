@@ -2,20 +2,37 @@ import { ref, watch, computed } from 'vue';
 import { getItem, setItem, removeItem } from './storageService';
 import { generalSettings } from './settingsService';
 
+/**
+ * Represents a recently opened repository.
+ */
 export interface RecentRepo {
+    /** Display name of the repository. */
     name: string;
+    /** Absolute filesystem path. */
     path: string;
+    /** Visual color code assigned to this repo. */
     color: string;
+    /** Timestamp of when it was last opened. */
     lastOpened: number;
 }
 
+/**
+ * Represents a workspace tab in the application.
+ */
 export interface Workspace {
+    /** Unique identifier for the tab. */
     id: string;
+    /** Display name. */
     name: string;
+    /** Absolute filesystem path to the repository. */
     path: string;
+    /** Color identifier. */
     color: string;
+    /** True if this workspace is a Git submodule of another. */
     isSubmodule?: boolean;
+    /** Name of the parent repository if it's a submodule. */
     parentName?: string;
+    /** Path of the parent repository if it's a submodule. */
     parentPath?: string;
 }
 
@@ -38,11 +55,16 @@ function getInitialActiveWorkspace(): string | null {
     return null;
 }
 
+/** List of currently open workspaces (tabs). */
 export const workspaces = ref<Workspace[]>(getInitialWorkspaces());
+
+/** ID of the workspace currently visible to the user. */
 export const activeWorkspaceId = ref<string | null>(getInitialActiveWorkspace());
 
+/** Reactive state for the application changelog visibility. */
 export const isChangelogVisible = ref<boolean>(getItem('gitbox_is_changelog_visible') === 'true');
 
+/** History of recently accessed repositories. */
 export const recentRepositories = ref<RecentRepo[]>(JSON.parse(getItem('gitbox_recent_repos') || '[]'));
 
 watch(recentRepositories, (val) => {
@@ -51,7 +73,9 @@ watch(recentRepositories, (val) => {
 
 watch(workspaces, (val) => {
     if (generalSettings.value.rememberTabs) {
-        setItem('gitbox_workspaces', JSON.stringify(val));
+        // Only persist actual repositories, "New Tab" (empty path) should not be persistent
+        const toSave = val.filter(w => w.path && w.path.trim() !== '');
+        setItem('gitbox_workspaces', JSON.stringify(toSave));
     } else {
         removeItem('gitbox_workspaces');
     }
@@ -76,8 +100,27 @@ watch(() => generalSettings.value.rememberTabs, (val) => {
     }
 });
 
+/**
+ * Adds a new workspace to the application.
+ * 
+ * @param name - Display name for the tab.
+ * @param path - Absolute filesystem path.
+ * @param color - Visual color code.
+ * @param isSubmodule - Flag for submodule status.
+ * @param parentName - Parent repository name (submodules).
+ * @param parentPath - Parent repository path (submodules).
+ * @returns The newly created workspace object.
+ */
 export function addWorkspace(name: string, path: string, color: string, isSubmodule: boolean = false, parentName?: string, parentPath?: string) {
-    const ws = { id: Date.now().toString(), name, path, color, isSubmodule, parentName, parentPath };
+    const ws = {
+        id: crypto.randomUUID?.() || Date.now().toString() + Math.random().toString(36).slice(2),
+        name,
+        path,
+        color,
+        isSubmodule,
+        parentName,
+        parentPath
+    };
     workspaces.value.push(ws);
     activeWorkspaceId.value = ws.id;
     return ws;
@@ -96,6 +139,7 @@ export function setActiveWorkspace(id: string) {
 
 export function removeWorkspace(id: string) {
     workspaces.value = workspaces.value.filter(w => w.id !== id);
+
     if (activeWorkspaceId.value === id) {
         activeWorkspaceId.value = workspaces.value.length > 0 ? workspaces.value[0].id : null;
     }
@@ -103,12 +147,21 @@ export function removeWorkspace(id: string) {
 
 export function addRecentRepository(name: string, path: string, color: string) {
     if (!path) return;
+
     const list = recentRepositories.value.filter(r => r.path !== path);
     list.unshift({ name, path, color, lastOpened: Date.now() });
+
     if (list.length > 20) list.pop();
     recentRepositories.value = list;
 }
 
+/**
+ * Opens a repository path as a workspace tab.
+ * 
+ * @param path - Absolute filesystem path.
+ * @param name - Optional display name (defaults to folder name).
+ * @param isSubmodule - Flag if this is a nested submodule.
+ */
 export function openRepository(path: string, name: string = '', isSubmodule: boolean = false, parentName?: string, parentPath?: string) {
     if (!name) name = path.split(/[/\\]/).pop() || 'Repo';
     const color = '#1E88E5';
@@ -126,7 +179,7 @@ export function openRepository(path: string, name: string = '', isSubmodule: boo
 }
 
 export function addNewTab() {
-    return addWorkspace('New Tab', '', 'transparent');
+    return addWorkspace('', '', 'transparent');
 }
 
 export async function addWorkspaceFlow() {

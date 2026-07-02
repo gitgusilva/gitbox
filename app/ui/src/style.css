@@ -2,6 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+/* App-wide: disable text selection (desktop-app feel), keep it in real text inputs / editors. */
+* {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+.monaco-editor,
+.allow-select,
+.allow-select * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+/* Neutralize the blue selection highlight where selection still happens */
+::selection {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+@layer components {
+
+  /* Layout Stacks (Best Practice) */
+  .v-stack {
+    @apply flex flex-col;
+  }
+
+  .h-stack {
+    @apply flex flex-row items-center;
+  }
+
+  .v-stack-reverse {
+    @apply flex flex-col-reverse;
+  }
+
+  .h-stack-reverse {
+    @apply flex flex-row-reverse items-center;
+  }
+
+  .center {
+    @apply flex items-center justify-center;
+  }
+
+  .spacer {
+    @apply flex-grow;
+  }
+
+  .circle {
+    @apply aspect-square rounded-full;
+  }
+}
+
 :root {
   color: #e5e7eb;
   background: radial-gradient(circle at 5% 5%, #111827 0%, #0b1220 55%, #05070d 100%);
@@ -26,11 +77,38 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-neutral-300 dark:bg-neutral-600 rounded-full;
+  background-color: var(--scrollbar-thumb, #4b5563);
+  border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-neutral-400 dark:bg-neutral-500;
+  background-color: var(--scrollbar-thumb-hover, #6b7280);
+}
+
+:root {
+  --scrollbar-thumb: #4b5563;
+  --scrollbar-thumb-hover: #6b7280;
+}
+
+.light {
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+}
+
+body.resizing * {
+  user-select: none !important;
+  pointer-events: none !important;
+}
+
+body.resizing {
+  cursor: col-resize !important;
+}
+
+body.resizing-row,
+body.resizing-row * {
+  user-select: none !important;
+  cursor: row-resize !important;
+  pointer-events: none !important;
 }

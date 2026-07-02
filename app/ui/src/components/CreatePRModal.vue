@@ -5,13 +5,13 @@ import { useI18n } from 'vue-i18n';
 import { isCreatePROpen, isSettingsOpen, settingsActiveSection } from '../services/modalService';
 import { useIntegrations } from '../services/integrations';
 import { repoPath, branches as gitBranches } from '../services/gitService';
-import { loadPullRequests } from '../services/pullRequestService';
+import { loadPullRequests, getProvider } from '../services/pullRequestService';
 import { showToast } from '../services/toastService';
 import { getItem } from '../services/storageService';
-import SimpleBar from 'simplebar-vue';
-import 'simplebar-vue/dist/simplebar.min.css';
-import MultiSelect from './Common/MultiSelect.vue';
+import Select from './Common/Select.vue';
+import Tooltip from './Common/Tooltip.vue';
 import Modal from './Common/Modal.vue';
+import { isAIConfigured, generatePRSummary } from '../services/ai/index';
 
 const connectedProviders = computed(() => integrationsList.value.filter(i => i.connected));
 const selectedProviderId = ref('');
@@ -25,9 +25,12 @@ const title = ref('');
 const description = ref('');
 const isDraft = ref(false);
 const isLoading = ref(false);
+const isGeneratingAI = ref(false);
 const error = ref('');
 
 const availableBranches = ref<string[]>([]);
+const availableBranchesOptions = computed(() => availableBranches.value.map(b => ({ value: b, label: b, icon: 'mdi:source-branch' })));
+
 const availableUsers = ref<any[]>([]);
 const availableLabels = ref<any[]>([]);
 
@@ -58,6 +61,20 @@ const isCheckingConflicts = ref(false);
 const { t } = useI18n();
 const { list: integrationsList, getValidSession, getSession } = useIntegrations();
 
+watch(repoPath, () => {
+    selectedProviderId.value = '';
+    title.value = '';
+    description.value = '';
+    selectedReviewers.value = [];
+    selectedAssignees.value = [];
+    selectedLabels.value = [];
+    fromBranch.value = '';
+    toBranch.value = '';
+    hasConflicts.value = false;
+    conflictingFiles.value = [];
+    error.value = '';
+});
+
 const currentUserLogin = computed(() => getSession(selectedProviderId.value)?.user?.login);
 
 const reviewerOptions = computed(() => {
@@ -70,10 +87,11 @@ const reviewerOptions = computed(() => {
         }));
 });
 
-onMounted(async () => {
-    if (connectedProviders.value.length > 0) {
-        selectedProviderId.value = connectedProviders.value[0].id;
-    }
+watch(isCreatePROpen, async (isOpen) => {
+    if (!isOpen) return;
+
+    isLoading.value = true;
+    error.value = '';
     
     // Auto-fill from current branch
     const head = gitBranches.value.find(b => b.is_head);
@@ -81,36 +99,26 @@ onMounted(async () => {
         fromBranch.value = head.name;
         title.value = head.name;
     }
-});
 
-watch(selectedProviderId, async (val) => {
-    if (!val) return;
-    isLoading.value = true;
-    error.value = '';
     try {
-        // Here we would call the provider to get repos
-        // For now, let's assume we can only PR to the current repo if it's GitHub
         const remoteUrl = await window.gitbox?.getRemoteUrl(repoPath.value);
-        if (remoteUrl) {
-            let repoName = '';
-            if (remoteUrl.includes('github.com:')) {
-                repoName = remoteUrl.split('github.com:')[1].replace('.git', '');
-            } else if (remoteUrl.includes('github.com/')) {
-                const parts = remoteUrl.split('github.com/')[1].split('/');
-                repoName = `${parts[0]}/${parts[1].replace('.git', '')}`;
-            }
+        const resolved = getProvider(remoteUrl);
+        
+        if (resolved) {
+            selectedProviderId.value = resolved.integrationId;
+            let displayName = resolved.repoId;
+            if (displayName.includes('/')) displayName = displayName.split('/')[1];
+
+            repos.value = [{ id: resolved.repoId, name: displayName, full_name: resolved.repoId }];
+            fromRepo.value = resolved.repoId;
+            toRepo.value = resolved.repoId;
             
-            if (repoName) {
-                repos.value = [{ id: repoName, name: repoName.split('/')[1], full_name: repoName }];
-                fromRepo.value = repoName;
-                toRepo.value = repoName;
-                
-                // Fetch branches, users and labels for this repo
-                await fetchBranchesAndData(repoName);
-            }
+            await fetchBranchesAndData(resolved.provider, resolved.repoId);
+        } else {
+            error.value = t('modal.remote_no_integration');
         }
     } catch (e) {
-        error.value = 'Failed to load repository info.';
+        error.value = t('modal.load_repo_info_failed');
     } finally {
         isLoading.value = false;
     }
@@ -124,6 +132,11 @@ watch([fromBranch, toBranch], () => {
 
 async function checkConflicts() {
     if (!window.gitbox?.checkMerge) return;
+    if (fromBranch.value === toBranch.value) {
+        hasConflicts.value = false;
+        conflictingFiles.value = [];
+        return;
+    }
     isCheckingConflicts.value = true;
     try {
         const status = await window.gitbox.checkMerge(repoPath.value, toBranch.value, fromBranch.value);
@@ -137,41 +150,18 @@ async function checkConflicts() {
     }
 }
 
-async function fetchBranchesAndData(repoFullName: string) {
-    const session = await getValidSession(selectedProviderId.value);
-    if (!session?.accessToken) return;
-    
+async function fetchBranchesAndData(provider: any, repoFullName: string) {
     try {
-        const response = await fetch(`https://api.github.com/repos/${repoFullName}/branches`, {
-            headers: {
-                'Authorization': `Bearer ${session.accessToken}`,
-                'Accept': 'application/json'
-            }
-        });
-        if (response.ok) {
-            const data = await response.json();
-            availableBranches.value = data.map((b: any) => b.name);
-            if (availableBranches.value.includes('main')) toBranch.value = 'main';
-            else if (availableBranches.value.includes('master')) toBranch.value = 'master';
-            else if (availableBranches.value.length > 0) toBranch.value = availableBranches.value[0];
-        }
+        const branches = await provider.fetchBranches(repoFullName);
+        availableBranches.value = branches;
 
-        // Fetch users (collaborators)
-        const usersResp = await fetch(`https://api.github.com/repos/${repoFullName}/assignees`, {
-             headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' }
-        });
-        if (usersResp.ok) {
-            availableUsers.value = await usersResp.json();
-        }
+        if (branches.includes('main')) toBranch.value = 'main';
+        else if (branches.includes('master')) toBranch.value = 'master';
+        else if (branches.length > 0) toBranch.value = branches[0];
 
-        // Fetch labels
-        const labelsResp = await fetch(`https://api.github.com/repos/${repoFullName}/labels`, {
-             headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' }
-        });
-        if (labelsResp.ok) {
-            availableLabels.value = await labelsResp.json();
-        }
-
+        const metadata = await provider.fetchMetadata(repoFullName);
+        availableUsers.value = metadata.users || [];
+        availableLabels.value = metadata.labels || [];
     } catch (e) {
         console.error('Failed to fetch repo data', e);
     }
@@ -180,83 +170,104 @@ async function fetchBranchesAndData(repoFullName: string) {
 async function handleCreatePR() {
     if (!title.value) return;
     
+    if (fromBranch.value === toBranch.value) {
+        const msg = t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.';
+        
+        error.value = msg;
+        showToast(t('modal.error'), msg, 'error');
+
+        return;
+    }
+    
     isLoading.value = true;
     error.value = '';
     
     try {
-        const session = await getValidSession(selectedProviderId.value);
-        if (!session?.accessToken) throw new Error('No valid session');
-        
-        const response = await fetch(`https://api.github.com/repos/${toRepo.value}/pulls`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${session.accessToken}`,
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: title.value,
-                body: description.value,
-                head: fromBranch.value,
-                base: toBranch.value,
-                draft: isDraft.value
-            })
+        const remoteUrl = await window.gitbox?.getRemoteUrl(repoPath.value);
+        const resolved = getProvider(remoteUrl);
+
+        if (!resolved) throw new Error(t('modal.cannot_determine_provider'));
+
+        const data = await resolved.provider.createPR(toRepo.value, {
+            title: title.value,
+            description: description.value,
+            fromBranch: fromBranch.value,
+            toBranch: toBranch.value,
+            isDraft: isDraft.value
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            
-            // Apply assignees, reviewers, and labels
-            if (selectedAssignees.value.length || selectedLabels.value.length) {
-                await fetch(`https://api.github.com/repos/${toRepo.value}/issues/${data.number}`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' },
-                    body: JSON.stringify({ assignees: selectedAssignees.value, labels: selectedLabels.value })
-                });
-            }
-
-            if (selectedReviewers.value.length) {
-                const reqRevRes = await fetch(`https://api.github.com/repos/${toRepo.value}/pulls/${data.number}/requested_reviewers`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Accept': 'application/json' },
-                    body: JSON.stringify({ reviewers: selectedReviewers.value })
-                });
-
-                if (!reqRevRes.ok) {
-                    try {
-                        const errData = await reqRevRes.json();
-                        const specificError = errData.errors && errData.errors[0] ? errData.errors[0].message : null;
-                        showToast('Reviewers Warning', specificError || errData.message || 'Could not request reviewers.', 'warning');
-                    } catch {
-                        showToast('Reviewers Warning', 'Could not request reviewers.', 'warning');
-                    }
-                }
-            }
-
-            isCreatePROpen.value = false;
-            loadPullRequests();
-            showToast('Success', 'Pull Request created successfully.', 'success');
-
-            if (window.gitbox?.openExternal) {
-                 window.gitbox.openExternal(data.html_url);
-            }
-        } else {
-            const errData = await response.json();
-            const specificError = errData.errors && errData.errors[0] ? errData.errors[0].message : null;
-            showToast('Failed to Create PR', specificError || errData.message || 'Unknown error occurred.', 'error', { duration: 10000 });
-            error.value = specificError || errData.message || 'Unknown error occurred.';
+        // Apply assignees, reviewers, and labels if needed
+        if (selectedAssignees.value.length || selectedLabels.value.length) {
+            await resolved.provider.updateAssigneesAndLabels(toRepo.value, data.number, selectedAssignees.value, selectedLabels.value);
         }
-    } catch (e) {
-        showToast('Error', String(e), 'error');
+
+        if (selectedReviewers.value.length) {
+            try {
+                await resolved.provider.updateReviewers(toRepo.value, data.number, selectedReviewers.value);
+            } catch (err: any) {
+                 showToast(t('modal.reviewers_warning'), err.message || t('modal.reviewers_request_failed'), 'warning');
+            }
+        }
+
+        isCreatePROpen.value = false;
+        loadPullRequests();
+        showToast(t('modal.success'), t('modal.pr_created'), 'success');
+
+        if (window.gitbox?.openExternal && data.url) {
+             window.gitbox.openExternal(data.url);
+        } else if (window.gitbox?.openExternal && data.html_url) {
+             window.gitbox.openExternal(data.html_url);
+        }
+    } catch (e: any) {
+        showToast(t('modal.error'), String(e.message || e), 'error');
+        error.value = String(e.message || e);
     } finally {
         isLoading.value = false;
     }
 }
 
-function generateWithAI() {
-    // Future AI feature
-    title.value = `PR: ${fromBranch.value}`;
-    description.value = `This PR completes the work on branch ${fromBranch.value}.`;
+async function generateWithAI() {
+    if (!isAIConfigured()) {
+        showToast(t('modal.error'), t('modal.ai_not_configured'), 'error');
+        return;
+    }
+
+    isGeneratingAI.value = true;
+    try {
+        const commits = await window.gitbox?.log(repoPath.value, 15, fromBranch.value);
+        let commitContext = commits?.map(c => `- ${c.summary}`).join('\n') || '';
+        if (!commitContext) commitContext = 'Branch name: ' + fromBranch.value;
+
+        const resp = await generatePRSummary(`From branch: ${fromBranch.value}\nTarget branch: ${toBranch.value}\n\nCommits details:\n${commitContext}`);
+        
+        if (resp.error) {
+            showToast(t('modal.ai_error'), resp.error, 'error');
+            return;
+        }
+
+        if (resp.text) {
+            const lines = resp.text.split('\n');
+            const titleLine = lines.find(l => l.toUpperCase().startsWith('TITLE:'));
+            let desc = '';
+            
+            if (titleLine) {
+                title.value = titleLine.substring('TITLE:'.length).trim();
+                const descIndex = lines.findIndex(l => l.toUpperCase().startsWith('DESCRIPTION:'));
+                if (descIndex !== -1) {
+                    desc = lines.slice(descIndex + 1).join('\n').trim();
+                }
+            } else {
+                title.value = lines[0].replace(/^TITLE:\s*/i, '').trim();
+                desc = lines.slice(1).join('\n').replace(/^DESCRIPTION:\s*/i, '').trim();
+            }
+            
+            if (desc) description.value = desc;
+        }
+    } catch (e: any) {
+        showToast(t('modal.error'), t('modal.pr_ai_generate_failed'), 'error');
+    } finally {
+        isGeneratingAI.value = false;
+    }
 }
 
 function openIntegrationsSettings() {
@@ -267,146 +278,166 @@ function openIntegrationsSettings() {
 </script>
 
 <template>
-  <Modal v-model="isCreatePROpen" :title="t('settings.create_pr.title')" icon="lucide:git-pull-request" width="850px">
-        <SimpleBar class="flex-1 overflow-x-hidden">
-          <div class="p-8 space-y-6">
-            <div v-if="connectedProviders.length === 0" class="text-center py-8 space-y-4">
-               <Icon icon="lucide:link-2-off" class="text-4xl text-neutral-700 mx-auto" />
-               <p class="text-sm text-neutral-400">No external integrations connected.</p>
-               <button @click="openIntegrationsSettings" class="text-xs text-blue-500 hover:underline">Connect one in Settings</button>
-            </div>
-          
-          <template v-else>
-            <!-- Provider Selector -->
-            <div class="flex justify-center gap-8 mb-4 border-b border-neutral-800 pb-6">
-               <button v-for="item in connectedProviders" :key="item.id"
-                       @click="selectedProviderId = item.id"
-                       class="flex flex-col items-center gap-2 group transition-all"
-                       :class="selectedProviderId === item.id ? 'opacity-100 scale-105' : 'opacity-40 grayscale hover:opacity-100 hover:grayscale-0'">
-                  <div class="w-12 h-12 rounded-xl flex items-center justify-center text-3xl shadow-xl transition-all" :style="{ backgroundColor: item.color + '20', color: item.color }">
-                     <Icon :icon="item.icon" />
-                  </div>
-                  <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-400 group-hover:text-white transition-colors">{{ item.name }}</span>
-                  <div v-if="selectedProviderId === item.id" class="w-8 h-0.5 bg-blue-500 rounded-full"></div>
-               </button>
+    <Modal v-model="isCreatePROpen" :title="t('settings.create_pr.title')" icon="lucide:git-pull-request" width="850px">
+        <div class="flex-1 overflow-x-hidden">
+
+            <div v-if="error" class="mx-6 mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium flex items-center gap-2">
+                <Icon icon="lucide:alert-circle" class="text-sm" />
+                {{ error }}
             </div>
 
-            <div class="flex flex-col gap-6 relative">
-              <!-- Left Column: Branches & Editor -->
-              <div class="flex-1 space-y-6">
-                <!-- Branch Selection -->
-                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                   <div class="space-y-1.5">
-                      <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.from_repo') }} & Branch</label>
-                      <div class="flex items-center gap-2">
-                          <select v-model="fromBranch" class="flex-1 bg-[#2a2a2d] border border-neutral-700/50 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-all cursor-pointer appearance-none">
-                             <option v-for="b in availableBranches" :key="b" :value="b">{{ b }}</option>
-                          </select>
-                      </div>
-                   </div>
-                   <Icon icon="lucide:arrow-right" class="text-neutral-600 mt-5" />
-                   <div class="space-y-1.5">
-                      <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.to_repo') }} & Branch</label>
-                      <div class="flex items-center gap-2">
-                          <select v-model="toBranch" class="flex-1 bg-[#2a2a2d] border border-neutral-700/50 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 transition-all cursor-pointer appearance-none">
-                             <option v-for="b in availableBranches" :key="b" :value="b">{{ b }}</option>
-                          </select>
-                      </div>
-                   </div>
-                </div>
+            <div class="p-8 space-y-6">
+                <div v-if="connectedProviders.length === 0" class="text-center py-8 space-y-4">
+                    <Icon icon="lucide:link-2-off" class="text-4xl text-neutral-700 mx-auto" />
+                    <p class="text-sm text-neutral-600 dark:text-neutral-400">{{ t('modal.no_integrations_connected') }}</p>
 
-                <div v-if="error" class="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs flex items-center gap-2 animate-in slide-in-from-top-2 shadow-inner">
-                    <Icon icon="lucide:alert-circle" class="shrink-0" />
-                    <span>{{ error }}</span>
+                    <button @click="openIntegrationsSettings" class="text-xs text-blue-500 hover:underline">{{ t('modal.connect_in_settings') }}</button>
                 </div>
+            
+            <template v-else>
+                <!-- Selected Provider Info -->
+                <div class="flex justify-center mb-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
+                    <div v-if="selectedProviderId" class="flex flex-col items-center gap-2 group transition-all opacity-100 scale-105">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-3xl shadow-xl transition-all" 
+                            :style="{ 
+                                backgroundColor: (connectedProviders.find(p => p.id === selectedProviderId)?.color || '#555') + '20', 
+                                color: connectedProviders.find(p => p.id === selectedProviderId)?.color || '#555' 
+                            }"
+                        >
+                            <Icon :icon="connectedProviders.find(p => p.id === selectedProviderId)?.icon || 'lucide:git-pull-request'" />
+                        </div>
 
-                <!-- Conflicts Alert -->
-                <div v-if="hasConflicts" class="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 rounded-r-lg">
-                    <div class="flex items-center gap-2 text-yellow-500 font-bold mb-2">
-                        <Icon icon="lucide:alert-triangle" /> {{ t('settings.create_pr.merge_conflict') }}
-                    </div>
-                    <div class="bg-black/20 p-2 rounded max-h-32 flex flex-col gap-1 overflow-y-auto w-full text-xs text-neutral-400 font-mono">
-                        <span v-for="file in conflictingFiles" :key="file">{{ file }}</span>
-                        <span v-if="conflictingFiles.length === 0">{{ t('settings.create_pr.hidden_conflicts') }}</span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                            {{ connectedProviders.find(p => p.id === selectedProviderId)?.name || 'Provider' }}
+                        </span>
+
+                        <div class="w-8 h-0.5 bg-blue-500 rounded-full" />
                     </div>
                 </div>
 
-                <!-- Title & Description -->
-                <div class="space-y-4">
-                   <div class="space-y-1.5">
-                      <div class="flex items-center justify-between">
-                         <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.pr_title') }}</label>
-                         <button @click="generateWithAI" class="text-[9px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full hover:bg-blue-600/30 transition-colors flex items-center gap-1">
-                            <Icon icon="lucide:sparkles" /> {{ t('settings.create_pr.generate') }}
-                         </button>
-                      </div>
-                      <input v-model="title" type="text" :placeholder="t('settings.create_pr.title_placeholder')" class="w-full bg-[#2a2a2d] border border-neutral-700/50 rounded-lg px-4 py-2 text-xs text-white outline-none focus:border-blue-500 transition-all shadow-inner" />
-                   </div>
+                <div class="flex flex-col gap-6 relative">
+                <!-- Left Column: Branches & Editor -->
+                <div class="flex-1 space-y-6">
+                    <!-- Branch Selection -->
+                    <div class="flex items-center gap-4 w-full">
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.from_repo') }} & {{ t('modal.branch') }}</label>
+                            <div class="flex items-center gap-2">
+                                <Select v-model="fromBranch" :options="availableBranchesOptions" searchable icon="mdi:source-branch" />
+                            </div>
+                        </div>
 
-                   <div class="space-y-1.5">
-                      <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.description') }}</label>
-                      <textarea v-model="description" :placeholder="t('settings.create_pr.desc_placeholder')" rows="8" class="w-full bg-[#2a2a2d] border border-neutral-700/50 rounded-lg px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-all resize-none shadow-inner"></textarea>
-                   </div>
+                        <Icon icon="lucide:arrow-right" class="text-neutral-600 mt-5 shrink-0" />
+
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.to_repo') }} & {{ t('modal.branch') }}</label>
+                            <div class="flex items-center gap-2">
+                                <Select v-model="toBranch" :options="availableBranchesOptions" searchable icon="mdi:source-branch" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="error" class="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs flex items-center gap-2 animate-in slide-in-from-top-2 shadow-inner">
+                        <Icon icon="lucide:alert-circle" class="shrink-0" />
+                        <span>{{ error }}</span>
+                    </div>
+
+                    <!-- Conflicts Alert -->
+                    <div v-if="hasConflicts" class="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 rounded-r-lg">
+                        <div class="flex items-center gap-2 text-yellow-500 font-bold mb-2">
+                            <Icon icon="lucide:alert-triangle" /> {{ t('settings.create_pr.merge_conflict') }}
+                        </div>
+
+                        <div class="bg-black/20 p-2 rounded max-h-32 flex flex-col gap-1 overflow-y-auto w-full text-xs text-neutral-600 dark:text-neutral-400 font-mono">
+                            <span v-for="file in conflictingFiles" :key="file">{{ file }}</span>
+                            <span v-if="conflictingFiles.length === 0">{{ t('settings.create_pr.hidden_conflicts') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Title & Description -->
+                    <div class="space-y-4">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.pr_title') }}</label>
+                                <Tooltip :text="isAIConfigured() ? '' : t('modal.configure_ai_hint')" position="top">
+                                    <button @click="generateWithAI" 
+                                            :disabled="isGeneratingAI || !isAIConfigured()" 
+                                            class="text-[9px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full transition-colors flex items-center gap-1"
+                                            :class="isGeneratingAI || !isAIConfigured() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600/30'">
+                                    <Icon v-if="isGeneratingAI" icon="lucide:loader-2" class="animate-spin" />
+                                    <Icon v-else icon="lucide:sparkles" /> 
+                                    {{ isGeneratingAI ? t('common.loading') + '...' : t('settings.create_pr.generate') }}
+                                    </button>
+                                </Tooltip>
+                            </div>
+
+                            <input v-model="title" type="text" :placeholder="t('settings.create_pr.title_placeholder')" class="w-full bg-neutral-100 dark:bg-[#2a2a2d] border border-neutral-300 dark:border-neutral-700/50 rounded-lg px-4 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-all shadow-inner" />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.description') }}</label>
+                            <textarea v-model="description" :placeholder="t('settings.create_pr.desc_placeholder')" rows="8" class="w-full bg-neutral-100 dark:bg-[#2a2a2d] border border-neutral-300 dark:border-neutral-700/50 rounded-lg px-4 py-3 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-all resize-none shadow-inner"></textarea>
+                        </div>
+                    </div>
                 </div>
-              </div>
 
-              <!-- Metadata Multi-selects Below Description -->
-              <div class="grid grid-cols-3 gap-4 border-t border-neutral-800 pt-6">
-                 <!-- Reviewers -->
-                 <div class="space-y-2">
-                    <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
-                        {{ t('settings.create_pr.reviewers') }}
-                    </label>
-                    <MultiSelect v-model="selectedReviewers" :options="reviewerOptions" :placeholder="t('settings.create_pr.select_reviewers')" />
-                 </div>
-                 
-                 <!-- Assignees -->
-                 <div class="space-y-2">
-                    <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
-                        {{ t('settings.create_pr.assignees') }}
-                    </label>
-                    <MultiSelect v-model="selectedAssignees" :options="userOptions" :placeholder="t('settings.create_pr.select_assignees')" />
-                 </div>
+                <!-- Metadata Multi-selects Below Description -->
+                <div class="grid grid-cols-3 gap-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
+                    <!-- Reviewers -->
+                    <div class="space-y-2">
+                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                            {{ t('settings.create_pr.reviewers') }}
+                        </label>
+                        <Select v-model="selectedReviewers" multiple :options="reviewerOptions" :placeholder="t('settings.create_pr.select_reviewers')" />
+                    </div>
+                    
+                    <!-- Assignees -->
+                    <div class="space-y-2">
+                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                            {{ t('settings.create_pr.assignees') }}
+                        </label>
+                        <Select v-model="selectedAssignees" multiple :options="userOptions" :placeholder="t('settings.create_pr.select_assignees')" />
+                    </div>
 
-                 <!-- Labels -->
-                 <div class="space-y-2">
-                    <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
-                        {{ t('settings.create_pr.labels') }}
-                    </label>
-                    <MultiSelect v-model="selectedLabels" :options="labelOptions" :placeholder="t('settings.create_pr.select_labels')" />
-                 </div>
-               </div>
-              
-             </div>
-            </template>
-          </div>
-        </SimpleBar>
+                    <!-- Labels -->
+                    <div class="space-y-2">
+                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                            {{ t('settings.create_pr.labels') }}
+                        </label>
+                        <Select v-model="selectedLabels" multiple :options="labelOptions" :placeholder="t('settings.create_pr.select_labels')" />
+                    </div>
+                </div>
+                
+                </div>
+                </template>
+            </div>
+        </div>
 
         <template #footer>
-          <!-- Footer -->
-          <footer v-if="connectedProviders.length > 0" class="h-16 border-t border-neutral-800 flex items-center justify-between px-6 bg-[#252526] gap-3">
-           <div class="flex items-center shrink-0">
-               <!-- Draft Checkbox moved here -->
-               <label class="flex items-center gap-2 cursor-pointer group">
-                  <div class="w-4 h-4 rounded border border-neutral-700 flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-blue-600 border-blue-600' : 'bg-transparent'">
-                    <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-white" />
-                  </div>
-                  <input type="checkbox" v-model="isDraft" class="hidden" />
-                  <span class="text-[11px] font-medium text-neutral-400 group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
-               </label>
-           </div>
-           <div class="flex items-center gap-3">
-               <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-neutral-400 hover:text-white hover:bg-white/5 transition-all">
-                  {{ t('common.cancel') }}
-               </button>
-               <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">
-                  <Icon v-if="isLoading" icon="lucide:loader-2" class="animate-spin" />
-                  {{ t('common.create_pr') }}
-               </button>
-           </div>
-        </footer>
+            <footer v-if="connectedProviders.length > 0" class="h-16 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-6 bg-neutral-100 dark:bg-[#252526] gap-3">
+                <div class="flex items-center shrink-0">
+                    <!-- Draft Checkbox moved here -->
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <div class="w-4 h-4 rounded border border-neutral-300 dark:border-neutral-700 flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-blue-600 border-blue-600' : 'bg-transparent'">
+                            <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-white" />
+                        </div>
+                        <input type="checkbox" v-model="isDraft" class="hidden" />
+                        <span class="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
+                    </label>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-white/5 transition-all">
+                        {{ t('common.cancel') }}
+                    </button>
+                    <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch || fromBranch === toBranch" :title="fromBranch === toBranch ? t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.' : ''" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">
+                        <Icon v-if="isLoading" icon="lucide:loader-2" class="animate-spin" />
+                        {{ t('common.create_pr') }}
+                    </button>
+                </div>
+            </footer>
         </template>
-  </Modal>
+    </Modal>
 </template>
 
 <style scoped>

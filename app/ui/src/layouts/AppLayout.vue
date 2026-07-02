@@ -22,6 +22,7 @@ import { getItem, setItem } from '../services/storageService';
 import { toggleTerminal } from '../services/gitService';
 import ChangelogView from './ChangelogView.vue';
 import CreatePRModal from '../components/CreatePRModal.vue';
+import PushModal from '../components/PushModal.vue';
 import AddSubmoduleModal from '../components/AddSubmoduleModal.vue';
 import EditSubmoduleModal from '../components/EditSubmoduleModal.vue';
 import { registerShortcut } from '../services/shortcutService';
@@ -59,9 +60,10 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-[#F3F3F3] dark:bg-[#18181A] text-neutral-800 dark:text-neutral-300 font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
+  <div class="v-stack h-screen bg-[#F3F3F3] dark:bg-[#18181A] text-neutral-800 dark:text-neutral-300 font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
     
     <CreatePRModal />
+    <PushModal />
     <AddSubmoduleModal />
     <EditSubmoduleModal />
     <ContextMenu v-if="contextMenu" :x="contextMenu.x" :y="contextMenu.y" :items="contextMenu.items" @close="contextMenu = null" />
@@ -87,17 +89,19 @@ const { t } = useI18n();
 
     <Toolbar />
     
-    <div v-if="activeWorkspaceId && activeWorkspacePath" class="flex-col flex flex-1 h-full min-h-0 relative">
+    <div v-if="activeWorkspaceId && activeWorkspacePath" class="v-stack flex-1 h-full min-h-0 relative">
       <!-- Header -->
       <Header />
 
-      <div class="flex-1 flex min-h-0 relative">
+      <div class="flex flex-row flex-1 min-h-0 overflow-hidden relative">
         <!-- Sidebar -->
         <Sidebar />
 
         <!-- Main Content -->
-        <main class="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-[#1E1E1E] transition-colors relative">
-          <slot />
+        <main class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-white dark:bg-[#1E1E1E] transition-colors relative">
+          <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <slot />
+          </div>
           <TerminalPanel />
         </main>
       </div>

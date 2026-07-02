@@ -92,26 +92,26 @@ function toggleOption(val: string) {
 }
 
 const displayLabel = computed(() => {
-  if (props.modelValue.length === 0) return props.placeholder || 'Select...';
+  if (props.modelValue.length === 0) return props.placeholder || t('common.select');
   if (props.modelValue.length === 1) {
     const opt = props.options.find(o => o.value === props.modelValue[0]);
     return opt ? opt.label : props.modelValue[0];
   }
-  return `${props.modelValue.length} items selected`;
+  return `${props.modelValue.length} ${t('common.items_selected')}`;
 });
 </script>
 
 <template>
   <div class="relative group/select" ref="containerRef">
     <div @click="toggleDropdown" 
-         class="w-full bg-[#252526] border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-300 outline-none hover:border-neutral-700 focus:border-blue-500 cursor-pointer flex items-center justify-between transition-all select-none">
+         class="w-full bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 rounded px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300 outline-none hover:border-neutral-300 dark:hover:border-neutral-700 focus:border-blue-500 cursor-pointer flex items-center justify-between transition-all select-none">
        <span class="truncate pr-4">{{ displayLabel }}</span>
        <Icon icon="lucide:chevron-down" class="text-neutral-600 flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
     </div>
     
     <Teleport to="body">
       <div v-if="isOpen" ref="dropdownRef"
-           class="fixed bg-[#2D2D2D] border border-neutral-700 rounded shadow-2xl z-[99999] flex flex-col overflow-hidden max-h-48"
+           class="fixed bg-neutral-100 dark:bg-[#2D2D2D] border border-neutral-300 dark:border-neutral-700 rounded shadow-2xl z-[99999] flex flex-col overflow-hidden max-h-48"
            :style="dropdownStyle">
          <SimpleBar class="flex-1 w-full p-1 h-full">
            <div class="flex flex-col gap-1">
@@ -121,7 +121,7 @@ const displayLabel = computed(() => {
              <div v-for="opt in options" :key="opt.value" 
                   @click="toggleOption(opt.value)"
                   class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors"
-                  :class="modelValue.includes(opt.value) ? 'bg-[#4A4A4A]' : 'hover:bg-[#3D3D3D]'">
+                  :class="modelValue.includes(opt.value) ? 'bg-neutral-200 dark:bg-[#4A4A4A]' : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D]'">
                 
                 <!-- Checkbox visual -->
                 <div class="w-3 h-3 rounded flex items-center justify-center border transition-colors flex-shrink-0"
@@ -133,7 +133,7 @@ const displayLabel = computed(() => {
                 <img v-if="opt.iconUrl" :src="opt.iconUrl" class="w-4 h-4 rounded-full opacity-90 object-cover" />
                 <div v-else-if="opt.color" class="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-inner" :style="{ backgroundColor: '#' + opt.color }"></div>
                 
-                <span class="text-xs truncate" :class="modelValue.includes(opt.value) ? 'text-white' : 'text-neutral-300'">
+                <span class="text-xs truncate" :class="modelValue.includes(opt.value) ? 'text-white' : 'text-neutral-700 dark:text-neutral-300'">
                    {{ opt.label }}
                 </span>
              </div>
