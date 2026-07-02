@@ -2,13 +2,27 @@ const { ipcMain } = require('electron');
 const fs = require('fs');
 
 module.exports = function (app, storePath) {
+    // In-memory cache: read the file ONCE, then serve sync gets from memory and
+    // persist writes asynchronously (debounced). Previously every get/set/delete
+    // read+parsed and re-wrote the entire file synchronously — with a large store
+    // that blocked the main process on every call.
+    let cache = null;
     function getStore() {
-        try { return JSON.parse(fs.readFileSync(storePath, 'utf-8')); }
-        catch (e) { return {}; }
+        if (cache) return cache;
+        try { cache = JSON.parse(fs.readFileSync(storePath, 'utf-8')); }
+        catch (e) { cache = {}; }
+        return cache;
     }
-    function saveStore(data) {
-        try { fs.writeFileSync(storePath, JSON.stringify(data, null, 2)); }
-        catch (e) { }
+
+    let writeTimer = null;
+    function scheduleWrite() {
+        if (writeTimer) clearTimeout(writeTimer);
+        writeTimer = setTimeout(flush, 500);
+    }
+    function flush() {
+        if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
+        try { fs.writeFileSync(storePath, JSON.stringify(cache || {})); }
+        catch (e) { console.error('[Store] write failed:', e); }
     }
 
     ipcMain.on('store:get', (event, key) => {
@@ -16,9 +30,8 @@ module.exports = function (app, storePath) {
     });
     ipcMain.on('store:set', (event, key, value) => {
         try {
-            const store = getStore();
-            store[key] = value;
-            saveStore(store);
+            getStore()[key] = value;
+            scheduleWrite();
             event.returnValue = true;
         } catch (e) {
             console.error(`[Store] Failed to save key ${key}:`, e);
@@ -26,9 +39,11 @@ module.exports = function (app, storePath) {
         }
     });
     ipcMain.on('store:delete', (event, key) => {
-        const store = getStore();
-        delete store[key];
-        saveStore(store);
+        delete getStore()[key];
+        scheduleWrite();
         event.returnValue = true;
     });
+
+    // Make sure pending writes are flushed before the app exits.
+    app.on('before-quit', flush);
 };

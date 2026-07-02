@@ -1,6 +1,6 @@
 {
   "name": "gitbox",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "GitBox Desktop Application",
   "author": "GitBox Team <gitbox@example.com>",
   "homepage": "https://gitbox.example.com",
@@ -12,7 +12,8 @@
     "dev:vue": "npm --prefix ../../app/ui run dev",
     "dev:electron": "wait-on tcp:1420 && cross-env ELECTRON_RUN_AS_NODE= NODE_ENV=development electron .",
     "start": "cross-env NODE_ENV=production electron .",
-    "build:core": "electron-builder --linux"
+    "build:core": "electron-builder --linux",
+    "build:all": "npm --prefix ../../app/ui run build && npm run build:core"
   },
   "build": {
     "appId": "com.gitbox.app",
