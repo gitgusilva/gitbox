@@ -257,6 +257,21 @@ watch(selectedFile, () => {
   isMergeEditorRequested.value = false;
 });
 
+// Clear the selection (and its now-stale diff) once the selected file is no
+// longer a pending change — e.g. after it was committed or discarded — so the
+// diff panel shows the empty state instead of leftover content.
+watch([unstagedFiles, stagedFiles], () => {
+  if (!selectedFile.value) return;
+  const stillChanged = unstagedFiles.value.some(f => f.path === selectedFile.value)
+    || stagedFiles.value.some(f => f.path === selectedFile.value);
+  if (!stillChanged) {
+    selectedFile.value = '';
+    selectedFiles.value = [];
+    originalContent.value = '';
+    modifiedContent.value = '';
+  }
+});
+
 /**
  * Handles file selection, supporting multi-select with modifier keys.
  * @param {string} path - The path of the clicked file.
@@ -561,12 +576,16 @@ async function handleExplainChanges() {
                           @complete="handleCompleteMerge"
                           @state="handleMergeEditorState" />
               <DiffViewer v-else
-                          :original="originalContent" 
-                          :modified="modifiedContent" 
+                          :original="originalContent"
+                          :modified="modifiedContent"
                           :filename="selectedFile"
                           :readOnly="true" />
             </template>
         </template>
+        <div v-else :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
+          <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-10')" />
+          <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-20')">{{ t('changes.select_file_diff') }}</div>
+        </div>
         
         <!-- AI Toolbar for Diff -->
         <div v-if="selectedFile && hasAiConfig && !selectedSubmodule" :class="cn('absolute top-3 right-5 h-stack gap-2')">
