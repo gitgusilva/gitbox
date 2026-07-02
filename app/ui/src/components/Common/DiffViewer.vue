@@ -4,13 +4,18 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../../services/themeService';
 import { getLanguage, getMonacoTheme, monacoOptions, initMonaco } from '../../services/monacoService';
+import { getItem, setItem } from '../../services/storageService';
 import ImageDiffViewer from './ImageDiffViewer.vue';
 import MarkdownDiffViewer from './MarkdownDiffViewer.vue';
 import IconButton from './IconButton.vue';
+import Tooltip from './Tooltip.vue';
+import Resizer from './Resizer.vue';
 import { generalSettings } from '../../services/settingsService';
 import { repoPath } from '../../services/gitService';
-import { formatDistanceToNow } from '../../utils/formatters';
+import { blameWidth, layoutRefs, isResizing } from '../../services/layoutService';
 import { gravatarUrl } from '../../utils/avatars';
+import { cn } from '../../utils/cn';
+import { startMarquee, stopMarquee } from '../../utils/dom';
 
 const { t } = useI18n();
 const { currentTheme } = useTheme();
@@ -23,6 +28,7 @@ const props = defineProps<{
   filename?: string;
   readOnly?: boolean;
   inline?: boolean;
+  class?: string;
 }>();
 
 const emit = defineEmits<{
@@ -31,7 +37,8 @@ const emit = defineEmits<{
 }>();
 
 const container = ref<HTMLElement | null>(null);
-const diffMode = ref<'split' | 'inline' | 'hunk'>(props.inline ? 'inline' : 'split');
+const isHunkView = ref(getItem('gitbox_diff_hunk_view') === 'true');
+const renderSideBySide = ref(props.inline ? false : (getItem('gitbox_diff_render_mode') !== 'inline'));
 const viewType = ref<'diff' | 'file'>('diff');
 const isWordWrap = ref(false);
 const ignoreWhitespace = ref(false);
@@ -42,15 +49,22 @@ const visibleBlame = ref<any[]>([]);
 const blameScrollTop = ref(0);
 const blameError = ref<string | null>(null);
 
+// O(1) line -> blame lookup, rebuilt when blame data changes. Avoids the
+// O(visibleLines × totalLines) array scans updateVisibleBlame did per scroll frame.
+let blameByLine = new Map<number, any>();
+function rebuildBlameIndex() {
+    blameByLine = new Map();
+    for (const b of (blameData.value || [])) blameByLine.set(b.line, b);
+}
+
 async function loadBlame() {
     blameError.value = null;
-    console.log('[Blame] Loading started...', { isBlameVisible: isBlameVisible.value, filename: props.filename, viewType: viewType.value, repoPath: repoPath.value });
+
     if (isBlameVisible.value && props.filename && viewType.value === 'file') {
         isBlameLoading.value = true;
 
         try {
             blameData.value = await (window as any).gitbox.getFileBlame(repoPath.value, props.filename);
-            console.log('[Blame] Data loaded! Total lines:', blameData.value?.length);
             if (blameData.value === null || blameData.value.length === 0) {
                  blameError.value = 'No blame data available (file might be untracked).';
             }
@@ -60,10 +74,12 @@ async function loadBlame() {
             blameData.value = [];
         } finally {
             isBlameLoading.value = false;
+            rebuildBlameIndex();
             updateVisibleBlame();
         }
     } else {
         blameData.value = [];
+        rebuildBlameIndex();
         visibleBlame.value = [];
         blameError.value = null;
     }
@@ -93,8 +109,8 @@ function updateVisibleBlame() {
 
             if (height <= 0) continue; // Skip collapsed lines!
 
-            let b = blameData.value.find((x: any) => x.line === i);
-            let prevB = blameData.value.find((x: any) => x.line === i - 1);
+            let b = blameByLine.get(i);
+            let prevB = blameByLine.get(i - 1);
             
             visible.push({
                 line: i,
@@ -142,12 +158,12 @@ async function setupEditor() {
       editor = monaco.value.editor.createDiffEditor(container.value, {
         ...monacoOptions,
         theme: getMonacoTheme(currentTheme.value),
-        renderSideBySide: diffMode.value === 'split',
+        renderSideBySide: renderSideBySide.value,
         readOnly: props.readOnly ?? true,
         diffWordWrap: isWordWrap.value ? 'on' : 'off',
         wordWrap: isWordWrap.value ? 'on' : 'off',
         ignoreTrimWhitespace: ignoreWhitespace.value,
-        hideUnchangedRegions: { enabled: diffMode.value === 'hunk' },
+        hideUnchangedRegions: { enabled: isHunkView.value },
       });
 
       editor.setModel({ original: originalModel, modified: modifiedModel });
@@ -237,21 +253,57 @@ watch(() => props.filename, () => {
 });
 
 watch([() => props.original, () => props.modified], () => {
-  if (originalModel) originalModel.setValue(props.original);
-  if (modifiedModel) modifiedModel.setValue(props.modified);
-  
+  if (originalModel) originalModel.setValue(props.original ?? '');
+  if (modifiedModel) modifiedModel.setValue(props.modified ?? '');
+
   const language = getLanguage(props.filename);
   if (monaco.value && originalModel && modifiedModel) {
     monaco.value.editor.setModelLanguage(originalModel, language);
     monaco.value.editor.setModelLanguage(modifiedModel, language);
   }
+
+  // Re-attach the models so the diff editor actually recomputes for the newly
+  // selected file. Plain setValue sometimes left the diff showing stale/blank
+  // content until the user manually toggled file<->diff (which recreated it).
+  if (editor && originalModel && modifiedModel) {
+    editor.setModel(null);
+    editor.setModel({ original: originalModel, modified: modifiedModel });
+  }
 });
 
-watch(diffMode, (val) => {
+let rafId: number | null = null;
+watch([() => layoutRefs.statusWidth.value, () => layoutRefs.detailsWidth.value], () => {
+  if (isResizing.value) return; // Skip during heavy drag to keep UI smooth
+
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => {
+    if (editor) editor.layout();
+    if (fileEditor) fileEditor.layout();
+  });
+}, { immediate: true });
+
+watch(isResizing, (val) => {
+  if (!val) {
+    // End of resize, final layout to ensure everything fits
+    if (editor) editor.layout();
+    if (fileEditor) fileEditor.layout();
+  }
+});
+
+watch(isHunkView, (val) => {
+  setItem('gitbox_diff_hunk_view', val ? 'true' : 'false');
   if (editor && editor.updateOptions) {
     editor.updateOptions({ 
-        renderSideBySide: val === 'split',
-        hideUnchangedRegions: { enabled: val === 'hunk' }
+        hideUnchangedRegions: { enabled: val }
+    });
+  }
+});
+
+watch(renderSideBySide, (val) => {
+  setItem('gitbox_diff_render_mode', val ? 'split' : 'inline');
+  if (editor && editor.updateOptions) {
+    editor.updateOptions({ 
+        renderSideBySide: val
     });
   }
 });
@@ -266,90 +318,139 @@ onMounted(setupEditor);
 onBeforeUnmount(() => {
   destroyEditor();
 });
+
+function handleBlameResize() {
+    if (fileEditor) fileEditor.layout();
+}
+
+// When the panel is narrow the toolbar overflows horizontally. Translate a
+// vertical wheel into horizontal scroll so every option is reachable smoothly
+// instead of being skipped/unreachable behind the hidden scrollbar.
+function onToolbarWheel(e: WheelEvent) {
+    const el = e.currentTarget as HTMLElement;
+    if (el.scrollWidth <= el.clientWidth) return;
+    const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if (!delta) return;
+    el.scrollLeft += delta;
+    e.preventDefault();
+}
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-[#1E1E1E] h-full">
-    <div class="flex-shrink-0 bg-[#252526] border-b border-neutral-800 px-3 py-1 flex items-center justify-between z-10">
-      <div class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest truncate flex items-center gap-2">
-        <Icon icon="lucide:file-code" class="text-neutral-600" />
-        {{ filename || t('history.changes') }}
-      </div>
-      <div class="flex items-center gap-1">
-        <div v-if="viewType === 'diff' && viewMode === 'code'" class="flex items-center">
-            <IconButton icon="lucide:arrow-up" label="Previous" @click="prevChange" tooltip="Previous Change" class="mr-1" />
-            <IconButton icon="lucide:arrow-down" label="Next" @click="nextChange" tooltip="Next Change" class="mr-2" />
+  <div :class="cn('flex-1 v-stack min-h-0 min-w-0 bg-white dark:bg-[#1E1E1E] h-full', props.class)">
+    <div class="shrink-0 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 px-3 h-10 h-stack justify-between gap-2 z-10 select-none overflow-hidden">
+      <!-- Left: File Ident & Extra Actions -->
+      <div class="h-stack gap-3 min-w-0 flex-1 pr-2">
+        <div class="min-w-0 overflow-hidden flex items-center gap-2"
+             @mouseenter="startMarquee($event, '.diff-filename')" @mouseleave="stopMarquee($event, '.diff-filename')">
+          <Icon icon="lucide:file-code" class="text-xs text-neutral-600 shrink-0" />
+          <span class="diff-filename text-[10px] font-bold text-neutral-500 uppercase tracking-widest truncate block">
+            {{ filename || t('history.changes') }}
+          </span>
         </div>
+        
+        <div class="h-stack gap-1 border-l border-neutral-300 dark:border-neutral-700 ml-2 pl-3 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9" v-if="isImage || isMarkdown">
+            <IconButton direction="row" 
+                         :showLabel="false"
+                         :icon="viewMode === 'visual' ? 'lucide:code' : (isMarkdown ? 'lucide:file-text' : 'lucide:image')" 
+                         :label="t('diff.toggle_view_mode')"
+                         @click="viewMode = viewMode === 'visual' ? 'code' : 'visual'" />
+        </div>
+      </div>
 
-        <IconButton v-if="isImage || isMarkdown" 
-                    direction="row" 
-                    :showLabel="displayLabels"
-                    :icon="viewMode === 'visual' ? 'lucide:code' : (isMarkdown ? 'lucide:file-text' : 'lucide:image')" 
-                    :label="viewMode === 'visual' ? 'Code' : 'Visual'" 
-                    @click="viewMode = viewMode === 'visual' ? 'code' : 'visual'" 
-                    class="mr-2" />
+      <!-- Right: Centralized Controls -->
+      <div class="h-stack gap-2 min-w-0 shrink overflow-x-auto [&::-webkit-scrollbar]:hidden" @wheel="onToolbarWheel">
+        <!-- Group 1: Formatting & Diff Options (Word Wrap, Whitespace, Split, Hunks) -->
+        <div v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)" class="h-stack items-center gap-1 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9 shrink-0">
+            <IconButton direction="row"
+                         :showLabel="false"
+                         icon="lucide:wrap-text"
+                         :label="t('diff.word_wrap')"
+                         :active="isWordWrap"
+                         @click="isWordWrap = !isWordWrap" />
 
-        <template v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)">
             <template v-if="viewType === 'diff' || isMarkdown">
-                <IconButton direction="row"
-                            :showLabel="displayLabels"
-                            icon="lucide:layers"
-                            :label="t('changes.hunks_only')"
-                            :active="diffMode === 'hunk'"
-                            :tooltip="t('changes.hunks_only')"
-                            @click="diffMode = 'hunk'" />
-
-                <IconButton direction="row"
-                            :showLabel="displayLabels"
-                            icon="lucide:columns"
-                            :label="t('changes.side_by_side')"
-                            :active="diffMode === 'split'"
-                            tooltip="Split View"
-                            @click="diffMode = 'split'" />
-                            
-                <IconButton direction="row"
-                            :showLabel="displayLabels"
-                            icon="lucide:rows"
-                            :label="t('changes.inline')"
-                            :active="diffMode === 'inline'"
-                            tooltip="Inline View"
-                            @click="diffMode = 'inline'" />
-                            
-                <div class="w-px h-4 bg-neutral-700 mx-2"></div>
+                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
                 
                 <IconButton direction="row"
-                            :showLabel="displayLabels"
+                            :showLabel="false"
                             icon="lucide:type"
-                            label="Ignore Whitespace"
+                            :label="t('diff.ignore_whitespace')"
                             :active="ignoreWhitespace"
-                            tooltip="Ignore Whitespace"
                             @click="ignoreWhitespace = !ignoreWhitespace" />
-            </template>
 
+                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+
+                <IconButton direction="row"
+                            :showLabel="false"
+                            icon="lucide:layers"
+                            :label="t('diff.show_hunks_only')"
+                            :active="isHunkView"
+                            @click="isHunkView = !isHunkView" />
+
+                <IconButton direction="row"
+                            :showLabel="false"
+                            icon="lucide:columns"
+                            :label="t('diff.side_by_side')"
+                            :active="renderSideBySide"
+                            @click="renderSideBySide = true" />
+                            
+                <IconButton direction="row"
+                            :showLabel="false"
+                            icon="lucide:rows"
+                            :label="t('diff.inline_view')"
+                            :active="!renderSideBySide"
+                            @click="renderSideBySide = false" />
+            </template>
+        </div>
+
+        <!-- Group 2: Blame -->
+        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9 shrink-0">
             <IconButton direction="row"
-                        :showLabel="displayLabels"
-                        icon="lucide:wrap-text"
-                        label="Word Wrap"
-                        :active="isWordWrap"
-                        tooltip="Word Wrap"
-                        @click="isWordWrap = !isWordWrap" />
-        </template>
-        
-        <button v-if="viewType === 'file' && !isNewOrUntracked" @click="isBlameVisible = !isBlameVisible" class="ml-3 mr-0 bg-neutral-800 border border-neutral-700 text-neutral-400 hover:bg-neutral-700 hover:text-white px-3 py-1 rounded text-xs transition-colors flex items-center gap-2" :class="{'bg-blue-900/40 text-blue-400 border-blue-500/50': isBlameVisible}">
-           <Icon icon="lucide:git-commit" />
-           Blame
-        </button>
-        
-        <div class="flex items-center bg-neutral-900 rounded border border-neutral-700 p-[3px] text-xs font-medium ml-2">
-           <button @click="viewType = 'file'" class="px-3 py-1 rounded-sm transition-colors" :class="viewType === 'file' ? 'bg-blue-600/50 text-white' : 'text-neutral-500 hover:text-neutral-300'">File View</button>
-           <button @click="viewType = 'diff'" class="px-3 py-1 rounded-sm transition-colors" :class="viewType === 'diff' ? 'bg-blue-600/50 text-white' : 'text-neutral-500 hover:text-neutral-300'">Diff View</button>
+                         :showLabel="true"
+                         icon="lucide:git-commit-vertical"
+                         :label="t('diff.blame')"
+                         :active="isBlameVisible"
+                         @click="isBlameVisible = !isBlameVisible" />
+        </div>
+
+        <!-- Group 3: Main View Mode Toggle -->
+        <div class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-neutral-200 dark:border-neutral-800 p-1 ml-1 h-9 gap-1 shrink-0">
+           <IconButton direction="row"
+                        :showLabel="true"
+                        icon="lucide:file-text"
+                        :label="t('diff.file_view')"
+                        :active="viewType === 'file'"
+                        @click="viewType = 'file'" />
+           <IconButton direction="row"
+                        :showLabel="true"
+                        icon="lucide:git-diff"
+                        :label="t('diff.diff_view')"
+                        :active="viewType === 'diff'"
+                        @click="viewType = 'diff'" />
+        </div>
+
+        <!-- Group 4: Navigation (Diff only) -->
+        <div v-if="viewType === 'diff' && viewMode === 'code'" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-neutral-200 dark:border-neutral-800 p-1 h-9 shrink-0">
+           <IconButton direction="row"
+                        :showLabel="false"
+                        icon="lucide:chevron-up"
+                        :label="t('diff.prev_change')"
+                        tooltip-position="top"
+                        @click="prevChange" />
+           <IconButton direction="row"
+                        :showLabel="false"
+                        icon="lucide:chevron-down"
+                        :label="t('diff.next_change')"
+                        tooltip-position="top"
+                        @click="nextChange" />
         </div>
       </div>
     </div>
     
     <div v-show="viewMode === 'code'" class="flex-1 flex min-h-0 min-w-0 overflow-hidden relative">
-        <div v-if="isBlameVisible && viewType === 'file'" class="w-[300px] flex-shrink-0 bg-[#1E1E1E] border-r border-neutral-800 overflow-hidden relative select-none z-10 flex flex-col">
-            <div v-if="isBlameLoading" class="absolute inset-0 flex items-center justify-center bg-[#1e1e1e]/80 z-20">
+        <div v-if="isBlameVisible && viewType === 'file'" class="shrink-0 bg-white dark:bg-[#1E1E1E] border-r border-neutral-200 dark:border-neutral-800 overflow-hidden relative select-none z-10 v-stack" :style="{ width: blameWidth + 'px' }">
+            <div v-if="isBlameLoading" class="absolute inset-0 center bg-white/80 dark:bg-[#1e1e1e]/80 z-20">
                 <Icon icon="lucide:loader-2" class="animate-spin text-neutral-500 text-xl" />
             </div>
             
@@ -357,20 +458,29 @@ onBeforeUnmount(() => {
                 {{ blameError }}
             </div>
             <div v-else class="absolute left-0 right-0 top-0 transition-none will-change-transform" :style="{ transform: `translateY(-${blameScrollTop}px)` }">
-                <div v-for="vb in visibleBlame" :key="vb.line" class="absolute left-0 w-full flex items-center px-1 group border-t border-transparent" :style="{ top: vb.top + 'px', height: vb.height + 'px' }">
+                <div v-for="vb in visibleBlame" :key="vb.line" class="absolute left-0 w-full h-stack px-1 group border-t border-transparent overflow-hidden" :style="{ top: vb.top + 'px', height: vb.height + 'px' }">
                     <template v-if="vb.blame && vb.isNewCommit">
-                       <div class="h-full w-full flex items-center border-t border-neutral-800/50 -mt-[1px] px-1 group-hover:bg-[#2A2D31]/50 transition-colors">
-                         <div class="relative flex-shrink-0 mr-3 flex items-center justify-center" :title="`Commit: ${vb.blame.commit}\nAuthor: ${vb.blame.author} <${vb.blame.email || 'N/A'}>\nDate: ${new Date(Number(vb.blame.time)*1000).toLocaleString()}\n\n${vb.blame.summary}`">
-                           <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-neutral-700 bg-[#252526] shadow-sm cursor-help hover:ring-1 hover:ring-blue-500/50 transition-all" />
-                         </div>
-                         <span class="truncate text-[11px] font-mono text-neutral-400/80 group-hover:text-neutral-300 transition-colors flex-1 mr-2 cursor-default" :title="vb.blame.summary">{{ vb.blame.summary }}</span>
-                         <span class="truncate text-[10.5px] font-mono font-medium opacity-50 shrink-0 group-hover:opacity-80 transition-opacity" :title="new Date(Number(vb.blame.time)*1000).toLocaleString()">{{ new Date(Number(vb.blame.time)*1000).toLocaleDateString('en-GB') }}</span>
-                       </div>
+                        <div class="h-full w-full h-stack items-center border-t border-neutral-200/50 dark:border-neutral-800/50 -mt-[1px] px-1 group-hover:bg-neutral-200/50 dark:group-hover:bg-[#2A2D31]/50 transition-colors">
+                          <Tooltip :text="`Commit: ${vb.blame.commit}\nAuthor: ${vb.blame.author} <${vb.blame.email || 'N/A'}>\nDate: ${new Date(Number(vb.blame.time)*1000).toLocaleString()}\n\n${vb.blame.summary}`" position="right">
+                            <div class="relative shrink-0 mr-3 center">
+                              <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-[#252526] shadow-sm cursor-help hover:ring-1 hover:ring-blue-500/50 transition-all" />
+                            </div>
+                          </Tooltip>
+                          <Tooltip :text="vb.blame.summary" position="right" class="flex-1 mr-2 min-w-0">
+                            <span class="truncate text-[11px] font-mono text-neutral-600/80 dark:text-neutral-400/80 group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors cursor-default">{{ vb.blame.summary }}</span>
+                          </Tooltip>
+                          <Tooltip :text="new Date(Number(vb.blame.time)*1000).toLocaleString()" position="right">
+                            <span class="truncate text-[10.5px] font-mono font-medium opacity-50 shrink-0 group-hover:opacity-80 transition-opacity">{{ new Date(Number(vb.blame.time)*1000).toLocaleDateString('en-GB') }}</span>
+                          </Tooltip>
+                        </div>
                     </template>
-                    <div v-else-if="vb.blame && !vb.isNewCommit" class="w-[2px] h-full bg-neutral-800/30 ml-[7px] group-hover:bg-blue-500/50 transition-colors"></div>
+                    <div v-else-if="vb.blame && !vb.isNewCommit" class="w-[2px] h-full bg-neutral-200/30 dark:bg-neutral-800/30 ml-[7px] group-hover:bg-blue-500/50 transition-colors"></div>
                 </div>
             </div>
         </div>
+        
+        <Resizer v-if="isBlameVisible && viewType === 'file'" :target="layoutRefs.blameWidth" :options="{ min: 100, max: 800, clampToContainer: true, reserve: 240 }" @resize="handleBlameResize" />
+
         <div ref="container" class="flex-1 min-w-0"></div>
     </div>
     
@@ -380,10 +490,10 @@ onBeforeUnmount(() => {
                      :filename="filename" />
                      
     <MarkdownDiffViewer v-if="viewMode === 'visual' && isMarkdown" 
-                      :original="original"
-                      :modified="modified"
-                      :is-inline="diffMode !== 'split'"
-                      :is-hunk-view="diffMode === 'hunk'" />
+                       :original="original"
+                       :modified="modified"
+                       :is-inline="!renderSideBySide"
+                       :is-hunk-view="isHunkView" />
   </div>
 </template>
 
@@ -396,5 +506,6 @@ onBeforeUnmount(() => {
 }
 .monaco-editor .scrollbar .slider:hover {
   background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 10px !important;
 }
 </style>
