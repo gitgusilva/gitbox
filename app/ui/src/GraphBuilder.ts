@@ -1,48 +1,80 @@
 import { Commit, GraphLine, GraphNode } from './types/git';
 
-export function buildCommitGraph(log: Commit[], headCommitId: string | null = null): Map<string, GraphNode> {
-    const lanes: (string | null)[] = [];
-    const map = new Map<string, GraphNode>();
-    if (!log || log.length === 0) return map;
+const COLORS = [
+    '#1E88E5', '#ffab00', '#00e676', '#d500f9', '#ff3d00', '#00b0ff', '#1de9b6', '#f50057', '#ffea00'
+];
 
-    const colors = [
-        '#1E88E5', '#ffab00', '#00e676', '#d500f9', '#ff3d00', '#00b0ff', '#1de9b6', '#f50057', '#ffea00'
-    ];
+/**
+ * Carry-over lane state so history pages can be laid out incrementally. The
+ * state at the end of one page is exactly the starting state of the next (older)
+ * page, since commits stream in newest→oldest order.
+ */
+export interface GraphState {
+    lanes: (string | null)[];
+    // Stable color per lane: a lane keeps its color for as long as it stays
+    // occupied by a continuous chain, so each branch keeps one color all the way
+    // down (SourceGit-style) instead of recoloring by lane index.
+    laneColors: string[];
+    nextColor: number;
+}
 
-    const activeAncestors = new Set<string>();
-    if (headCommitId) {
-        activeAncestors.add(headCommitId);
-    } else if (log.length > 0) {
-        activeAncestors.add(log[0].id);
-    }
+export function createGraphState(): GraphState {
+    return { lanes: [], laneColors: [], nextColor: 0 };
+}
 
-    for (let i = 0; i < log.length; i++) {
-        const c = log[i];
+/**
+ * Lays out `commits` (newest→oldest, continuing from `state`) into `map`,
+ * mutating both. Each node depends only on the lane state *before* it — never on
+ * its absolute position in the log — so appended pages cost O(Δ) instead of the
+ * O(n) full rebuild that made infinite scroll O(n²).
+ */
+export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState, commits: Commit[]): void {
+    if (!commits || commits.length === 0) return;
 
-        const isMerged = activeAncestors.has(c.id);
-        if (isMerged && c.parents) {
-            c.parents.forEach(p => activeAncestors.add(p.id));
-        }
+    const { lanes, laneColors } = state;
+    const allocColor = () => COLORS[state.nextColor++ % COLORS.length];
+    const colorFor = (lane: number) => {
+        if (!laneColors[lane]) laneColors[lane] = allocColor();
+        return laneColors[lane];
+    };
 
+    // Each history row is 30px tall (ROW_HEIGHT in HistoryCommitList). The cell
+    // spans the FULL row and overlaps its neighbours by ~1px on each end, else
+    // consecutive rows' vertical lines leave a 1px gap that reads as a "cut" at
+    // every row boundary. The per-row SVG uses overflow-visible, so drawing
+    // slightly out of bounds is safe.
+    const cellTop = -1;
+    const cellH = 31;
+    const midY = 14;
+    const curveTension = 11;
+    const laneW = 12;
+    const offset = 10;
+    const x = (l: number) => l * laneW + offset;
+
+    for (const c of commits) {
         const inLanes = [...lanes];
         let dotLane = -1;
         for (let j = 0; j < inLanes.length; j++) {
             if (inLanes[j] === c.id) {
                 if (dotLane === -1) dotLane = j;
-                lanes[j] = null;
+                else lanes[j] = null; // sibling lanes pointing here converge into dotLane
             }
         }
 
         if (dotLane === -1) {
+            // Branch tip (no child pointed at this commit) → new lane, fresh color
             dotLane = lanes.indexOf(null);
             if (dotLane === -1) {
                 dotLane = lanes.length;
                 lanes.push(null);
             }
+            laneColors[dotLane] = allocColor();
         }
 
+        const dotColor = colorFor(dotLane);
+
         const p0 = c.parents && c.parents.length > 0 ? c.parents[0].id : null;
-        lanes[dotLane] = p0;
+        lanes[dotLane] = p0; // lane continues with the same color
 
         const mergeTargets: number[] = [];
         if (c.parents && c.parents.length > 1) {
@@ -56,55 +88,67 @@ export function buildCommitGraph(log: Commit[], headCommitId: string | null = nu
                         lanes.push(null);
                     }
                     lanes[mergeLane] = pId;
+                    laneColors[mergeLane] = allocColor();
                 }
                 mergeTargets.push(mergeLane);
             }
         }
 
         const lines: GraphLine[] = [];
-        const cellTop = -0.5;
-        const cellH = 28.5;
-        const midY = 14;
-        const curveTension = 11;
-        const laneW = 12;
-        const offset = 10;
-        const x = (l: number) => l * laneW + offset;
 
         for (let k = 0; k < inLanes.length; k++) {
             if (inLanes[k] === c.id) {
-                const color = isMerged ? colors[k % colors.length] : '#555555';
+                const color = colorFor(k);
                 if (k === dotLane) {
                     lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY}`, color });
                 } else {
-                    lines.push({ path: `M ${x(k)} ${cellTop} C ${x(k)} ${cellTop + curveTension}, ${x(dotLane)} ${midY - curveTension}, ${x(dotLane)} ${midY}`, color });
+                    // Converging branch: drop straight down its own lane, then
+                    // curve into the SIDE of the dot (horizontal tangent at the
+                    // dot) instead of stacking in from above.
+                    const dir = k > dotLane ? 1 : -1;
+                    lines.push({ path: `M ${x(k)} ${cellTop} C ${x(k)} ${midY}, ${x(dotLane) + dir * curveTension} ${midY}, ${x(dotLane)} ${midY}`, color });
                 }
             } else if (inLanes[k] !== null) {
-                // Dim lines purely passing through if they are NOT heading towards an active ancestor
-                const passTheme = activeAncestors.has(inLanes[k]!) ? colors[k % colors.length] : '#555555';
-                lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${cellH}`, color: passTheme });
+                // Line just passing straight through this row keeps its lane color
+                lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${cellH}`, color: colorFor(k) });
             }
         }
 
+        // Continuation down to the next row. Position-independent (no "is last
+        // row" check) so nodes never change when more pages load — the last row
+        // of a page connects seamlessly to the first row of the next.
         if (p0) {
-            if (i < log.length - 1) {
-                const laneColor = isMerged ? colors[dotLane % colors.length] : '#555555';
-                lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(dotLane)} ${cellH}`, color: laneColor });
-            }
+            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(dotLane)} ${cellH}`, color: dotColor });
         }
 
         for (const mL of mergeTargets) {
-            const laneColor = isMerged ? colors[mL % colors.length] : '#555555';
-            lines.push({ path: `M ${x(dotLane)} ${midY} C ${x(dotLane)} ${midY + curveTension}, ${x(mL)} ${cellH - curveTension}, ${x(mL)} ${cellH}`, color: laneColor });
+            // Merge parent: leave the SIDE of the dot horizontally, then bend
+            // down into the target lane (vertical tangent at the bottom).
+            const dir = mL > dotLane ? 1 : -1;
+            lines.push({ path: `M ${x(dotLane)} ${midY} C ${x(dotLane) + dir * curveTension} ${midY}, ${x(mL)} ${midY}, ${x(mL)} ${cellH}`, color: colorFor(mL) });
+        }
+
+        // Drop trailing empty lanes so the graph width tracks the lanes that are
+        // actually active on this row instead of the historical peak.
+        while (lanes.length > 0 && lanes[lanes.length - 1] === null) {
+            lanes.pop();
+            laneColors.pop();
         }
 
         map.set(c.id, {
             dotLane,
-            color: isMerged ? colors[dotLane % colors.length] : '#555555',
+            color: dotColor,
             lines,
             width: Math.max(lanes.length * laneW + 20, (dotLane + 1) * laneW + 20),
-            isMerge: c.parents && c.parents.length > 1
+            isMerge: !!(c.parents && c.parents.length > 1)
         });
     }
+}
 
+/** Full (non-incremental) build — used on a fresh log / repo or ref switch. */
+export function buildCommitGraph(log: Commit[], _headCommitId: string | null = null): Map<string, GraphNode> {
+    const map = new Map<string, GraphNode>();
+    if (!log || log.length === 0) return map;
+    appendCommitGraph(map, createGraphState(), log);
     return map;
 }
