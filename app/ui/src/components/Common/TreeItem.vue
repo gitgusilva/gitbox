@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { PropType } from 'vue';
 import { Icon } from '@iconify/vue';
+import { startMarquee, stopMarquee } from '../../utils/dom';
+import { cn } from '../../utils/cn';
 
 interface TreeNode {
   name: string;
@@ -43,24 +45,33 @@ function getStatusColor(status: string, isSelected: boolean) {
 </script>
 
 <template>
-  <div class="flex flex-col">
+  <div class="v-stack">
     <div 
       @click="node.isDir ? $emit('toggle', node.fullPath) : $emit('select', node.fullPath, $event)"
       @dblclick="!node.isDir && $emit('dblclick', node.fullPath)"
       @contextmenu.prevent="!node.isDir && $emit('contextmenu', node.fullPath, $event)"
-      class="flex items-center gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-800 transition-colors group"
-      :class="(selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))) ? 'bg-[#143B66] text-white' : 'text-neutral-400'"
+      :class="cn(
+        'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors group overflow-hidden',
+        (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))) ? 'bg-[#143B66] text-white' : 'text-neutral-600 dark:text-neutral-400'
+      )"
       :style="{ paddingLeft: (level * 12 + 12) + 'px' }"
+      @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
     >
-      <span v-if="node.isDir" class="text-[10px] text-neutral-600 group-hover:text-neutral-400 transition-colors">
+      <span v-if="node.isDir" class="text-[10px] text-neutral-600 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-colors">
         <Icon :icon="isDirOpen(node.fullPath) ? 'lucide:chevron-down' : 'lucide:chevron-right'" />
       </span>
-      <Icon 
-        :icon="node.isDir ? (isDirOpen(node.fullPath) ? 'lucide:folder-open' : 'lucide:folder') : getStatusIcon(node.status || '')" 
-        :class="node.isDir ? (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath)) ? 'text-white' : 'text-blue-500/50') : getStatusColor(node.status || '', !!(selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))))"
-        class="text-xs shrink-0" 
+      <Icon
+        :icon="node.isDir ? (isDirOpen(node.fullPath) ? 'lucide:folder-open' : 'lucide:folder') : getStatusIcon(node.status || '')"
+        :class="cn(
+          'text-xs shrink-0 marquee-icon',
+          node.isDir ? (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath)) ? 'text-white' : 'text-blue-500/50') : getStatusColor(node.status || '', !!(selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))))
+        )"
       />
-      <span class="text-xs truncate" :class="{'font-bold': (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath)))}">{{ node.name }}</span>
+      <div class="flex-1 min-w-0 overflow-hidden">
+        <span :class="cn('text-xs truncate block', (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))) ? 'font-bold' : '')">
+          {{ node.name }}
+        </span>
+      </div>
     </div>
     <div v-if="node.isDir && isDirOpen(node.fullPath)">
       <TreeItem v-for="child in Object.values(node.children)" 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../../../services/themeService';
@@ -8,6 +8,7 @@ import { generalSettings } from '../../../services/settingsService';
 import { formatDate } from '../../../utils/formatters';
 import RangeSlider from '../../Common/RangeSlider.vue';
 import Checkbox from '../../Common/Checkbox.vue';
+import Select from '../../Common/Select.vue';
 
 const { t, locale } = useI18n();
 const { currentTheme, applyTheme } = useTheme();
@@ -15,12 +16,18 @@ const { languages, changeLanguage } = useLanguage();
 
 const emit = defineEmits(['close']);
 
-function handleLanguageChange(lang: string) {
-  changeLanguage(lang);
-  locale.value = lang;
+function handleLanguageChange(lang: string | string[]) {
+  const code = Array.isArray(lang) ? lang[0] : lang;
+  changeLanguage(code);
+  locale.value = code;
 }
 
+const languageOptions = computed(() => {
+    return languages.map(l => ({ value: l.code, label: l.name }));
+});
+
 const dateFormats = [
+  'relative',
   'yyyy/MM/dd, HH:mm:ss',
   'yyyy.MM.dd, HH:mm:ss',
   'yyyy-MM-dd, HH:mm:ss',
@@ -35,6 +42,17 @@ const dateFormats = [
 ];
 
 const sampleTime = Date.now() / 1000;
+
+const formatOptions = computed(() => dateFormats.map(fmt => fmt === 'relative'
+  ? { value: fmt, label: `${t('settings.date_format_relative')}    (${t('time.days_ago', { count: 2 })}…)` }
+  : { value: fmt, label: `${formatDate(sampleTime, fmt)}    (${fmt})` }));
+
+const notificationPositionOptions = computed(() => [
+  { value: 'bottom-right', label: t('settings.pos_bottom_right') },
+  { value: 'bottom-left', label: t('settings.pos_bottom_left') },
+  { value: 'top-right', label: t('settings.pos_top_right') },
+  { value: 'top-left', label: t('settings.pos_top_left') },
+]);
 </script>
 
 <template>
@@ -49,7 +67,7 @@ const sampleTime = Date.now() / 1000;
                   :key="theme"
                   @click="applyTheme(theme)"
                   class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all"
-                  :class="currentTheme === theme ? 'bg-blue-600/10 border-blue-600 text-blue-400' : 'bg-[#252526] border-neutral-800 text-neutral-500 hover:border-neutral-700'">
+                  :class="currentTheme === theme ? 'bg-blue-600/10 border-blue-600 text-blue-400' : 'bg-neutral-100 dark:bg-[#252526] border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700'">
             <Icon :icon="theme === 'light' ? 'lucide:sun' : (theme === 'dark' ? 'lucide:moon' : 'lucide:monitor')" class="text-lg" />
             <span class="text-[10px] font-medium">{{ t(`settings.${theme}`) }}</span>
           </button>
@@ -58,30 +76,16 @@ const sampleTime = Date.now() / 1000;
 
       <section>
         <label class="block text-xs font-bold text-neutral-500 uppercase mb-4">{{ t('settings.language') }}</label>
-        <div class="relative group/select">
-            <select :value="locale" @change="handleLanguageChange(($event.target as HTMLSelectElement).value)" class="w-full bg-[#252526] border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-300 outline-none focus:border-blue-500 appearance-none cursor-pointer group-hover/select:border-neutral-700 transition-all">
-                <option v-for="lang in languages" :key="lang.code" :value="lang.code">
-                    {{ lang.name }}
-                </option>
-            </select>
-            <Icon icon="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 pointer-events-none" />
-        </div>
+        <Select :modelValue="locale" @update:modelValue="handleLanguageChange" :options="languageOptions" class="w-full" searchable />
       </section>
     </div>
 
     <!-- Date & History Settings -->
-    <section class="space-y-6 pt-4 border-t border-neutral-800/50">
+    <section class="space-y-6 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
       <div class="flex items-center justify-between gap-4">
           <div class="flex-1">
               <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.date_format') }}</label>
-              <div class="relative group/select">
-                  <select v-model="generalSettings.dateFormat" class="w-full bg-[#252526] border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-300 outline-none focus:border-blue-500 appearance-none cursor-pointer group-hover/select:border-neutral-700 font-mono transition-all">
-                      <option v-for="fmt in dateFormats" :key="fmt" :value="fmt">
-                          {{ formatDate(sampleTime, fmt) }} &nbsp;&nbsp;&nbsp; ({{ fmt }})
-                      </option>
-                  </select>
-                  <Icon icon="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 pointer-events-none" />
-              </div>
+              <Select v-model="generalSettings.dateFormat" :options="formatOptions" searchable />
           </div>
       </div>
 
@@ -130,13 +134,23 @@ const sampleTime = Date.now() / 1000;
     </section>
 
     <!-- Checkboxes -->
-    <section class="space-y-4 pt-4 border-t border-neutral-800/50">
+    <section class="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
         <Checkbox v-model="generalSettings.showTagsInGraph" :label="t('settings.show_tags_graph')" />
         <Checkbox v-model="generalSettings.checkForUpdates" :label="t('settings.check_updates_startup')" />
         <Checkbox v-model="generalSettings.hideIconLabels" :label="t('settings.hide_icon_labels')" />
         <Checkbox v-model="generalSettings.highlightBranchPrefixes" :label="t('settings.highlight_branch_prefixes')" />
         <Checkbox v-model="generalSettings.showClosedPRs" :label="t('settings.show_closed_prs') || 'Show Closed PRs'" />
         <Checkbox v-model="generalSettings.rememberTabs" :label="t('settings.remember_tabs') || 'Remember Tabs'" />
+    </section>
+
+    <!-- Notifications -->
+    <section class="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
+        <label class="block text-xs font-bold text-neutral-500 uppercase">{{ t('settings.notifications') }}</label>
+        <Checkbox v-model="generalSettings.notificationsEnabled" :label="t('settings.notifications_enabled')" />
+        <div :class="generalSettings.notificationsEnabled ? '' : 'opacity-40 pointer-events-none'">
+            <label class="block text-[11px] font-medium text-neutral-500 mb-2">{{ t('settings.notification_position') }}</label>
+            <Select v-model="generalSettings.notificationPosition" :options="notificationPositionOptions" class="w-full" />
+        </div>
     </section>
 
   </div>

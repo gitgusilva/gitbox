@@ -2,8 +2,8 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
-import SimpleBar from 'simplebar-vue';
-import 'simplebar-vue/dist/simplebar.min.css';
+import ScrollArea from '../../components/Common/ScrollArea.vue';
+import { cn } from '../../utils/cn';
 import { 
   repoPath,
   unstagedFiles, 
@@ -18,23 +18,40 @@ import {
   discardAll,
   discardFile,
   commitAll,
-  includeUntracked
+  includeUntracked,
+  stashes,
+  loadRepoData
 } from '../../services/gitService';
 import { 
-  statusWidth, 
-  unstagedHeight, 
-  startResize 
+  layoutRefs
 } from '../../services/layoutService';
 import DiffViewer from '../../components/Common/DiffViewer.vue';
-import MergeViewer from '../../components/Common/MergeViewer.vue';
+import MergeEditor from '../../components/Common/MergeEditor.vue';
 import FileTree from '../../components/Common/FileTree.vue';
-import { generateCommitMessage, explainChanges } from '../../services/ai';
+import Resizer from '../../components/Common/Resizer.vue';
+import Tooltip from '../../components/Common/Tooltip.vue';
+import { generateCommitMessage, explainChanges, isAIConfigured, aiConfigVersion } from '../../services/ai';
 import { getItem, setItem } from '../../services/storageService';
 import { contextMenu, requestConfirm } from '../../services/modalService';
+import SubmoduleInfoView from '../../components/Common/SubmoduleInfoView.vue';
+import { submodules } from '../../services/gitService';
+import { useElementHover } from '@vueuse/core';
+import { generalSettings } from '../../services/settingsService';
 
 const unstagedViewMode = ref(getItem('gitbox_unstaged_view_mode') || 'tree');
 const stagedViewMode = ref(getItem('gitbox_staged_view_mode') || 'tree');
 
+// Resizable commit panel (drag its top edge up for more room). Wrapped in an
+// object so the template hands the Resizer the ref itself (not its unwrapped value).
+const commitPanelHeight = ref(Number(getItem('gitbox_commit_panel_height')) || 180);
+const commitRefs = { commitPanelHeight };
+watch(commitPanelHeight, (h) => setItem('gitbox_commit_panel_height', String(Math.round(h))));
+
+/**
+ * Switches the view mode for the unstaged or staged file panels.
+ * @param {'unstaged' | 'staged'} panel - The panel to update.
+ * @param {string} mode - The view mode ('list', 'flat', 'tree').
+ */
 function setViewMode(panel: 'unstaged' | 'staged', mode: string) {
   if (panel === 'unstaged') {
     unstagedViewMode.value = mode;
@@ -46,6 +63,11 @@ function setViewMode(panel: 'unstaged' | 'staged', mode: string) {
   contextMenu.value = null;
 }
 
+/**
+ * Opens the view options context menu for a panel.
+ * @param {MouseEvent} e - The mouse event trigger.
+ * @param {'unstaged' | 'staged'} panel - The panel for which to show options.
+ */
 function openViewMenu(e: MouseEvent, panel: 'unstaged' | 'staged') {
   const currentMode = panel === 'unstaged' ? unstagedViewMode.value : stagedViewMode.value;
   contextMenu.value = {
@@ -53,19 +75,19 @@ function openViewMenu(e: MouseEvent, panel: 'unstaged' | 'staged') {
     y: e.clientY,
     items: [
       { 
-        label: 'Show as Path List', 
+        label: t('changes_menu.view_list'), 
         icon: 'lucide:menu', 
         active: currentMode === 'list',
         action: () => setViewMode(panel, 'list') 
       },
       { 
-        label: 'Show as File and Dir List', 
+        label: t('changes_menu.view_flat'), 
         icon: 'lucide:layout-grid', 
         active: currentMode === 'flat',
         action: () => setViewMode(panel, 'flat') 
       },
       { 
-        label: 'Show as Filesystem Tree', 
+        label: t('changes_menu.view_tree'), 
         icon: 'lucide:git-branch', 
         active: currentMode === 'tree',
         action: () => setViewMode(panel, 'tree') 
@@ -74,6 +96,10 @@ function openViewMenu(e: MouseEvent, panel: 'unstaged' | 'staged') {
   };
 }
 
+/**
+ * Moves selected files between staged and unstaged states.
+ * @param {boolean} toStaged - True to stage files, false to unstage.
+ */
 async function moveSelected(toStaged: boolean) {
   if (selectedFiles.value.length === 0) return;
   const files = [...selectedFiles.value];
@@ -83,21 +109,33 @@ async function moveSelected(toStaged: boolean) {
   }
 }
 
+/**
+ * Handles discarding changes for specific files or all selected files.
+ * @param {string} [path] - Optional specific file path to discard.
+ */
 async function handleDiscard(path?: string) {
   const targets = (path ? [path] : [...selectedFiles.value]).filter(Boolean);
   if (targets.length === 0) return;
   
   const msg = targets.length === 1 
-    ? `Discard changes in ${targets[0]}?` 
-    : `Discard changes in ${targets.length} files?`;
+    ? t('changes.discard_msg_single', { path: targets[0] }) 
+    : t('changes.discard_msg_multiple', { count: targets.length });
 
-  requestConfirm('Discard Changes', 'You can\'t undo this action!!!', true, async () => {
+  requestConfirm(t('changes.discard_title'), msg + ' ' + t('changes.discard_undo_warning'), true, async () => {
     for (const f of targets) {
       await discardFile(f);
     }
   });
 }
 
+// Aborting a merge hard-resets to HEAD and drops conflict resolutions — confirm.
+
+/**
+ * Opens the context menu for files in either the staged or unstaged panels.
+ * @param {MouseEvent} e - The mouse event trigger.
+ * @param {'unstaged' | 'staged'} panel - The panel containing the file.
+ * @param {string} [path] - The path of the file clicked on.
+ */
 function openContextMenu(e: MouseEvent, panel: 'unstaged' | 'staged', path?: string) {
   if (path && !selectedFiles.value.includes(path)) {
     selectedFiles.value = [path];
@@ -110,26 +148,26 @@ function openContextMenu(e: MouseEvent, panel: 'unstaged' | 'staged', path?: str
     x: e.clientX,
     y: e.clientY,
     items: [
-      { label: 'Open in Merge Tool', icon: 'lucide:git-merge', shortcut: 'Ctrl+Shift+D', action: () => {} },
-      { label: 'Open with...', icon: 'lucide:external-link', shortcut: 'Ctrl+O', action: () => {} },
-      { label: 'Reveal in File Explorer', icon: 'lucide:folder-search', action: () => {} },
+      { label: t('changes_menu.merge_tool'), icon: 'lucide:git-merge', shortcut: 'Ctrl+Shift+D', action: () => { if (selectedFile.value) openExternalMergeTool(selectedFile.value); } },
+      { label: t('changes_menu.open_with'), icon: 'lucide:external-link', shortcut: 'Ctrl+O', action: () => {} },
+      { label: t('changes_menu.reveal_explorer'), icon: 'lucide:folder-search', action: () => {} },
       { type: 'separator' },
       isStaged 
-        ? { label: 'Unstage', icon: 'lucide:minus', shortcut: 'Enter/Space', action: () => moveSelected(false) }
-        : { label: 'Stage', icon: 'lucide:plus', shortcut: 'Enter/Space', action: () => moveSelected(true) },
-      !isStaged ? { label: 'Discard...', icon: 'lucide:undo-2', shortcut: 'Back/Delete', action: () => handleDiscard(path) } : null,
-      { label: 'Stash...', icon: 'lucide:package', action: () => {} },
-      { label: 'Save as Patch...', icon: 'lucide:file-text', action: () => {} },
-      !isStaged ? { label: 'Assume unchanged', icon: 'lucide:eye-off', action: () => {} } : null,
-      isStaged ? { label: 'Generate commit message', icon: 'lucide:wand-2', action: () => handleGenerateCommit() } : null,
+        ? { label: t('changes_menu.unstage'), icon: 'lucide:minus', shortcut: 'Enter/Space', action: () => moveSelected(false) }
+        : { label: t('changes_menu.stage'), icon: 'lucide:plus', shortcut: 'Enter/Space', action: () => moveSelected(true) },
+      !isStaged ? { label: t('changes_menu.discard'), icon: 'lucide:undo-2', shortcut: 'Back/Delete', action: () => handleDiscard(path) } : null,
+      { label: t('changes_menu.stash'), icon: 'lucide:package', action: () => {} },
+      { label: t('changes_menu.save_patch'), icon: 'lucide:file-text', action: () => {} },
+      !isStaged ? { label: t('changes_menu.assume_unchanged'), icon: 'lucide:eye-off', action: () => {} } : null,
+      isStaged ? { label: t('changes_menu.generate_commit'), icon: 'lucide:wand-2', action: () => handleGenerateCommit() } : null,
       { type: 'separator' },
-      { label: 'File History', icon: 'lucide:history', action: () => {} },
-      { label: 'Blame (HEAD-only)', icon: 'lucide:user-check', action: () => {} },
+      { label: t('changes_menu.history'), icon: 'lucide:history', action: () => {} },
+      { label: t('changes_menu.blame'), icon: 'lucide:user-check', action: () => {} },
       { type: 'separator' },
-      { label: 'Copy Path', icon: 'lucide:copy', shortcut: 'Ctrl+C', action: () => {
+      { label: t('changes_menu.copy_path'), icon: 'lucide:copy', shortcut: 'Ctrl+C', action: () => {
         if (selectedFile.value) navigator.clipboard.writeText(selectedFile.value);
       }},
-      { label: 'Copy Full Path', icon: 'lucide:copy', shortcut: 'Ctrl+Shift+C', action: () => {
+      { label: t('changes_menu.copy_full_path'), icon: 'lucide:copy', shortcut: 'Ctrl+Shift+C', action: () => {
          if (repoPath.value && selectedFile.value) {
            const fullPath = repoPath.value + '/' + selectedFile.value;
            navigator.clipboard.writeText(fullPath);
@@ -139,6 +177,30 @@ function openContextMenu(e: MouseEvent, panel: 'unstaged' | 'staged', path?: str
   };
 }
 
+/** Opens the native merge-conflict editor in a separate, resizable window. */
+async function openMergeWindow(path: string) {
+  if (!repoPath.value || !path) return;
+  await window.gitbox.openMergeWindow(repoPath.value, path);
+}
+
+async function openExternalMergeTool(path: string) {
+  if (!repoPath.value || !path) return false;
+
+  const tool = generalSettings.value.externalMergeTool;
+  if (!tool || tool === 'gitbox' || tool === 'none' || tool === 'custom') return false;
+
+  try {
+    await window.gitbox.openMergeTool(repoPath.value, path, tool === 'git_config_default' ? undefined : tool);
+    await loadRepoData();
+    await loadDiff();
+    return true;
+  } catch (error) {
+    console.error('Failed to open external merge tool:', error);
+    return false;
+  }
+}
+
+/** Toggles whether to include untracked files in the status. */
 function toggleUntracked() {
   includeUntracked.value = !includeUntracked.value;
   setItem('gitbox_include_untracked', includeUntracked.value ? 'true' : 'false');
@@ -148,13 +210,38 @@ const { t, locale } = useI18n();
 
 const originalContent = ref('');
 const modifiedContent = ref('');
+const isMergeEditorRequested = ref(false);
+const mergeEditorRef = ref<any>(null);
+const mergeEditorState = ref({ remainingConflicts: 0, canCompleteMerge: false, isDirty: false });
 
+/** Currently selected submodule if any. */
+const selectedSubmodule = computed(() => {
+  if (!selectedFile.value) return null;
+  return submodules.value.find(s => s.path === selectedFile.value) || null;
+});
+
+const isSelectedFileConflicted = computed(() => {
+  return !!selectedFile.value && isConflicted(selectedFile.value);
+});
+
+const isMergeEditorActive = computed(() => {
+  return !!selectedFile.value && !selectedSubmodule.value && isSelectedFileConflicted.value && isMergeEditorRequested.value;
+});
+
+/** Current SHA for the selected submodule. */
+const submoduleSha = computed(() => {
+  if (!selectedFile.value || !selectedSubmodule.value) return '';
+  return selectedSubmodule.value.sha || '';
+});
+
+/** Loads the diff content for the currently selected file. */
 async function loadDiff() {
-  if (!repoPath.value || !selectedFile.value) {
+  if (!repoPath.value || !selectedFile.value || selectedSubmodule.value) {
     originalContent.value = '';
     modifiedContent.value = '';
     return;
   }
+
   try {
     const diff = await window.gitbox.diffFile(repoPath.value, selectedFile.value);
     originalContent.value = diff.original ?? '';
@@ -166,7 +253,15 @@ async function loadDiff() {
 }
 
 watch(selectedFile, loadDiff);
+watch(selectedFile, () => {
+  isMergeEditorRequested.value = false;
+});
 
+/**
+ * Handles file selection, supporting multi-select with modifier keys.
+ * @param {string} path - The path of the clicked file.
+ * @param {MouseEvent} [event] - The click event.
+ */
 function handleSelect(path: string, event?: MouseEvent) {
   if (event && (event.ctrlKey || event.metaKey)) {
     if (selectedFiles.value.includes(path)) {
@@ -187,8 +282,13 @@ function handleSelect(path: string, event?: MouseEvent) {
     selectedFiles.value = [path];
   }
   selectedFile.value = path;
+
 }
 
+/**
+ * Handles double-click on a file, typically toggling its stage state.
+ * @param {string} path - The path of the double-clicked file.
+ */
 async function handleDblClick(path: string) {
   const targets = selectedFiles.value.includes(path) ? [...selectedFiles.value] : [path];
   const isStaged = stagedFiles.value.some(f => f.path === path);
@@ -202,23 +302,39 @@ async function handleDblClick(path: string) {
   }
 }
 
+const statusContainerRef = ref<HTMLElement | null>(null);
+
 onMounted(() => {
   nextTick(loadDiff);
+  
+  if (statusContainerRef.value) {
+    const h = statusContainerRef.value.clientHeight;
+    if (h > 0) {
+      layoutRefs.unstagedHeight.value = Math.floor(h / 2);
+    }
+  }
 });
 
+/** List of all files that have changes. */
 const allChangedFiles = computed(() => [...stagedFiles.value, ...unstagedFiles.value]);
 
+/**
+ * Checks if a file has merge conflicts.
+ * @param {string} filePath - Path to check.
+ */
 function isConflicted(filePath: string) {
   const file = allChangedFiles.value.find(f => f.path === filePath);
-  return file && file.status.includes('conflicted');
+  return file && file.status.indexOf('conflicted') !== -1;
 }
 
+/**
+ * Saves resolved merge content and stages the file.
+ * @param {string} newContent - The resolved content.
+ */
 async function handleSaveMerge(newContent: string) {
   if (repoPath.value && selectedFile.value) {
     try {
       await window.gitbox.saveFile(repoPath.value, selectedFile.value, newContent);
-      await window.gitbox.stageAll(repoPath.value); // could just stage this file, but stageAll is accessible
-      // Ideally we would trigger a refresh of status here
       await loadDiff();
     } catch (err) {
       console.error('Failed to save merge resolution:', err);
@@ -226,13 +342,71 @@ async function handleSaveMerge(newContent: string) {
   }
 }
 
+async function handleCompleteMerge(newContent: string) {
+  if (repoPath.value && selectedFile.value) {
+    try {
+      await window.gitbox.saveFile(repoPath.value, selectedFile.value, newContent);
+      await window.gitbox.stageFile(repoPath.value, selectedFile.value);
+      await loadRepoData();
+      await loadDiff();
+    } catch (err) {
+      console.error('Failed to complete merge resolution:', err);
+    }
+  }
+}
+
+function handleMergeEditorState(state: { remainingConflicts: number; canCompleteMerge: boolean; isDirty: boolean }) {
+  mergeEditorState.value = state;
+}
+
 const isGeneratingCommit = ref(false);
 const isExplainingChanges = ref(false);
 const aiExplanation = ref('');
 const showAiPanel = ref(false);
 
-const hasAiConfig = computed(() => !!getItem('gitbox_ai_api_key'));
+/** Whether AI features are configured (an API key, or a selected local CLI).
+ *  Depends on aiConfigVersion so it re-evaluates when the user changes provider. */
+const hasAiConfig = computed(() => (aiConfigVersion.value, isAIConfigured()));
 
+// --- SourceGit-style split commit message: subject line + description body ---
+const commitSubject = ref('');
+const commitDescription = ref('');
+let syncingCommit = false;
+
+// Seed the two fields from any existing message (restored / pre-filled).
+{
+  const v = commitMessage.value || '';
+  const nl = v.indexOf('\n');
+  commitSubject.value = nl === -1 ? v : v.slice(0, nl);
+  commitDescription.value = nl === -1 ? '' : v.slice(nl + 1).replace(/^\n/, '');
+}
+
+// subject + description -> the actual commit message that gets committed.
+watch([commitSubject, commitDescription], () => {
+  syncingCommit = true;
+  const body = commitDescription.value.trim();
+  commitMessage.value = commitSubject.value + (body ? '\n\n' + body : '');
+  syncingCommit = false;
+});
+
+// External changes (e.g. cleared after a successful commit) -> re-split the fields.
+watch(commitMessage, (val) => {
+  if (syncingCommit) return;
+  const v = val || '';
+  const nl = v.indexOf('\n');
+  commitSubject.value = nl === -1 ? v : v.slice(0, nl);
+  commitDescription.value = nl === -1 ? '' : v.slice(nl + 1).replace(/^\n/, '');
+});
+
+// Git convention: subject reads best <= 50 chars; 72 is the usual hard guide.
+const subjectLenClass = computed(() => {
+  const n = commitSubject.value.length;
+  if (n > 72) return 'text-red-500';
+  if (n > 50) return 'text-amber-500';
+  return 'text-neutral-500';
+});
+
+/** Triggers AI commit message generation based on staged changes. */
 async function handleGenerateCommit() {
   if (!repoPath.value || stagedFiles.value.length === 0) return;
   
@@ -241,7 +415,11 @@ async function handleGenerateCommit() {
     const diff = await window.gitbox.getStagedDiff(repoPath.value);
     const result = await generateCommitMessage(diff, locale.value);
     if (result.text) {
-      commitMessage.value = result.text;
+      // Split the generated message into subject (line 1) + description (rest).
+      const text = result.text.trim();
+      const nl = text.indexOf('\n');
+      commitSubject.value = nl === -1 ? text : text.slice(0, nl).trim();
+      commitDescription.value = nl === -1 ? '' : text.slice(nl + 1).replace(/^\s+/, '');
     } else if (result.error) {
       alert(result.error);
     }
@@ -250,6 +428,7 @@ async function handleGenerateCommit() {
   }
 }
 
+/** Triggers AI explanation for the currently selected file's changes. */
 async function handleExplainChanges() {
   if (!repoPath.value || !selectedFile.value) return;
   
@@ -263,7 +442,7 @@ async function handleExplainChanges() {
     if (result.text) {
       aiExplanation.value = result.text;
     } else if (result.error) {
-      aiExplanation.value = `Error: ${result.error}`;
+      aiExplanation.value = result.error.indexOf('Quota') !== -1 || result.error.indexOf('Cota') !== -1 ? result.error : `Error: ${result.error}`;
     }
   } finally {
     isExplainingChanges.value = false;
@@ -272,146 +451,248 @@ async function handleExplainChanges() {
 </script>
 
 <template>
-  <div class="flex-1 flex min-h-0 bg-[#1E1E1E]">
-    <div class="flex flex-col border-r border-neutral-800 bg-[#181818] flex-shrink-0 relative select-none h-full min-h-0" :style="{ width: statusWidth + 'px' }">
-       <div class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10 transition-colors" @mousedown="startResize('status', $event)"></div>
+  <div :class="cn('flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-[#1E1E1E]')">
+    <div :class="cn('flex-1 flex flex-row items-stretch min-h-0 min-w-0')">
+    <!-- Status Sidebar -->
+    <div ref="statusContainerRef" :class="cn(
+      'v-stack border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#181818] shrink-0 relative select-none h-full min-h-0 transition-none',
+      'contain-size layout paint'
+    )" :style="{ 
+      width: `var(--layout-status-width, ${layoutRefs.statusWidth.value}px)`, 
+      willChange: 'width' 
+    }">
+       <Resizer :target="(layoutRefs.statusWidth as any)" :options="{ min: 150, max: 800, cssVar: '--layout-status-width' }" class="absolute right-0 top-0 bottom-0" />
        
        <!-- Unstaged -->
-       <header class="bg-[#2D2D2D] border-b border-neutral-800 px-3 py-2 text-[10px] font-bold text-neutral-400 flex justify-between uppercase tracking-widest items-center">
-         <div class="flex items-center gap-2">
-           <Icon icon="lucide:file-warning" class="text-neutral-500" />
-           <span>{{ t('changes.unstaged') }} ({{ unstagedFiles.length }})</span>
+       <header :class="cn('bg-neutral-200/50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-800 px-3 py-2 text-[10px] font-bold text-neutral-600 dark:text-neutral-400 h-stack justify-between uppercase tracking-widest items-center')">
+         <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
+           <Icon icon="lucide:file-warning" class="text-neutral-500 shrink-0" />
+           <span class="truncate">{{ t('changes.unstaged') }} ({{ unstagedFiles.length }})</span>
          </div>
-         <div class="flex items-center gap-1">
-           <button @click="toggleUntracked" class="w-6 h-6 flex items-center justify-center transition-colors" :class="includeUntracked ? 'text-blue-400' : 'text-neutral-500 hover:text-white'" title="Include Untracked Files">
-             <Icon :icon="includeUntracked ? 'lucide:eye' : 'lucide:eye-off'" class="text-xs" />
-           </button>
-           <button @click="openViewMenu($event, 'unstaged')" class="w-6 h-6 flex items-center justify-center hover:text-white transition-colors" title="View Options">
-             <Icon icon="lucide:layout-grid" class="text-xs" />
-           </button>
-           <button @click="moveSelected(true)" :disabled="selectedFiles.length === 0" class="w-6 h-6 flex items-center justify-center hover:text-blue-400 disabled:opacity-30 transition-colors" title="Stage Selected">
-             <Icon icon="lucide:chevron-down" class="text-sm" />
-           </button>
-           <button @click="stageAll" class="w-6 h-6 flex items-center justify-center hover:text-green-400 transition-colors" title="Stage All">
-             <Icon icon="lucide:chevrons-down" class="text-sm" />
-           </button>
-           <button @click="openViewMenu($event, 'unstaged')" class="w-6 h-6 flex items-center justify-center hover:text-white transition-colors" title="Options">
-             <Icon icon="lucide:menu" class="text-xs" />
-           </button>
+         <div :class="cn('h-stack items-center gap-1 shrink-0')">
+           <Tooltip :text="t('changes.include_untracked')">
+             <button @click="toggleUntracked" :class="cn('w-6 h-6 center transition-colors', includeUntracked ? 'text-blue-400' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white')">
+               <Icon :icon="includeUntracked ? 'lucide:eye' : 'lucide:eye-off'" class="text-xs" />
+             </button>
+           </Tooltip>
+           <Tooltip :text="t('changes.view_options')">
+             <button @click="openViewMenu($event, 'unstaged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
+               <Icon icon="lucide:layout-grid" class="text-xs" />
+             </button>
+           </Tooltip>
+           <Tooltip :text="t('changes.stage_selected')">
+             <button @click="moveSelected(true)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-blue-400 disabled:opacity-30 transition-colors')">
+               <Icon icon="lucide:chevron-down" class="text-sm" />
+             </button>
+           </Tooltip>
+           <Tooltip :text="t('changes.stage_all')">
+             <button @click="stageAll" :class="cn('w-6 h-6 center hover:text-green-400 transition-colors')">
+               <Icon icon="lucide:chevrons-down" class="text-sm" />
+             </button>
+           </Tooltip>
          </div>
        </header>
        
-       <SimpleBar :style="{ height: unstagedHeight + 'px' }" class="flex-shrink-0 bg-[#1A1A1A] border-b border-neutral-800/20 shadow-inner" @contextmenu.prevent="openContextMenu($event, 'unstaged')">
-          <FileTree :files="unstagedFiles" :viewMode="unstagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
-                    @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p, e) => openContextMenu(e, 'unstaged', p)" />
-       </SimpleBar>
-       
-       <div class="h-1 bg-neutral-800/50 cursor-row-resize hover:bg-blue-500 transition-colors relative z-10" @mousedown="startResize('unstaged', $event)">
-         <div class="absolute inset-x-0 -top-2 -bottom-2"></div>
+       <div :class="cn('relative v-stack shrink-0')" 
+            :style="{ 
+              height: `var(--layout-unstaged-height, ${layoutRefs.unstagedHeight.value}px)`,
+              willChange: 'height'
+            }">
+         <div :class="cn('h-full bg-neutral-100/20 dark:bg-neutral-900/20 border-b border-neutral-200/20 dark:border-neutral-800/20 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'unstaged')">
+            <FileTree :files="unstagedFiles" :viewMode="unstagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
+                       @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'unstaged', p)" />
+         </div>
+         <Resizer vertical :target="(layoutRefs.unstagedHeight as any)" :options="{ axis: 'y', min: 100, max: 800, cssVar: '--layout-unstaged-height' }" class="absolute bottom-0 left-0 right-0 h-1.5 z-30" />
        </div>
        
        <!-- Staged -->
-       <header class="bg-[#2D2D2D] border-b border-t border-neutral-800 px-3 py-2 text-[10px] font-bold text-neutral-400 flex justify-between uppercase tracking-widest items-center">
-         <div class="flex items-center gap-2">
-           <Icon icon="lucide:check-circle-2" class="text-neutral-500" />
-           <span>{{ t('changes.staged') }} ({{ stagedFiles.length }})</span>
+       <header :class="cn('bg-neutral-200/50 dark:bg-neutral-800/50 border-b border-t border-neutral-200 dark:border-neutral-800 px-3 py-2 text-[10px] font-bold text-neutral-600 dark:text-neutral-400 h-stack justify-between uppercase tracking-widest items-center')">
+         <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
+           <Icon icon="lucide:check-circle-2" class="text-neutral-500 shrink-0" />
+           <span class="truncate">{{ t('changes.staged') }} ({{ stagedFiles.length }})</span>
          </div>
-         <div class="flex items-center gap-1">
-           <button @click="openViewMenu($event, 'staged')" class="w-6 h-6 flex items-center justify-center hover:text-white transition-colors" title="View Options">
-             <Icon icon="lucide:layout-grid" class="text-xs" />
-           </button>
-           <button @click="moveSelected(false)" :disabled="selectedFiles.length === 0" class="w-6 h-6 flex items-center justify-center hover:text-blue-400 disabled:opacity-30 transition-colors" title="Unstage Selected">
-             <Icon icon="lucide:chevron-up" class="text-sm" />
-           </button>
-           <button @click="unstageAll" class="w-6 h-6 flex items-center justify-center hover:text-red-400 transition-colors" title="Unstage All">
-             <Icon icon="lucide:chevrons-up" class="text-sm" />
-           </button>
-           <button @click="openViewMenu($event, 'staged')" class="w-6 h-6 flex items-center justify-center hover:text-white transition-colors" title="Options">
-             <Icon icon="lucide:menu" class="text-xs" />
-           </button>
+         <div :class="cn('h-stack items-center gap-1 shrink-0')">
+           <Tooltip :text="t('changes.view_options')">
+             <button @click="openViewMenu($event, 'staged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
+               <Icon icon="lucide:layout-grid" class="text-xs" />
+             </button>
+           </Tooltip>
+           <Tooltip :text="t('changes.unstage_selected')">
+             <button @click="moveSelected(false)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-blue-400 disabled:opacity-30 transition-colors')">
+               <Icon icon="lucide:chevron-up" class="text-sm" />
+             </button>
+           </Tooltip>
+           <Tooltip :text="t('changes.unstage_all')">
+             <button @click="unstageAll" :class="cn('w-6 h-6 center hover:text-red-400 transition-colors')">
+               <Icon icon="lucide:chevrons-up" class="text-sm" />
+             </button>
+           </Tooltip>
          </div>
        </header>
        
-       <SimpleBar class="flex-1 bg-[#1A1A1A] min-h-0 shadow-inner" @contextmenu.prevent="openContextMenu($event, 'staged')">
-          <FileTree :files="stagedFiles" :viewMode="stagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
-                    @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p, e) => openContextMenu(e, 'staged', p)" />
-       </SimpleBar>
-       <div id="terminal-target-local_changes" class="w-full flex-shrink-0 flex flex-col z-30 relative bg-[#1E1E1E] max-h-[50%]"></div>
+        <div :class="cn('flex-1 bg-neutral-100/20 dark:bg-neutral-900/20 min-h-0 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'staged')">
+           <FileTree :files="stagedFiles" :viewMode="stagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
+                     @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'staged', p)" />
+        </div>
     </div>
-    
-    <div class="flex-1 flex flex-col bg-[#1E1E1E] relative">
-      <div class="flex-1 flex flex-col min-h-0 relative">
+
+    <!-- Editor / Diff Viewer -->
+    <div :class="cn('flex-1 v-stack bg-white dark:bg-[#1E1E1E] relative min-w-0')">
+      <div :class="cn('flex-1 v-stack min-h-0 relative min-w-0')">
         <template v-if="selectedFile">
-            <MergeViewer v-if="isConflicted(selectedFile)"
-                        :original="originalContent" 
-                        :modified="modifiedContent" 
-                        :filename="selectedFile"
-                        @save="handleSaveMerge" />
-            <DiffViewer v-else
-                        :original="originalContent" 
-                        :modified="modifiedContent" 
-                        :filename="selectedFile"
-                        :readOnly="true" />
+            <template v-if="selectedSubmodule">
+               <div :class="cn('flex-1 v-stack overflow-hidden min-h-0 relative')">
+                  <DiffViewer :original="originalContent" :modified="modifiedContent" :filename="selectedFile" :readOnly="true" class="flex-1" />
+                  <Resizer vertical :target="layoutRefs.submoduleDetailHeight" :options="{ axis: 'y', invert: true, min: 100, max: 800 }" class="absolute bottom-0 left-0 right-0 h-1.5 z-30" />
+               </div>
+               
+               <div :style="{ height: layoutRefs.submoduleDetailHeight.value + 'px' }" :class="cn('shrink-0 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E1E1E] relative')">
+                  <SubmoduleInfoView :path="selectedFile" :sha="submoduleSha" />
+               </div>
+            </template>
+            <template v-else>
+              <MergeEditor v-if="isMergeEditorActive"
+                          ref="mergeEditorRef"
+                          :original="originalContent"
+                          :modified="modifiedContent"
+                          :filename="selectedFile"
+                          :repoPath="repoPath"
+                          @save="handleSaveMerge"
+                          @complete="handleCompleteMerge"
+                          @state="handleMergeEditorState" />
+              <DiffViewer v-else
+                          :original="originalContent" 
+                          :modified="modifiedContent" 
+                          :filename="selectedFile"
+                          :readOnly="true" />
+            </template>
         </template>
         
         <!-- AI Toolbar for Diff -->
-        <div v-if="selectedFile && hasAiConfig" class="absolute top-3 right-5 flex gap-2">
+        <div v-if="selectedFile && hasAiConfig && !selectedSubmodule" :class="cn('absolute top-3 right-5 h-stack gap-2')">
           <button @click="handleExplainChanges" 
-                  class="flex items-center gap-2 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/5 rounded-full text-[10px] font-bold text-neutral-300 hover:text-blue-400 transition-all shadow-xl"
+                  :class="cn(
+                    'h-stack items-center gap-2 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/5 rounded-full text-[10px] font-bold text-neutral-700 dark:text-neutral-300 hover:text-blue-400 transition-all shadow-xl',
+                    isExplainingChanges ? 'opacity-50' : ''
+                  )"
                   :disabled="isExplainingChanges">
-            <Icon :icon="isExplainingChanges ? 'lucide:loader-2' : 'lucide:zap'" :class="{ 'animate-spin': isExplainingChanges }" />
+            <Icon :icon="isExplainingChanges ? 'lucide:loader-2' : 'lucide:zap'" :class="cn(isExplainingChanges ? 'animate-spin' : '')" />
             {{ t('changes.summarize') }}
           </button>
         </div>
 
         <!-- AI Explanation Panel -->
-        <div v-if="showAiPanel" class="absolute bottom-0 right-0 w-80 max-h-[60%] border-l border-t border-neutral-800 bg-[#252526] backdrop-blur-xl shadow-2xl flex flex-col z-40 animate-in slide-in-from-right-10 duration-300">
-          <header class="p-3 border-b border-neutral-800 flex items-center justify-between bg-[#252526]">
-             <div class="flex items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+        <div v-if="showAiPanel" :class="cn('absolute bottom-0 right-0 w-80 max-h-[60%] border-l border-t border-neutral-200 dark:border-neutral-800 bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-xl shadow-2xl v-stack z-40 animate-in slide-in-from-right-10 duration-300')">
+          <header :class="cn('p-3 border-b border-neutral-200 dark:border-neutral-800 h-stack items-center justify-between')">
+             <div :class="cn('h-stack items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-widest')">
                 <Icon icon="lucide:sparkles" />
-                Explanation
+                <span>Explanation</span>
              </div>
-             <button @click="showAiPanel = false" class="text-neutral-500 hover:text-white transition-colors">
+             <button @click="showAiPanel = false" :class="cn('text-neutral-500 hover:text-neutral-900 dark:hover:text-white center transition-colors')">
                <Icon icon="lucide:x" />
              </button>
           </header>
-          <SimpleBar class="flex-1 p-4 overflow-y-auto">
-             <div class="text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap font-mono opacity-90">
+          <ScrollArea :class="cn('flex-1 p-4')">
+             <div :class="cn('text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap font-mono opacity-90')">
                 {{ aiExplanation }}
              </div>
-          </SimpleBar>
+          </ScrollArea>
         </div>
 
-        <div v-else-if="!selectedFile" class="flex-1 flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8">
-          <Icon icon="lucide:file-diff" class="text-5xl mb-4 opacity-10" />
-          <div class="font-bold uppercase tracking-widest text-sm opacity-20">
+        <div v-if="selectedFile && isSelectedFileConflicted && !selectedSubmodule" :class="cn('absolute bottom-3 right-5 h-stack gap-2 z-30')">
+          <button
+            v-if="!isMergeEditorActive"
+            @click="openMergeWindow(selectedFile)"
+            :class="cn('h-stack items-center gap-2 px-3 py-1.5 bg-amber-900/35 hover:bg-amber-800/45 backdrop-blur-md border border-amber-500/30 rounded-full text-[10px] font-bold text-amber-200 transition-all shadow-xl uppercase tracking-wider')"
+          >
+            <Icon icon="lucide:git-merge" />
+            {{ t('changes.open_merge_editor') }}
+          </button>
+          <button
+            v-else
+            @click="isMergeEditorRequested = false"
+            :class="cn('h-stack items-center gap-2 px-3 py-1.5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 rounded-full text-[10px] font-bold text-neutral-700 dark:text-neutral-300 transition-all shadow-xl uppercase tracking-wider')"
+          >
+            <Icon icon="lucide:arrow-left" />
+            {{ t('changes.back_to_diff') }}
+          </button>
+          <button
+            v-if="isMergeEditorActive"
+            @click="mergeEditorRef?.completeMerge?.()"
+            :disabled="!mergeEditorState.canCompleteMerge"
+            :class="cn(
+              'h-stack items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-xl',
+              mergeEditorState.canCompleteMerge
+                ? 'bg-blue-700/80 hover:bg-blue-600 border border-blue-400/40 text-blue-100'
+                : 'bg-neutral-200/70 dark:bg-neutral-800/70 border border-neutral-300 dark:border-neutral-700 text-neutral-500 cursor-not-allowed',
+            )"
+          >
+            <Icon icon="lucide:check" />
+            {{ t('changes.complete_merge') }}
+          </button>
+        </div>
+
+        <div v-else-if="!selectedFile" :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
+          <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-10')" />
+          <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-20')">
             {{ t('changes.select_file_diff') }}
           </div>
         </div>
       </div>
-       <!-- Commit Area -->
-       <div class="p-3 border-t border-neutral-800 bg-[#252526] flex flex-col gap-2 flex-shrink-0">
-          <div class="relative group">
-            <textarea v-model="commitMessage" 
-                      class="w-full h-24 bg-[#1E1E1E] border border-neutral-700 p-3 text-xs text-neutral-200 outline-none resize-none focus:border-blue-500 rounded transition-all placeholder:text-neutral-600 leading-relaxed" 
-                      :placeholder="t('changes.commit_placeholder')"></textarea>
-            
-            <button v-if="hasAiConfig && stagedFiles.length > 0"
-                    @click="handleGenerateCommit"
-                    :disabled="isGeneratingCommit"
-                    class="absolute bottom-3 right-3 p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-blue-400 rounded border border-neutral-700 transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider disabled:opacity-50"
-                    :title="t('changes.generate_commit')">
-              <Icon :icon="isGeneratingCommit ? 'lucide:loader-2' : 'lucide:sparkles'" :class="{ 'animate-spin': isGeneratingCommit }" />
-              {{ isGeneratingCommit ? '...' : t('changes.generate_commit') }}
-            </button>
+
+       <!-- Commit Area (resizable — drag the top edge up) -->
+       <div v-if="!isMergeEditorActive"
+            :class="cn('p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-[#252526] v-stack gap-2 shrink-0 relative')"
+            :style="{ height: commitPanelHeight + 'px' }">
+          <Resizer vertical :target="commitRefs.commitPanelHeight"
+                   :options="{ axis: 'y', invert: true, min: 150, max: 700, clampToContainer: true, reserve: 160 }"
+                   class="absolute top-0 left-0 right-0 h-1.5 -translate-y-1/2 z-40" />
+          <!-- Toolbar: label + AI generate -->
+          <div class="flex items-center justify-between h-5">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">{{ t('changes.commit_message_label') }}</span>
+            <Tooltip v-if="hasAiConfig" :text="stagedFiles.length === 0 ? t('changes.stage_to_generate') : t('changes.generate_commit')" position="top">
+              <button @click="handleGenerateCommit"
+                      :disabled="isGeneratingCommit || stagedFiles.length === 0"
+                      :class="cn(
+                        'h-7 w-7 flex items-center justify-center rounded transition-all',
+                        'bg-blue-600 hover:bg-blue-500 text-white shadow-sm',
+                        'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600'
+                      )">
+                <Icon :icon="isGeneratingCommit ? 'lucide:loader-2' : 'lucide:sparkles'" :class="cn('text-sm', isGeneratingCommit ? 'animate-spin' : '')" />
+              </button>
+            </Tooltip>
           </div>
-         <button @click="commitAll" 
-                 class="bg-blue-600 hover:bg-blue-500 text-white py-2 text-xs font-bold rounded transition-all disabled:opacity-30 disabled:grayscale shadow-lg shadow-blue-900/20 active:scale-[0.98] flex items-center justify-center gap-2 uppercase tracking-widest" 
-                 :disabled="!commitMessage.trim() || stagedFiles.length === 0">
+
+          <!-- Subject line (SourceGit-style) with a live length hint (50 / 72). -->
+          <div :class="cn('relative')">
+            <input v-model="commitSubject"
+                   type="text"
+                   :placeholder="t('changes.commit_subject_placeholder')"
+                   :class="cn(
+                     'w-full bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-neutral-700 px-3 py-2 pr-14 text-xs font-medium text-neutral-800 dark:text-neutral-200 outline-none focus:border-blue-500 rounded transition-all placeholder:text-neutral-600 placeholder:font-normal'
+                   )" />
+            <span v-if="commitSubject.length > 0"
+                  :class="cn('absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-mono tabular-nums pointer-events-none', subjectLenClass)">
+              {{ commitSubject.length }}
+            </span>
+          </div>
+
+          <!-- Description body -->
+          <textarea v-model="commitDescription"
+                    :class="cn(
+                      'w-full flex-1 min-h-0 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-neutral-700 p-3 text-xs text-neutral-800 dark:text-neutral-200 outline-none resize-none focus:border-blue-500 rounded transition-all placeholder:text-neutral-600 leading-relaxed'
+                    )"
+                    :placeholder="t('changes.commit_desc_placeholder')"></textarea>
+         <button @click="commitAll"
+                 :class="cn(
+                   'bg-blue-600 hover:bg-blue-500 text-white py-2 text-xs font-bold rounded transition-all disabled:opacity-30 disabled:grayscale shadow-lg shadow-blue-900/20 active:scale-[0.98] center h-stack gap-2 uppercase tracking-widest'
+                 )"
+                 :disabled="!commitSubject.trim() || stagedFiles.length === 0">
            <Icon icon="lucide:git-commit" />
-           {{ t('changes.commit') }}
+           <span>{{ t('changes.commit') }}</span>
          </button>
        </div>
+    </div>
     </div>
   </div>
 </template>

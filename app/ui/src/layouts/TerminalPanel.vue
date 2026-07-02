@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick, shallowRef, computed } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { repoPath, isTerminalOpen, toggleTerminal, activeTab } from '../services/gitService';
+import { repoPath, isTerminalOpen, toggleTerminal } from '../services/gitService';
 import { Icon } from '@iconify/vue';
-import SimpleBar from 'simplebar-vue';
+import Resizer from '../components/Common/Resizer.vue';
+import Tooltip from '../components/Common/Tooltip.vue';
+import ScrollArea from '../components/Common/ScrollArea.vue';
+import { terminalHeight, terminalListWidth, layoutRefs } from '../services/layoutService';
 import '@xterm/xterm/css/xterm.css';
+
+const { t } = useI18n();
 
 interface TermInstance {
     id: number;
@@ -16,74 +22,11 @@ interface TermInstance {
 
 const terminals = ref<TermInstance[]>([]);
 const activeTerminalId = ref<number | null>(null);
+const panelEl = ref<HTMLElement | null>(null);
 
 let resizeObserver: ResizeObserver | null = null;
 
-const panelHeight = ref(256);
-const listWidth = ref(180);
-const isResizing = ref(false);
-const isListResizing = ref(false);
 const isMaximized = ref(false);
-
-const teleportTarget = computed(() => {
-    if (isMaximized.value) return 'body';
-
-    // If we're on a supported tab, teleport there, else fallback to a container or just don't render
-    const t = activeTab.value;
-
-    if (t === 'history' || t === 'local_changes' || t === 'stashes') {
-        return `#terminal-target-${t}`;
-    }
-
-    return null;
-});
-
-const isTeleportReady = ref(false);
-
-const startResize = (e: MouseEvent) => {
-    isResizing.value = true;
-    isMaximized.value = false;
-    const startY = e.clientY;
-    const startHeight = panelHeight.value;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!isResizing.value) return;
-        const delta = startY - moveEvent.clientY;
-        panelHeight.value = Math.max(100, Math.min(1200, startHeight + delta));
-    };
-
-    const onMouseUp = () => {
-        isResizing.value = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        fitActiveTerminal();
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-};
-
-const startListResize = (e: MouseEvent) => {
-    isListResizing.value = true;
-    const startX = e.clientX;
-    const startWidth = listWidth.value;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!isListResizing.value) return;
-        const delta = startX - moveEvent.clientX; 
-        listWidth.value = Math.max(100, Math.min(600, startWidth + delta));
-    };
-
-    const onMouseUp = () => {
-        isListResizing.value = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        fitActiveTerminal();
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-};
 
 const fitActiveTerminal = () => {
     if (!isTerminalOpen.value) return;
@@ -92,6 +35,14 @@ const fitActiveTerminal = () => {
         inst.fitAddon.fit();
         window.gitbox.resizeTerminal(inst.id, inst.term.cols, inst.term.rows);
     }
+};
+
+// Coalesce refits to one per frame so dragging the resizer (which fires many
+// height updates) doesn't thrash the fit addon.
+let fitRaf = 0;
+const scheduleFit = () => {
+    if (fitRaf) return;
+    fitRaf = requestAnimationFrame(() => { fitRaf = 0; fitActiveTerminal(); });
 };
 
 const addTerminal = async () => {
@@ -195,29 +146,12 @@ watch(isTerminalOpen, async (isOpen) => {
     }
 });
 
-watch([activeTab, isMaximized], () => {
-    isTeleportReady.value = false;
-    
-    let retries = 0;
-    const checkTarget = () => {
-        const target = teleportTarget.value;
-        if (!target) return;
-        
-        if (target !== 'body' && !document.querySelector(target)) {
-            if (retries < 10) {
-                retries++;
-                setTimeout(checkTarget, 50);
-            }
-            return;
-        }
-        
-        isTeleportReady.value = true;
-        nextTick(() => fitActiveTerminal());
-    };
-    
-    // Wait for the new view to mount its target
-    setTimeout(checkTarget, 50);
-}, { immediate: true });;
+// Refit whenever the panel is maximized/restored or resized via the drag
+// handles. terminalHeight updates continuously while dragging, so this keeps
+// the xterm grid filling the panel instead of staying at its old small size.
+watch([isMaximized, terminalHeight, terminalListWidth], () => {
+    scheduleFit();
+});
 
 onMounted(() => {
     window.gitbox.onTerminalData((id, data) => {
@@ -231,13 +165,13 @@ onMounted(() => {
         cleanupTerminal(id);
     });
 
+    // Observe the panel itself (not <body>): its height changes on drag/maximize
+    // while the body stays the same size, so a body observer never fired.
     resizeObserver = new ResizeObserver(() => {
-        fitActiveTerminal();
+        scheduleFit();
     });
-
-    // Observe body or panel for resizes
     setTimeout(() => {
-        if (document.body) resizeObserver?.observe(document.body);
+        if (panelEl.value) resizeObserver?.observe(panelEl.value);
     }, 100);
 });
 
@@ -248,43 +182,60 @@ onUnmounted(() => {
     }
     resizeObserver?.disconnect();
 });
+
+const handleTerminalResize = () => {
+    isMaximized.value = false;
+    fitActiveTerminal();
+};
 </script>
 
 <template>
-    <Teleport :to="teleportTarget" v-if="teleportTarget && isTeleportReady" :disabled="isMaximized">
-        <div v-show="isTerminalOpen" class="bg-[#1E1E1E] flex flex-col flex-shrink-0 relative transition-none"
-             :style="isMaximized ? { top: '0', bottom: '0', left: '0', right: '0' } : { height: panelHeight + 'px' }"
-             :class="isMaximized ? 'absolute z-[9999]' : 'border-t border-neutral-800'">
+    <!-- Persistent bottom panel (VSCode-style). Rendered inline at the bottom of the
+         main content area; when maximized it becomes absolute inset-0 to fill that
+         whole area (over the tab views, but not the sidebar/toolbar/footer). -->
+    <div ref="panelEl" v-show="isTerminalOpen" class="bg-white dark:bg-[#1E1E1E] flex flex-col relative transition-none"
+         :style="isMaximized ? {} : { height: terminalHeight + 'px' }"
+         :class="isMaximized ? 'absolute inset-0 z-40' : 'flex-shrink-0 border-t border-neutral-200 dark:border-neutral-800'">
              
             <!-- Resize Handle (Top) -->
-            <div v-if="!isMaximized" class="absolute top-0 left-0 right-0 h-1.5 cursor-row-resize z-40 hover:bg-blue-500/50" @mousedown="startResize"></div>
+            <Resizer vertical v-if="!isMaximized" 
+                     :target="layoutRefs.terminalHeight" 
+                     :options="{ axis: 'y', invert: true, min: 100, max: 1200 }" 
+                     class="absolute top-0 left-0 right-0 h-1.5 z-40" 
+                     @resize="handleTerminalResize" />
             
             <!-- Header -->
-            <div class="h-9 bg-[#18181A] border-b border-neutral-800 flex items-center justify-between pr-2 select-none flex-shrink-0 rounded-t" :class="isMaximized ? 'rounded-none' : ''">
+            <div class="h-9 bg-neutral-50 dark:bg-[#18181A] border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between pr-2 select-none flex-shrink-0 rounded-t" :class="isMaximized ? 'rounded-none' : ''">
                 <div class="flex items-center h-full overflow-hidden">
-                    <div class="flex items-center gap-2 text-neutral-400 text-xs font-medium uppercase tracking-widest px-4 h-full">
+                    <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 text-xs font-medium uppercase tracking-widest px-4 h-full">
                         <Icon icon="lucide:terminal" class="text-xs" />
-                        Terminal
+                        {{ t('view.terminal') }}
                     </div>
                 </div>
                 
                 <!-- Controls -->
                 <div class="flex items-center gap-1">
-                    <button @click="addTerminal" class="text-neutral-400 hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-600" title="New Terminal">
-                        <Icon icon="lucide:plus" class="text-sm" />
-                    </button>
-                    <div class="w-px h-4 bg-neutral-700 mx-1"></div>
-                    <button @click="isMaximized = !isMaximized" class="text-neutral-400 hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-600" title="Maximize Panel">
-                        <Icon :icon="isMaximized ? 'lucide:minimize-2' : 'lucide:maximize-2'" class="text-xs" />
-                    </button>
-                    <button @click="toggleTerminal" class="text-neutral-400 hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-red-500" title="Close Panel">
-                        <Icon icon="lucide:x" class="text-sm" />
-                    </button>
+                    <Tooltip :text="t('view.new_terminal')">
+                        <button @click="addTerminal" class="text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                            <Icon icon="lucide:plus" class="text-sm" />
+                        </button>
+                    </Tooltip>
+                    <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-700 mx-1"></div>
+                    <Tooltip :text="isMaximized ? t('view.restore_panel') : t('view.maximize_panel')">
+                        <button @click="isMaximized = !isMaximized" class="text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                            <Icon :icon="isMaximized ? 'lucide:minimize-2' : 'lucide:maximize-2'" class="text-xs" />
+                        </button>
+                    </Tooltip>
+                    <Tooltip :text="t('view.close_panel')">
+                        <button @click="toggleTerminal" class="text-neutral-600 dark:text-neutral-400 hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-red-500">
+                            <Icon icon="lucide:x" class="text-sm" />
+                        </button>
+                    </Tooltip>
                 </div>
             </div>
             
             <!-- Terminal Container Area -->
-            <div class="flex-1 w-full relative min-h-0 bg-[#1E1E1E] flex">
+            <div class="flex-1 w-full relative min-h-0 bg-white dark:bg-[#1E1E1E] flex">
                 <!-- Main Output -->
                 <div class="flex-1 relative min-w-0 py-1">
                     <div v-for="t in terminals" :key="t.id" v-show="activeTerminalId === t.id" class="absolute inset-0 px-2 pb-1 overflow-hidden outline-none">
@@ -293,25 +244,27 @@ onUnmounted(() => {
                 </div>
                 
                 <!-- Resize Handle (List) -->
-                <div class="w-1 cursor-col-resize hover:bg-blue-500/50 z-40 flex-shrink-0 transition-colors" @mousedown="startListResize"></div>
+                <Resizer :target="layoutRefs.terminalListWidth"
+                         :options="{ invert: true, min: 100, max: 600, clampToContainer: true, reserve: 200 }"
+                         class="z-40 flex-shrink-0"
+                         @resize="fitActiveTerminal" />
                 
                 <!-- Sessions List -->
-                <SimpleBar class="bg-[#18181A] border-l border-neutral-800 flex flex-shrink-0 min-h-0" :style="{ width: listWidth + 'px', height: '100%' }">
+                <ScrollArea class="bg-neutral-50 dark:bg-[#18181A] border-l border-neutral-200 dark:border-neutral-800 flex flex-shrink-0 min-h-0" :style="{ width: terminalListWidth + 'px', height: '100%' }">
                     <div class="flex flex-col flex-shrink-0">
                         <div v-for="t in terminals" :key="t.id"
                              @click="activeTerminalId = t.id; fitActiveTerminal()"
                              class="h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors group relative"
-                             :class="activeTerminalId === t.id ? 'bg-[#252526] text-blue-400' : 'text-neutral-500 hover:bg-[#2A2A2B] hover:text-neutral-300'">
+                             :class="activeTerminalId === t.id ? 'bg-neutral-100 dark:bg-[#252526] text-blue-400' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
                              <Icon icon="lucide:terminal-square" class="w-3.5 h-3.5 flex-shrink-0" />
                              <span class="text-xs flex-1 truncate">{{ t.name }}</span>
                              <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity flex-shrink-0" @click.stop="removeTerminal(t.id)" />
                              <div v-if="activeTerminalId === t.id" class="absolute left-0 inset-y-0 w-[3px] bg-blue-500"></div>
                         </div>
                     </div>
-                </SimpleBar>
+                </ScrollArea>
             </div>
         </div>
-    </Teleport>
 </template>
 
 <style scoped>

@@ -65,6 +65,10 @@ export function formatDate(timestamp: number | string | Date, fmt?: string) {
         fmt = generalSettings.value.dateFormat;
     }
 
+    if (fmt === 'relative') {
+        return formatRelativeDate(now);
+    }
+
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -83,4 +87,38 @@ export function formatDate(timestamp: number | string | Date, fmt?: string) {
         .replace('HH', hours)
         .replace('mm', mins)
         .replace('ss', secs);
+}
+
+/**
+ * Human-friendly relative time: "Just now", "5 mins ago", "2 hours ago",
+ * "Yesterday 14:30", "3 days ago". Anything older than a week falls back to a
+ * compact absolute date so distant commits stay unambiguous.
+ */
+function formatRelativeDate(date: Date): string {
+    const t = i18n.global.t;
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHour = Math.floor(diffMin / 60);
+
+    const hhmm = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+
+    if (diffMs < 45 * 1000) return t('time.just_now');
+    if (diffMin < 60) return diffMin === 1 ? t('time.min_ago') : t('time.mins_ago', { count: diffMin });
+
+    // Compare by calendar day so "yesterday" is correct across midnight.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfDate = new Date(date);
+    startOfDate.setHours(0, 0, 0, 0);
+    const dayDiff = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86400000);
+
+    if (dayDiff <= 0) {
+        if (diffHour < 1) return t('time.mins_ago', { count: Math.max(1, diffMin) });
+        if (diffHour < 12) return diffHour === 1 ? t('time.hour_ago') : t('time.hours_ago', { count: diffHour });
+        return t('time.today', { time: hhmm });
+    }
+    if (dayDiff === 1) return t('time.yesterday', { time: hhmm });
+    if (dayDiff < 7) return t('time.days_ago', { count: dayDiff });
+
+    return formatDate(date, 'MMM d yyyy');
 }

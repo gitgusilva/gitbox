@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Icon } from '@iconify/vue';
-import TreeItem from './TreeItem.vue';
+import { startMarquee, stopMarquee } from '../../utils/dom';
+import { cn } from '../../utils/cn';
+import VirtualScroll from './VirtualScroll.vue';
 
 interface FileNode {
   path: string;
@@ -22,11 +24,12 @@ interface TreeNode {
   fullPath: string;
   isDir: boolean;
   status?: string;
-  children: Record<string, TreeNode>;
+  children: { [key: string]: TreeNode };
 }
 
 const tree = computed(() => {
   const root: TreeNode = { name: 'root', fullPath: '', isDir: true, children: {} };
+  if (!props.files) return root;
   props.files.forEach(f => {
     const parts = f.path.split('/');
     let current = root;
@@ -68,12 +71,63 @@ const tree = computed(() => {
 const toggledDirs = ref<Record<string, boolean>>({});
 
 function toggleDir(path: string) {
-  toggledDirs.value[path] = toggledDirs.value[path] === undefined ? false : !toggledDirs.value[path];
+  // Replace the object (immutable update) so a shallow watcher detects the change
+  // without having to deep-watch the whole tree.
+  const next = toggledDirs.value[path] === undefined ? false : !toggledDirs.value[path];
+  toggledDirs.value = { ...toggledDirs.value, [path]: next };
 }
 
 function isDirOpen(path: string) {
   return toggledDirs.value[path] !== false;
 }
+
+const listData = ref<any[]>([]);
+
+function updateListData() {
+  if (props.viewMode && props.viewMode !== 'tree') {
+    listData.value = (props.files || []).map(f => ({
+      name: props.viewMode === 'list' ? f.path : f.path.split('/').pop()!,
+      fullPath: f.path,
+      isDir: false,
+      status: f.status,
+      level: 0,
+      pathPrefix: f.path.split('/').slice(0, -1).join('/')
+    }));
+    return;
+  }
+
+  // Tree mode: flatten the hierarchy
+  const flattened: any[] = [];
+  
+  const processNode = (node: TreeNode, level: number) => {
+    if (node.name !== 'root') {
+      flattened.push({
+        name: node.name,
+        fullPath: node.fullPath,
+        isDir: node.isDir,
+        status: node.status,
+        level
+      });
+    }
+    
+    if (node.name === 'root' || (node.isDir && isDirOpen(node.fullPath))) {
+      const sortedChildren = Object.values(node.children);
+      sortedChildren.forEach(child => processNode(child, node.name === 'root' ? 0 : level + 1));
+    }
+  };
+  
+  processNode(tree.value, 0);
+  listData.value = flattened;
+}
+
+// `files` is replaced by reference on change and `toggledDirs` is a Set whose
+// reference is swapped on toggle, so a shallow watch suffices — deep-watching a
+// large file list traversed every entry on every reactive tick.
+watch([() => props.files, () => toggledDirs.value, () => props.viewMode], () => {
+  updateListData();
+}, { immediate: true });
+
+
 
 function getStatusIcon(status: string) {
   if (!status) return 'lucide:file';
@@ -103,47 +157,57 @@ function getStatusColor(status: string, isSelected: boolean) {
 </script>
 
 <template>
-  <div class="flex flex-col py-1 select-none">
-    <div v-if="files.length === 0" class="px-4 py-8 text-center text-xs text-neutral-600 italic uppercase tracking-widest font-bold">
+  <div :class="cn('v-stack select-none h-full overflow-hidden')" style="contain: content;">
+    <div v-if="files.length === 0" :class="cn('px-4 py-8 text-center text-xs text-neutral-600 italic uppercase tracking-widest font-bold')">
       No files changed
     </div>
-    <div v-else class="flex flex-col">
-      <!-- Tree View -->
-      <template v-if="!viewMode || viewMode === 'tree'">
-        <TreeItem v-for="node in Object.values(tree.children)" 
-                  :key="node.fullPath" 
-                  :node="node" 
-                  :level="0" 
-                  :selectedPath="selectedPath"
-                  :selectedPaths="selectedPaths"
-                  :isDirOpen="isDirOpen"
-                  @toggle="toggleDir"
-                  @select="(p, e) => emit('select', p, e)"
-                  @dblclick="p => emit('dblclick', p)"
-                  @contextmenu="(p, e) => emit('contextmenu', p, e)" />
-      </template>
+    <VirtualScroll
+      v-else
+      :items="listData"
+      :item-height="28"
+      :overscan="10"
+      :class="cn('flex-1 min-h-0')"
+      @contextmenu.prevent="emit('contextmenu', '', $event)"
+      v-slot="{ item }"
+    >
+      <div
+        @click="item.data.isDir ? toggleDir(item.data.fullPath) : emit('select', item.data.fullPath, $event)"
+        @dblclick="!item.data.isDir && emit('dblclick', item.data.fullPath)"
+        @contextmenu.stop.prevent="emit('contextmenu', item.data.fullPath, $event)"
+        :class="cn(
+          'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-none group overflow-hidden border-l-2 border-transparent',
+          (selectedPath === item.data.fullPath || (selectedPaths && selectedPaths.includes(item.data.fullPath))) ? 'bg-blue-900/40 text-white border-l-blue-400' : 'text-neutral-600 dark:text-neutral-400'
+        )"
+        :style="{ paddingLeft: (item.data.level * 12 + 12) + 'px', height: '28px' }"
+        @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
+      >
+        <template v-if="item.data.isDir">
+          <span :class="cn('text-[10px] text-neutral-600 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-colors w-3 shrink-0 marquee-icon')">
+            <Icon :icon="isDirOpen(item.data.fullPath) ? 'lucide:chevron-down' : 'lucide:chevron-right'" />
+          </span>
+          <Icon
+            :icon="isDirOpen(item.data.fullPath) ? 'lucide:folder-open' : 'lucide:folder'"
+            :class="cn(
+              'text-xs shrink-0 marquee-icon text-blue-500/50',
+              selectedPath === item.data.fullPath ? 'text-white' : ''
+            )"
+          />
+        </template>
+        <template v-else>
+          <Icon
+            :icon="getStatusIcon(item.data.status || '')"
+            :class="cn('text-xs shrink-0 marquee-icon', getStatusColor(item.data.status || '', !!(selectedPath === item.data.fullPath || (selectedPaths && selectedPaths.includes(item.data.fullPath)))))"
+          />
+        </template>
 
-      <!-- List or Flat View -->
-      <template v-else>
-        <div v-for="f in files" :key="f.path"
-             @click="emit('select', f.path, $event)"
-             @dblclick="emit('dblclick', f.path)"
-             @contextmenu.prevent="emit('contextmenu', f.path, $event)"
-             class="flex items-center gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-800 transition-colors group"
-             :class="(selectedPath === f.path || (selectedPaths && selectedPaths.includes(f.path))) ? 'bg-[#143B66] text-white' : 'text-neutral-400'">
-          
-          <Icon :icon="getStatusIcon(f.status)" :class="getStatusColor(f.status, !!(selectedPath === f.path || (selectedPaths && selectedPaths.includes(f.path))))" class="text-xs shrink-0" />
-          
-          <div v-if="viewMode === 'list'" class="text-xs truncate flex-1 min-w-0" :class="{'font-bold': selectedPath === f.path || (selectedPaths && selectedPaths.includes(f.path))}">
-            {{ f.path }}
-          </div>
-          
-          <div v-else class="text-xs truncate flex-1 min-w-0 flex items-baseline gap-2" :class="{'font-bold': selectedPath === f.path || (selectedPaths && selectedPaths.includes(f.path))}">
-            <span class="shrink-0">{{ f.path.split('/').pop() }}</span>
-            <span class="text-[10px] opacity-40 truncate">{{ f.path.split('/').slice(0, -1).join('/') }}</span>
-          </div>
+        <div v-if="viewMode === 'flat' && !item.data.isDir" :class="cn('text-xs truncate flex-1 min-w-0 h-stack items-baseline gap-2', selectedPath === item.data.fullPath ? 'font-bold' : '')">
+          <span class="shrink-0">{{ item.data.name }}</span>
+          <span class="text-[10px] opacity-40 truncate">{{ item.data.pathPrefix }}</span>
         </div>
-      </template>
-    </div>
+        <div v-else :class="cn('text-xs truncate flex-1 min-w-0', selectedPath === item.data.fullPath ? 'font-bold' : '')">
+          {{ item.data.name }}
+        </div>
+      </div>
+    </VirtualScroll>
   </div>
 </template>
