@@ -61,7 +61,15 @@ export interface GraphNode {
     isMerge?: boolean;
 }
 
-export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr';
+export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr' | 'output_log';
+
+export type RepoState = 'clean' | 'merge' | 'rebase' | 'revert' | 'cherrypick' | 'bisect' | 'apply_mailbox';
+
+export interface MergeResult {
+    status: 'up_to_date' | 'fast_forward' | 'merged' | 'conflicts';
+    commit?: string;
+    conflicts?: string[];
+}
 
 export interface GitboxAPI {
     selectFolder: () => Promise<string | null>;
@@ -79,10 +87,11 @@ export interface GitboxAPI {
     tags: (repoPath: string) => Promise<{ name: string, target?: string }[]>;
     stashes: (repoPath: string) => Promise<Stash[]>;
     getSubmodules: (repoPath: string) => Promise<{ path: string; sha: string; ref: string; status: string }[]>;
+    getSubmoduleCommitInfo: (repoPath: string, submodulePath: string, sha: string) => Promise<any>;
     addSubmodule: (repoPath: string, url: string, targetPath: string) => Promise<boolean>;
     updateSubmodule: (repoPath: string, path: string) => Promise<boolean>;
     deleteSubmodule: (repoPath: string, path: string) => Promise<boolean>;
-    log: (repoPath: string, maxCount?: number, refName?: string) => Promise<Commit[]>;
+    log: (repoPath: string, maxCount?: number, refName?: string, skip?: number) => Promise<Commit[]>;
     stageAll: (repoPath: string) => Promise<boolean>;
     stageFile: (repoPath: string, filePath: string) => Promise<boolean>;
     unstageAll: (repoPath: string) => Promise<boolean>;
@@ -93,8 +102,8 @@ export interface GitboxAPI {
     checkoutBranch: (repoPath: string, branchName: string) => Promise<boolean>;
     fetch: (repoPath: string, remoteName?: string) => Promise<boolean>;
     pull: (repoPath: string, remoteName?: string) => Promise<boolean>;
-    push: (repoPath: string, remoteName?: string) => Promise<boolean>;
-    createBranch: (repoPath: string, branchName: string) => Promise<boolean>;
+    push: (repoPath: string, remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean) => Promise<boolean>;
+    createBranch: (repoPath: string, branchName: string, startPoint?: string) => Promise<boolean>;
     deleteBranch: (repoPath: string, branchName: string) => Promise<boolean>;
     diffFile: (repoPath: string, filePath: string) => Promise<FileDiff>;
     getStagedDiff: (repoPath: string) => Promise<string>;
@@ -105,14 +114,33 @@ export interface GitboxAPI {
     stashDrop: (repoPath: string, stashId?: string) => Promise<boolean>;
     diffStashFile: (repoPath: string, stashId: string, filePath: string) => Promise<FileDiff>;
     checkMerge: (repoPath: string, toBranch: string, fromBranch: string) => Promise<{ hasConflicts: boolean; files: string[] }>;
+    openMergeTool: (repoPath: string, filePath: string, toolName?: string) => Promise<boolean>;
+    openMergeWindow: (repoPath: string, filePath: string) => Promise<boolean>;
+    notifyMergeResolved: () => void;
+    onMergeResolved: (callback: () => void) => (() => void);
+    mergeBranch: (repoPath: string, branchName: string, noFastForward?: boolean) => Promise<MergeResult>;
+    mergeContinue: (repoPath: string, message?: string) => Promise<string>;
+    mergeAbort: (repoPath: string) => Promise<boolean>;
+    repoState: (repoPath: string) => Promise<RepoState>;
     commitFiles: (repoPath: string, commitId: string) => Promise<GitStatusEntry[]>;
     diffCommitFile: (repoPath: string, commitId: string, filePath: string) => Promise<FileDiff>;
+    commitDiff: (repoPath: string, commitId: string) => Promise<string>;
     getConfig: (repoPath: string) => Promise<{ userName: string, userEmail: string }>;
     setConfig: (repoPath: string, userName: string, userEmail: string) => Promise<boolean>;
+    getGlobalConfig: () => Promise<{ userName: string, userEmail: string }>;
+    setGlobalConfig: (userName: string, userEmail: string) => Promise<boolean>;
     listFiles: (repoPath: string, refName?: string) => Promise<string[]>;
     getFileContent: (repoPath: string, filePath: string) => Promise<string>;
     saveFile: (repoPath: string, filePath: string, content: string) => Promise<void>;
     getAppChangelog: () => Promise<string>;
+    getAppVersion: () => Promise<string>;
+    detectExternalTools: () => Promise<{ editors: { value: string, label: string }[], terminals: { value: string, label: string }[], mergeTools: { value: string, label: string }[] }>;
+    detectAiClis: () => Promise<{ id: string, label: string }[]>;
+    aiRunCli: (cliId: string, prompt: string) => Promise<{ text: string, error?: string }>;
+    createTag: (repoPath: string, tagName: string, commitSha?: string) => Promise<void>;
+    rewordCommit: (repoPath: string, commitSha: string, newMessage: string) => Promise<void>;
+    squashCommit: (repoPath: string, commitSha: string) => Promise<void>;
+    revertCommit: (repoPath: string, commitSha: string) => Promise<void>;
     storeGet: (key: string) => any;
     storeSet?: (key: string, value: any) => void;
     storeDelete?: (key: string) => void;
@@ -121,6 +149,7 @@ export interface GitboxAPI {
     close: () => void;
     setZoom: (factor: number) => void;
     onProtocolUrl: (callback: (url: string) => void) => void;
+    onGitLog: (callback: (repoPath: string, cmd: string, stdout: string, stderr: string, duration: number, exitCode: number) => void) => void;
 }
 
 declare global {
