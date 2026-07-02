@@ -1,8 +1,10 @@
+#include <cstdlib>
 #include <fstream>
 #include <git2.h>
 #include <napi.h>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
 #include <vector>
 
 namespace {
@@ -308,6 +310,13 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
     refName = info[2].As<Napi::String>().Utf8Value();
   }
 
+  // Optional pagination offset: skip the first `skip` commits (like `git log
+  // --skip`) so the UI can load history incrementally instead of all at once.
+  uint32_t skip = 0;
+  if (info.Length() > 3 && info[3].IsNumber()) {
+    skip = info[3].As<Napi::Number>().Uint32Value();
+  }
+
   git_revwalk *walk = nullptr;
   if (git_revwalk_new(&walk, repo) != 0) {
     git_repository_free(repo);
@@ -315,7 +324,12 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  git_revwalk_sorting(walk, GIT_SORT_TIME);
+  // Topological order (like `git log --graph` / SourceGit) emits each branch's
+  // commits contiguously, so graph lanes open and close quickly instead of
+  // staying open across time-interleaved commits from many branches. Without
+  // this the graph fans out into dozens of parallel lanes. GIT_SORT_TIME is
+  // kept as the tie-breaker so commits still read newest-first.
+  git_revwalk_sorting(walk, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
 
   if (refName == "ALL") {
     git_revwalk_push_glob(walk, "refs/heads/*");
@@ -343,6 +357,14 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
   Napi::Array result = Napi::Array::New(env);
   uint32_t idx = 0;
   git_oid oid;
+  // Skip the pagination offset first.
+  for (uint32_t s = 0; s < skip; ++s) {
+    if (git_revwalk_next(&oid, walk) != 0) {
+      git_revwalk_free(walk);
+      git_repository_free(repo);
+      return result; // past the end → empty page
+    }
+  }
   while (idx < maxCount && git_revwalk_next(&oid, walk) == 0) {
     git_commit *commit = nullptr;
     if (git_commit_lookup(&commit, repo, &oid) != 0) {
@@ -422,6 +444,28 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
   return result;
 }
 
+struct AddAllPayload {
+  std::string workdir; // repo workdir, with trailing slash
+};
+
+// git_index_add_all callback: skip embedded git repositories (a directory with
+// its own .git that isn't a registered submodule). libgit2 rejects adding those
+// as "invalid path", which would abort the whole stage-all; the git CLI merely
+// warns and skips/gitlinks them, so we skip them too.
+int StageAllSkipEmbedded(const char *path, const char * /*matched_pathspec*/,
+                         void *payload) {
+  auto *p = static_cast<AddAllPayload *>(payload);
+  std::string rel = path ? path : "";
+  if (!rel.empty() && rel.back() == '/')
+    rel.pop_back();
+  std::string gitPath = p->workdir + rel + "/.git";
+  struct stat st;
+  if (stat(gitPath.c_str(), &st) == 0) {
+    return 1; // embedded repo → skip this entry, keep staging the rest
+  }
+  return 0; // add
+}
+
 Napi::Value StageAll(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   auto repoValue = EnsureRepo(info);
@@ -440,9 +484,12 @@ Napi::Value StageAll(const Napi::CallbackInfo &info) {
     return ThrowGitError(env, "failed to open index"), env.Null();
   }
 
+  const char *wd = git_repository_workdir(repo);
+  AddAllPayload payload{wd ? std::string(wd) : std::string()};
+
   git_strarray pathspec = {nullptr, 0};
-  if (git_index_add_all(index, &pathspec, GIT_INDEX_ADD_DEFAULT, nullptr,
-                        nullptr) != 0 ||
+  if (git_index_add_all(index, &pathspec, GIT_INDEX_ADD_DEFAULT,
+                        StageAllSkipEmbedded, &payload) != 0 ||
       git_index_write(index) != 0) {
     git_index_free(index);
     git_repository_free(repo);
@@ -902,10 +949,13 @@ int StashCallback(size_t index, const char *message, const git_oid *stash_id,
   git_oid_tostr(oidStr, sizeof(oidStr), stash_id);
   item.Set("id", Napi::String::New(env, oidStr));
 
+  // NOTE: `payload` is the StashData* we were handed, NOT a git_commit. The
+  // previous code cast it to git_commit* and called git_commit_owner() on it,
+  // which dereferenced a garbage repository pointer and segfaulted (SIGSEGV)
+  // for any repo that actually had stashes. Look the commit up via the real
+  // repository handle carried in the payload.
   git_commit *commit = nullptr;
-  if (git_commit_lookup(&commit, git_commit_owner((git_commit *)payload),
-                        stash_id) == 0 ||
-      git_commit_lookup(&commit, data->repo, stash_id) == 0) {
+  if (git_commit_lookup(&commit, data->repo, stash_id) == 0) {
     item.Set("timestamp", Napi::Number::New(env, static_cast<double>(
                                                      git_commit_time(commit))));
     git_commit_free(commit);
@@ -1141,18 +1191,33 @@ Napi::Value DiffStashFile(const Napi::CallbackInfo &info) {
   }
 
   git_oid oid;
-  git_oid_fromstr(&oid, stashId.c_str());
+  if (git_oid_fromstr(&oid, stashId.c_str()) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "invalid stash OID"), env.Null();
+  }
   git_commit *stash_commit = nullptr;
-  git_commit_lookup(&stash_commit, repo, &oid);
+  if (git_commit_lookup(&stash_commit, repo, &oid) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "stash commit not found"), env.Null();
+  }
 
   git_commit *parent_commit = nullptr;
-  git_commit_parent(&parent_commit, stash_commit, 0);
+  if (git_commit_parent(&parent_commit, stash_commit, 0) != 0) {
+    git_commit_free(stash_commit);
+    git_repository_free(repo);
+    return ThrowGitError(env, "stash parent not found"), env.Null();
+  }
 
   git_tree *stash_tree = nullptr;
-  git_commit_tree(&stash_tree, stash_commit);
-
   git_tree *parent_tree = nullptr;
-  git_commit_tree(&parent_tree, parent_commit);
+  if (git_commit_tree(&stash_tree, stash_commit) != 0 ||
+      git_commit_tree(&parent_tree, parent_commit) != 0) {
+    if (stash_tree) git_tree_free(stash_tree);
+    git_commit_free(parent_commit);
+    git_commit_free(stash_commit);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to read stash trees"), env.Null();
+  }
 
   auto getStrFromTree = [](git_repository *repo, git_tree *tree,
                            const std::string &path) -> std::string {
@@ -1224,6 +1289,76 @@ Napi::Value SetConfig(const Napi::CallbackInfo &info) {
 
   git_config_free(cfg);
   git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
+// Reads a string value from a *live* (non-snapshot) git_config. Plain
+// git_config_get_string only works on snapshots, so use the _buf variant.
+std::string ConfigGetString(git_config *cfg, const char *key) {
+  git_buf buf = GIT_BUF_INIT;
+  std::string result;
+  if (git_config_get_string_buf(&buf, cfg, key) == 0 && buf.ptr != nullptr) {
+    result = buf.ptr;
+  }
+  git_buf_dispose(&buf);
+  return result;
+}
+
+std::string GlobalConfigPath() {
+  const char *home = getenv("HOME");
+  if (home == nullptr)
+    home = getenv("USERPROFILE");
+  if (home == nullptr)
+    return "";
+  return std::string(home) + "/.gitconfig";
+}
+
+// Reads user.name / user.email from the global (~/.gitconfig) config.
+Napi::Value GetGlobalConfig(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("userName", Napi::String::New(env, ""));
+  result.Set("userEmail", Napi::String::New(env, ""));
+
+  std::string path = GlobalConfigPath();
+  if (path.empty())
+    return result;
+
+  git_config *cfg = nullptr;
+  if (git_config_open_ondisk(&cfg, path.c_str()) != 0)
+    return result;
+
+  result.Set("userName", Napi::String::New(env, ConfigGetString(cfg, "user.name")));
+  result.Set("userEmail", Napi::String::New(env, ConfigGetString(cfg, "user.email")));
+
+  git_config_free(cfg);
+  return result;
+}
+
+// Writes user.name / user.email to the global (~/.gitconfig) config.
+Napi::Value SetGlobalConfig(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!EnsureStringArg(info, 0, "name") || !EnsureStringArg(info, 1, "email"))
+    return env.Null();
+
+  std::string name = info[0].As<Napi::String>().Utf8Value();
+  std::string email = info[1].As<Napi::String>().Utf8Value();
+
+  std::string path = GlobalConfigPath();
+  if (path.empty())
+    return ThrowGitError(env, "could not resolve home directory"), env.Null();
+
+  git_config *cfg = nullptr;
+  if (git_config_open_ondisk(&cfg, path.c_str()) != 0)
+    return ThrowGitError(env, "failed to open global git config"), env.Null();
+
+  if (git_config_set_string(cfg, "user.name", name.c_str()) != 0 ||
+      git_config_set_string(cfg, "user.email", email.c_str()) != 0) {
+    git_config_free(cfg);
+    return ThrowGitError(env, "failed to set global config"), env.Null();
+  }
+
+  git_config_free(cfg);
   return Napi::Boolean::New(env, true);
 }
 
@@ -1405,31 +1540,418 @@ Napi::Value GetConfig(const Napi::CallbackInfo &info) {
   }
 
   Napi::Object result = Napi::Object::New(env);
-
-  const char *name = nullptr;
-  if (git_config_get_string(&name, cfg, "user.name") == 0 && name != nullptr) {
-    result.Set("userName", Napi::String::New(env, name));
-  } else {
-    result.Set("userName", Napi::String::New(env, ""));
-  }
-
-  const char *email = nullptr;
-  if (git_config_get_string(&email, cfg, "user.email") == 0 &&
-      email != nullptr) {
-    result.Set("userEmail", Napi::String::New(env, email));
-  } else {
-    result.Set("userEmail", Napi::String::New(env, ""));
-  }
+  result.Set("userName", Napi::String::New(env, ConfigGetString(cfg, "user.name")));
+  result.Set("userEmail", Napi::String::New(env, ConfigGetString(cfg, "user.email")));
 
   git_config_free(cfg);
   git_repository_free(repo);
   return result;
 }
 
+struct MergeHeadCollect {
+  git_repository *repo;
+  std::vector<git_commit *> *parents;
+};
+
+int CollectMergeHead(const git_oid *oid, void *payload) {
+  auto *data = static_cast<MergeHeadCollect *>(payload);
+  git_commit *commit = nullptr;
+  if (git_commit_lookup(&commit, data->repo, oid) == 0) {
+    data->parents->push_back(commit);
+  }
+  return 0;
+}
+
+std::string RepoStateLabel(int state) {
+  switch (state) {
+  case GIT_REPOSITORY_STATE_MERGE:
+    return "merge";
+  case GIT_REPOSITORY_STATE_REVERT:
+  case GIT_REPOSITORY_STATE_REVERT_SEQUENCE:
+    return "revert";
+  case GIT_REPOSITORY_STATE_CHERRYPICK:
+  case GIT_REPOSITORY_STATE_CHERRYPICK_SEQUENCE:
+    return "cherrypick";
+  case GIT_REPOSITORY_STATE_BISECT:
+    return "bisect";
+  case GIT_REPOSITORY_STATE_REBASE:
+  case GIT_REPOSITORY_STATE_REBASE_INTERACTIVE:
+  case GIT_REPOSITORY_STATE_REBASE_MERGE:
+    return "rebase";
+  case GIT_REPOSITORY_STATE_APPLY_MAILBOX:
+  case GIT_REPOSITORY_STATE_APPLY_MAILBOX_OR_REBASE:
+    return "apply_mailbox";
+  default:
+    return "clean";
+  }
+}
+
+Napi::Array CollectConflictPaths(Napi::Env env, git_index *index) {
+  Napi::Array arr = Napi::Array::New(env);
+  git_index_conflict_iterator *it = nullptr;
+  if (git_index_conflict_iterator_new(&it, index) != 0) {
+    return arr;
+  }
+  const git_index_entry *ancestor = nullptr;
+  const git_index_entry *our = nullptr;
+  const git_index_entry *their = nullptr;
+  uint32_t i = 0;
+  while (git_index_conflict_next(&ancestor, &our, &their, it) == 0) {
+    const char *p = their != nullptr
+                        ? their->path
+                        : (our != nullptr ? our->path
+                                          : (ancestor != nullptr ? ancestor->path
+                                                                 : nullptr));
+    if (p != nullptr) {
+      arr.Set(i++, Napi::String::New(env, p));
+    }
+  }
+  git_index_conflict_iterator_free(it);
+  return arr;
+}
+
+Napi::Value RepoState(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  int state = git_repository_state(repo);
+  git_repository_free(repo);
+  return Napi::String::New(env, RepoStateLabel(state));
+}
+
+Napi::Value MergeBranch(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "branchName"))
+    return env.Null();
+
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string branchName = info[1].As<Napi::String>().Utf8Value();
+  bool noFastForward = info.Length() > 2 && info[2].IsBoolean() &&
+                       info[2].As<Napi::Boolean>().Value();
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_reference *branchRef = nullptr;
+  if (git_branch_lookup(&branchRef, repo, branchName.c_str(),
+                        GIT_BRANCH_LOCAL) != 0 &&
+      git_branch_lookup(&branchRef, repo, branchName.c_str(),
+                        GIT_BRANCH_REMOTE) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to find branch to merge"), env.Null();
+  }
+
+  git_annotated_commit *theirHead = nullptr;
+  if (git_annotated_commit_from_ref(&theirHead, repo, branchRef) != 0) {
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to read branch head"), env.Null();
+  }
+
+  const git_annotated_commit *heads[] = {theirHead};
+  git_merge_analysis_t analysis;
+  git_merge_preference_t pref;
+  if (git_merge_analysis(&analysis, &pref, repo, heads, 1) != 0) {
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to analyze merge"), env.Null();
+  }
+
+  Napi::Object result = Napi::Object::New(env);
+
+  if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    result.Set("status", Napi::String::New(env, "up_to_date"));
+    return result;
+  }
+
+  if ((analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) && !noFastForward) {
+    const git_oid *targetOid = git_annotated_commit_id(theirHead);
+    git_object *target = nullptr;
+    if (git_object_lookup(&target, repo, targetOid, GIT_OBJECT_COMMIT) != 0) {
+      git_annotated_commit_free(theirHead);
+      git_reference_free(branchRef);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to lookup target commit"), env.Null();
+    }
+
+    git_checkout_options coOpts = GIT_CHECKOUT_OPTIONS_INIT;
+    coOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+    git_reference *headRef = nullptr;
+    git_reference *newHead = nullptr;
+    if (git_checkout_tree(repo, target, &coOpts) != 0 ||
+        git_repository_head(&headRef, repo) != 0 ||
+        git_reference_set_target(&newHead, headRef, targetOid,
+                                 "gitbox merge (fast-forward)") != 0) {
+      if (headRef != nullptr)
+        git_reference_free(headRef);
+      git_object_free(target);
+      git_annotated_commit_free(theirHead);
+      git_reference_free(branchRef);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to fast-forward"), env.Null();
+    }
+
+    char oidStr[GIT_OID_HEXSZ + 1];
+    git_oid_tostr(oidStr, sizeof(oidStr), targetOid);
+
+    if (newHead != nullptr)
+      git_reference_free(newHead);
+    git_reference_free(headRef);
+    git_object_free(target);
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    result.Set("status", Napi::String::New(env, "fast_forward"));
+    result.Set("commit", Napi::String::New(env, oidStr));
+    return result;
+  }
+
+  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+  git_checkout_options coOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  coOpts.checkout_strategy = GIT_CHECKOUT_SAFE | GIT_CHECKOUT_ALLOW_CONFLICTS;
+  if (git_merge(repo, heads, 1, &mergeOpts, &coOpts) != 0) {
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "merge failed"), env.Null();
+  }
+
+  git_index *index = nullptr;
+  if (git_repository_index(&index, repo) != 0) {
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to open index after merge"), env.Null();
+  }
+
+  if (git_index_has_conflicts(index)) {
+    Napi::Array conflicts = CollectConflictPaths(env, index);
+    git_index_free(index);
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    result.Set("status", Napi::String::New(env, "conflicts"));
+    result.Set("conflicts", conflicts);
+    return result;
+  }
+
+  git_oid treeOid;
+  git_tree *tree = nullptr;
+  git_signature *sig = nullptr;
+  git_reference *headRef = nullptr;
+  git_commit *headCommit = nullptr;
+  git_commit *theirCommit = nullptr;
+
+  if (git_index_write_tree(&treeOid, index) != 0 ||
+      git_index_write(index) != 0 ||
+      git_tree_lookup(&tree, repo, &treeOid) != 0 ||
+      !SignatureFromConfig(repo, &sig) ||
+      git_repository_head(&headRef, repo) != 0 ||
+      git_commit_lookup(&headCommit, repo, git_reference_target(headRef)) != 0 ||
+      git_commit_lookup(&theirCommit, repo,
+                        git_annotated_commit_id(theirHead)) != 0) {
+    if (theirCommit != nullptr)
+      git_commit_free(theirCommit);
+    if (headCommit != nullptr)
+      git_commit_free(headCommit);
+    if (headRef != nullptr)
+      git_reference_free(headRef);
+    if (sig != nullptr)
+      git_signature_free(sig);
+    if (tree != nullptr)
+      git_tree_free(tree);
+    git_index_free(index);
+    git_annotated_commit_free(theirHead);
+    git_reference_free(branchRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to prepare merge commit"), env.Null();
+  }
+
+  std::string msg = "Merge branch '" + branchName + "'";
+  const git_commit *parents[] = {headCommit, theirCommit};
+  git_oid commitOid;
+  int rc = git_commit_create(&commitOid, repo, "HEAD", sig, sig, nullptr,
+                             msg.c_str(), tree, 2, parents);
+
+  git_commit_free(theirCommit);
+  git_commit_free(headCommit);
+  git_reference_free(headRef);
+  git_signature_free(sig);
+  git_tree_free(tree);
+  git_index_free(index);
+  git_annotated_commit_free(theirHead);
+  git_reference_free(branchRef);
+
+  if (rc != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to create merge commit"), env.Null();
+  }
+
+  git_repository_state_cleanup(repo);
+
+  char oidStr[GIT_OID_HEXSZ + 1];
+  git_oid_tostr(oidStr, sizeof(oidStr), &commitOid);
+  git_repository_free(repo);
+  result.Set("status", Napi::String::New(env, "merged"));
+  result.Set("commit", Napi::String::New(env, oidStr));
+  return result;
+}
+
+Napi::Value MergeContinue(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string message;
+  if (info.Length() > 1 && info[1].IsString()) {
+    message = info[1].As<Napi::String>().Utf8Value();
+  }
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  if (git_repository_state(repo) != GIT_REPOSITORY_STATE_MERGE) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "repository is not in a merging state"),
+           env.Null();
+  }
+
+  git_index *index = nullptr;
+  if (git_repository_index(&index, repo) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to open index"), env.Null();
+  }
+
+  if (git_index_has_conflicts(index)) {
+    git_index_free(index);
+    git_repository_free(repo);
+    return ThrowGitError(env,
+                         "resolve all conflicts before completing the merge"),
+           env.Null();
+  }
+
+  git_oid treeOid;
+  git_tree *tree = nullptr;
+  if (git_index_write_tree(&treeOid, index) != 0 ||
+      git_index_write(index) != 0 ||
+      git_tree_lookup(&tree, repo, &treeOid) != 0) {
+    git_index_free(index);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to write merged tree"), env.Null();
+  }
+
+  git_signature *sig = nullptr;
+  if (!SignatureFromConfig(repo, &sig)) {
+    git_tree_free(tree);
+    git_index_free(index);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to create signature"), env.Null();
+  }
+
+  std::vector<git_commit *> parents;
+  git_reference *headRef = nullptr;
+  git_commit *headCommit = nullptr;
+  if (git_repository_head(&headRef, repo) == 0 &&
+      git_commit_lookup(&headCommit, repo, git_reference_target(headRef)) == 0) {
+    parents.push_back(headCommit);
+  }
+
+  MergeHeadCollect collect{repo, &parents};
+  git_repository_mergehead_foreach(repo, CollectMergeHead, &collect);
+
+  std::vector<const git_commit *> cparents;
+  cparents.reserve(parents.size());
+  for (auto *c : parents)
+    cparents.push_back(c);
+
+  std::string msg = message.empty() ? "Merge" : message;
+  git_oid commitOid;
+  int rc = git_commit_create(
+      &commitOid, repo, "HEAD", sig, sig, nullptr, msg.c_str(), tree,
+      static_cast<int>(cparents.size()),
+      cparents.empty() ? nullptr : cparents.data());
+
+  for (auto *c : parents)
+    git_commit_free(c);
+  if (headRef != nullptr)
+    git_reference_free(headRef);
+  git_signature_free(sig);
+  git_tree_free(tree);
+  git_index_free(index);
+
+  if (rc != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to create merge commit"), env.Null();
+  }
+
+  git_repository_state_cleanup(repo);
+
+  char oidStr[GIT_OID_HEXSZ + 1];
+  git_oid_tostr(oidStr, sizeof(oidStr), &commitOid);
+  git_repository_free(repo);
+  return Napi::String::New(env, oidStr);
+}
+
+Napi::Value MergeAbort(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_object *headCommit = nullptr;
+  if (git_revparse_single(&headCommit, repo, "HEAD") != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to resolve HEAD"), env.Null();
+  }
+
+  git_checkout_options coOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  coOpts.checkout_strategy = GIT_CHECKOUT_FORCE;
+  int rc = git_reset(repo, headCommit, GIT_RESET_HARD, &coOpts);
+  git_object_free(headCommit);
+
+  if (rc != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to abort merge"), env.Null();
+  }
+
+  git_repository_state_cleanup(repo);
+  git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   git_libgit2_init();
   exports.Set("getConfig", Napi::Function::New(env, GetConfig));
   exports.Set("setConfig", Napi::Function::New(env, SetConfig));
+  exports.Set("getGlobalConfig", Napi::Function::New(env, GetGlobalConfig));
+  exports.Set("setGlobalConfig", Napi::Function::New(env, SetGlobalConfig));
   exports.Set("status", Napi::Function::New(env, Status));
   exports.Set("branches", Napi::Function::New(env, Branches));
   exports.Set("remotes", Napi::Function::New(env, Remotes));
@@ -1445,6 +1967,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("fetch", Napi::Function::New(env, Fetch));
   exports.Set("pull", Napi::Function::New(env, Pull));
   exports.Set("push", Napi::Function::New(env, Push));
+  exports.Set("mergeBranch", Napi::Function::New(env, MergeBranch));
+  exports.Set("mergeContinue", Napi::Function::New(env, MergeContinue));
+  exports.Set("mergeAbort", Napi::Function::New(env, MergeAbort));
+  exports.Set("repoState", Napi::Function::New(env, RepoState));
   exports.Set("diffFile", Napi::Function::New(env, DiffFile));
   exports.Set("stashChanges", Napi::Function::New(env, StashChanges));
   exports.Set("diffStashFile", Napi::Function::New(env, DiffStashFile));
