@@ -71,6 +71,51 @@ class Merge extends Command {
         return this.addon.repoState(repoPath);
     }
 
+    /** Two-letter porcelain codes that mark an unmerged (conflicted) path. */
+    static UNMERGED = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU']);
+
+    /**
+     * Map every conflicted path to its two-letter conflict code (UU, DU, UD, …)
+     * via `git status --porcelain`. Read-only; the native status flattens all
+     * conflicts to "conflicted", so this recovers the precise kind.
+     */
+    async conflictTypes(repoPath) {
+        const map = {};
+        try {
+            const { stdout } = await this.execGit(repoPath, ['status', '--porcelain', '--untracked-files=no']);
+            for (const line of stdout.split('\n')) {
+                if (line.length < 4) continue;
+                const xy = line.slice(0, 2);
+                if (!Merge.UNMERGED.has(xy)) continue;
+                let p = line.slice(3);
+                if (p.startsWith('"') && p.endsWith('"')) { try { p = JSON.parse(p); } catch { /* keep raw */ } }
+                map[p] = xy;
+            }
+        } catch { /* not a conflict / no repo */ }
+        return map;
+    }
+
+    /**
+     * Resolve one conflicted file by taking a whole side.
+     *  - side 'ours'   = keep our version (or our deletion)
+     *  - side 'theirs' = take their version (or their deletion)
+     * Handles modify/modify and delete conflicts, then stages the result.
+     */
+    async resolveConflict(repoPath, filePath, side) {
+        const { stdout } = await this.execGit(repoPath, ['status', '--porcelain', '--', filePath]);
+        const xy = (stdout.slice(0, 2) || '').toUpperCase();
+        const oursDeleted = xy[0] === 'D';
+        const theirsDeleted = xy[1] === 'D';
+        const wantDelete = side === 'ours' ? oursDeleted : theirsDeleted;
+        if (wantDelete) {
+            await this.execGit(repoPath, ['rm', '-f', '--', filePath]);
+        } else {
+            await this.execGit(repoPath, ['checkout', side === 'ours' ? '--ours' : '--theirs', '--', filePath]);
+            await this.execGit(repoPath, ['add', '--', filePath]);
+        }
+        return true;
+    }
+
     /**
      * Open external merge tool for a conflicted file.
      */

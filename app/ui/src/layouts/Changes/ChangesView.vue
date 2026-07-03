@@ -20,7 +20,8 @@ import {
   commitAll,
   includeUntracked,
   stashes,
-  loadRepoData
+  loadRepoData,
+  currentBranchName
 } from '../../services/gitService';
 import { 
   layoutRefs
@@ -281,6 +282,42 @@ const isSelectedFileConflicted = computed(() => {
 const isMergeEditorActive = computed(() => {
   return !!selectedFile.value && !selectedSubmodule.value && isSelectedFileConflicted.value && isMergeEditorRequested.value;
 });
+
+// --- Conflict panel (shown for a conflicted file that isn't in the merge editor) ---
+const conflictCode = ref('');           // two-letter porcelain code: UU / DU / UD / …
+const isResolvingConflict = ref(false);
+
+const CONFLICT_LABELS: Record<string, string> = {
+  UU: 'conflict_both_modified', AA: 'conflict_both_added', DD: 'conflict_both_deleted',
+  DU: 'conflict_deleted_by_us', UD: 'conflict_deleted_by_them',
+  AU: 'conflict_added_by_us', UA: 'conflict_added_by_them',
+};
+const conflictTypeLabel = computed(() => t(`changes.${CONFLICT_LABELS[conflictCode.value] || 'conflict_generic'}`));
+// The inline merge editor only makes sense when both sides still have content.
+const isContentConflict = computed(() => conflictCode.value === 'UU' || conflictCode.value === 'AA');
+
+async function loadConflictType() {
+  conflictCode.value = '';
+  if (!repoPath.value || !selectedFile.value || !isSelectedFileConflicted.value) return;
+  try {
+    const map = await (window as any).gitbox?.conflictTypes?.(repoPath.value);
+    conflictCode.value = map?.[selectedFile.value] || '';
+  } catch { /* ignore */ }
+}
+
+watch([selectedFile, isSelectedFileConflicted], loadConflictType, { immediate: true });
+
+/** Resolve the selected conflict by taking a whole side, then refresh. */
+async function resolveConflictSide(side: 'ours' | 'theirs') {
+  if (!repoPath.value || !selectedFile.value || isResolvingConflict.value) return;
+  isResolvingConflict.value = true;
+  try {
+    await (window as any).gitbox?.resolveConflict?.(repoPath.value, selectedFile.value, side);
+    await loadRepoData(true);
+  } finally {
+    isResolvingConflict.value = false;
+  }
+}
 
 /** Current SHA for the selected submodule. */
 const submoduleSha = computed(() => {
@@ -629,6 +666,49 @@ async function handleExplainChanges() {
                           @save="handleSaveMerge"
                           @complete="handleCompleteMerge"
                           @state="handleMergeEditorState" />
+
+              <!-- Conflict panel: what to do with an unmerged file -->
+              <div v-else-if="isSelectedFileConflicted"
+                   :class="cn('flex-1 flex flex-col items-center justify-center gap-5 p-8 text-center bg-app')">
+                <div class="w-16 h-16 rounded-2xl bg-removed/10 border border-removed/30 center">
+                  <Icon icon="lucide:git-merge" class="text-3xl text-removed" />
+                </div>
+                <div>
+                  <div class="text-sm font-bold uppercase tracking-widest text-content-strong">{{ t('changes.conflicts_detected') }}</div>
+                  <div class="text-xs text-content-muted mt-1">{{ conflictTypeLabel }}</div>
+                </div>
+                <div class="text-[11px] text-content-muted flex flex-col gap-1.5 items-center">
+                  <div class="h-stack items-center gap-2">
+                    <span class="uppercase font-bold tracking-wider text-modified">{{ t('changes.mine') }}</span>
+                    <Icon icon="lucide:git-branch" class="w-3 h-3" />
+                    <span class="text-content font-mono truncate max-w-[240px]">{{ currentBranchName || '-' }}</span>
+                  </div>
+                  <div class="h-stack items-center gap-2">
+                    <span class="uppercase font-bold tracking-wider text-added">{{ t('changes.theirs') }}</span>
+                    <Icon icon="lucide:git-merge" class="w-3 h-3" />
+                    <span class="text-content">{{ t('changes.incoming_changes') }}</span>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center justify-center gap-2 mt-1">
+                  <button v-if="isContentConflict" @click="isMergeEditorRequested = true"
+                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors h-stack items-center gap-1.5">
+                    <Icon icon="lucide:git-merge" class="w-3.5 h-3.5" /> {{ t('changes.open_merge_editor') }}
+                  </button>
+                  <button @click="resolveConflictSide('ours')" :disabled="isResolvingConflict"
+                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-50 transition-colors">
+                    {{ t('changes.use_mine') }}
+                  </button>
+                  <button @click="resolveConflictSide('theirs')" :disabled="isResolvingConflict"
+                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-added/50 text-added hover:bg-added/10 disabled:opacity-50 transition-colors">
+                    {{ t('changes.use_theirs') }}
+                  </button>
+                  <button @click="openExternalMergeTool(selectedFile)"
+                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover transition-colors">
+                    {{ t('changes.open_external_mergetool') }}
+                  </button>
+                </div>
+              </div>
+
               <DiffViewer v-else
                           :original="originalContent"
                           :modified="modifiedContent"
@@ -659,17 +739,8 @@ async function handleExplainChanges() {
           </ScrollArea>
         </div>
 
-        <div v-if="selectedFile && isSelectedFileConflicted && !selectedSubmodule" :class="cn('absolute bottom-3 right-5 h-stack gap-2 z-30')">
+        <div v-if="isMergeEditorActive" :class="cn('absolute bottom-3 right-5 h-stack gap-2 z-30')">
           <button
-            v-if="!isMergeEditorActive"
-            @click="openMergeWindow(selectedFile)"
-            :class="cn('h-stack items-center gap-2 px-3 py-1.5 bg-accent hover:bg-accent-hover backdrop-blur-md border border-accent/40 rounded-full text-[10px] font-bold text-accent-fg transition-all shadow-xl uppercase tracking-wider')"
-          >
-            <Icon icon="lucide:git-merge" />
-            {{ t('changes.open_merge_editor') }}
-          </button>
-          <button
-            v-else
             @click="isMergeEditorRequested = false"
             :class="cn('h-stack items-center gap-2 px-3 py-1.5 bg-surface hover:bg-surface-hover backdrop-blur-md border border-line rounded-full text-[10px] font-bold text-content transition-all shadow-xl uppercase tracking-wider')"
           >
@@ -677,7 +748,6 @@ async function handleExplainChanges() {
             {{ t('changes.back_to_diff') }}
           </button>
           <button
-            v-if="isMergeEditorActive"
             @click="mergeEditorRef?.completeMerge?.()"
             :disabled="!mergeEditorState.canCompleteMerge"
             :class="cn(

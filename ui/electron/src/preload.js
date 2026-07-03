@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('gitbox', {
   mergeContinue: (repoPath, message) => ipcRenderer.invoke('gitbox:mergeContinue', repoPath, message),
   mergeAbort: (repoPath) => ipcRenderer.invoke('gitbox:mergeAbort', repoPath),
   repoState: (repoPath) => ipcRenderer.invoke('gitbox:repoState', repoPath),
+  conflictTypes: (repoPath) => ipcRenderer.invoke('gitbox:conflictTypes', repoPath),
+  resolveConflict: (repoPath, filePath, side) => ipcRenderer.invoke('gitbox:resolveConflict', repoPath, filePath, side),
   statistics: (repoPath, sinceMonths) => ipcRenderer.invoke('gitbox:statistics', repoPath, sinceMonths),
 
   // Per-file actions (Local Changes context menu)

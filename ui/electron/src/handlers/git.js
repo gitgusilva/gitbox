@@ -139,6 +139,8 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:mergeContinue', async (_, repoPath, message) => mergeCmd.complete(repoPath, message));
     ipcMain.handle('gitbox:mergeAbort', async (_, repoPath) => mergeCmd.abort(repoPath));
     ipcMain.handle('gitbox:repoState', async (_, repoPath) => mergeCmd.state(repoPath));
+    ipcMain.handle('gitbox:conflictTypes', async (_, repoPath) => mergeCmd.conflictTypes(repoPath));
+    ipcMain.handle('gitbox:resolveConflict', async (_, repoPath, filePath, side) => mergeCmd.resolveConflict(repoPath, filePath, side));
 
     // Statistics
     ipcMain.handle('gitbox:statistics', async (_, repoPath, sinceMonths) => statisticsCmd.compute(repoPath, sinceMonths));
