@@ -664,18 +664,9 @@ async function handleExplainChanges() {
                </div>
             </template>
             <template v-else>
-              <MergeEditor v-if="isMergeEditorActive"
-                          ref="mergeEditorRef"
-                          :original="originalContent"
-                          :modified="modifiedContent"
-                          :filename="selectedFile"
-                          :repoPath="repoPath"
-                          @save="handleSaveMerge"
-                          @complete="handleCompleteMerge"
-                          @state="handleMergeEditorState" />
-
-              <!-- Conflict panel: what to do with an unmerged file -->
-              <div v-else-if="isSelectedFileConflicted"
+              <!-- Conflict panel: what to do with an unmerged file. The merge
+                   editor always opens in a separate window, never inline here. -->
+              <div v-if="isSelectedFileConflicted"
                    :class="cn('flex-1 flex flex-col items-center justify-center gap-5 p-8 text-center bg-app')">
                 <div class="w-16 h-16 rounded-2xl bg-removed/10 border border-removed/30 center">
                   <Icon icon="lucide:git-merge" class="text-3xl text-removed" />
@@ -697,7 +688,7 @@ async function handleExplainChanges() {
                   </div>
                 </div>
                 <div class="flex flex-wrap items-center justify-center gap-2 mt-1">
-                  <button v-if="isContentConflict" @click="isMergeEditorRequested = true"
+                  <button v-if="isContentConflict" @click="openMergeWindow(selectedFile)"
                           class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors h-stack items-center gap-1.5">
                     <Icon icon="lucide:git-merge" class="w-3.5 h-3.5" /> {{ t('changes.open_merge_editor') }}
                   </button>
@@ -746,30 +737,7 @@ async function handleExplainChanges() {
           </ScrollArea>
         </div>
 
-        <div v-if="isMergeEditorActive" :class="cn('absolute bottom-3 right-5 h-stack gap-2 z-30')">
-          <button
-            @click="isMergeEditorRequested = false"
-            :class="cn('h-stack items-center gap-2 px-3 py-1.5 bg-surface hover:bg-surface-hover backdrop-blur-md border border-line rounded-full text-[10px] font-bold text-content transition-all shadow-xl uppercase tracking-wider')"
-          >
-            <Icon icon="lucide:arrow-left" />
-            {{ t('changes.back_to_diff') }}
-          </button>
-          <button
-            @click="mergeEditorRef?.completeMerge?.()"
-            :disabled="!mergeEditorState.canCompleteMerge"
-            :class="cn(
-              'h-stack items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-xl border',
-              mergeEditorState.canCompleteMerge
-                ? 'bg-added hover:brightness-110 border-added/40 text-white'
-                : 'bg-surface border-line-strong text-content-muted cursor-not-allowed',
-            )"
-          >
-            <Icon icon="lucide:check" />
-            {{ t('changes.complete_merge') }}
-          </button>
-        </div>
-
-        <div v-else-if="!selectedFile" :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
+        <div v-if="!selectedFile" :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
           <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-10')" />
           <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-20')">
             {{ t('changes.select_file_diff') }}
