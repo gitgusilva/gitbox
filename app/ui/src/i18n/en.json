@@ -198,7 +198,8 @@
     "resolve": "Resolve",
     "use_both": "Use Both",
     "merge_manually": "Merge manually",
-    "conflicts_label": "Conflicts"
+    "conflicts_label": "Conflicts",
+    "line_by_line": "Line by line"
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",

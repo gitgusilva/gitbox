@@ -13,6 +13,7 @@ import { bindModelsToEditors, createMergeEditors, createMergeModels, disposeMona
 import { useMergeConflictActions } from './merge-editor/useMergeConflictActions';
 import { createSideConflictWidget } from './merge-editor/widgetFactory';
 import { generalSettings } from '../../services/settingsService';
+import { getItem, setItem } from '../../services/storageService';
 import { gravatarUrl } from '../../utils/avatars';
 
 /** Active merge layout: 'columns' (JetBrains 3-pane) or 'stacked' (classic). */
@@ -51,8 +52,13 @@ const resolvedConflicts = ref<Set<number>>(new Set());
 const isApplyingAction = ref(false);
 const lastSavedValue = ref('');
 const isDirty = ref(false);
-const isWordWrap = ref(false);
-const onlyConflicts = ref(false);
+// Persisted view prefs so they survive reopening the merge editor / other screens.
+const isWordWrap = ref(getItem('gitbox_merge_word_wrap') === 'true');
+const onlyConflicts = ref(getItem('gitbox_merge_only_conflicts') === 'true');
+const lineByLine = ref(getItem('gitbox_merge_line_by_line') === 'true');
+watch(isWordWrap, (v) => setItem('gitbox_merge_word_wrap', v ? 'true' : 'false'));
+watch(onlyConflicts, (v) => setItem('gitbox_merge_only_conflicts', v ? 'true' : 'false'));
+watch(lineByLine, (v) => setItem('gitbox_merge_line_by_line', v ? 'true' : 'false'));
 
 function applyWordWrap() {
   const w = isWordWrap.value ? 'on' : 'off';
@@ -98,7 +104,8 @@ watch(isWordWrap, applyWordWrap);
 watch(onlyConflicts, applyOnlyConflicts);
 
 // --- Blame (HEAD version, shown next to the result editor) ---
-const showBlame = ref(false);
+const showBlame = ref(getItem('gitbox_merge_blame') === 'true');
+watch(showBlame, (v) => setItem('gitbox_merge_blame', v ? 'true' : 'false'));
 const blameData = ref<any[]>([]);
 const isBlameLoading = ref(false);
 const blameError = ref<string | null>(null);
@@ -258,36 +265,68 @@ const gridStyle = computed(() => {
   };
 });
 
-/** Per-conflict accept arrows: vertical center of each band, offset by the header. */
-const connectorArrows = computed(() =>
-  connectorBands.value.map((b) => ({ index: b.index, y: b.top + b.height / 2 + CONNECTOR_HEADER_H })),
-);
-type ConnectorBand = { index: number; top: number; height: number; state: ConflictState };
-const connectorBands = ref<ConnectorBand[]>([]);
+// Bézier connector ribbons (same shape as the diff viewer): each conflict maps
+// to a filled curve joining its region in the two adjacent editors, so the
+// different region heights (current N lines ↔ result 1 line) read correctly.
+type Ribbon = { index: number; d: string; fill: string; stroke: string; arrowY: number };
+const leftRibbons = ref<Ribbon[]>([]);   // columns: current → result
+const rightRibbons = ref<Ribbon[]>([]);  // columns: result → incoming
+const midRibbons = ref<Ribbon[]>([]);    // stacked: incoming → current
 
 function connectorColor(state: ConflictState): string {
   switch (state) {
-    case 'incoming': return 'rgb(var(--gb-added) / 0.55)';
-    case 'current': return 'rgb(var(--gb-modified) / 0.55)';
-    case 'both': return 'rgb(var(--gb-accent) / 0.5)';
-    case 'base': return 'rgb(var(--gb-text-muted) / 0.4)';
-    case 'manual': return 'rgb(var(--gb-accent) / 0.4)';
-    default: return 'rgb(var(--gb-removed) / 0.5)'; // unresolved
+    case 'incoming': return 'rgb(var(--gb-added) / 0.22)';
+    case 'current': return 'rgb(var(--gb-modified) / 0.22)';
+    case 'both': return 'rgb(var(--gb-accent) / 0.2)';
+    case 'base': return 'rgb(var(--gb-text-muted) / 0.18)';
+    case 'manual': return 'rgb(var(--gb-accent) / 0.18)';
+    default: return 'rgb(var(--gb-removed) / 0.2)'; // unresolved
+  }
+}
+function connectorStroke(state: ConflictState): string {
+  switch (state) {
+    case 'incoming': return 'rgb(var(--gb-added) / 0.6)';
+    case 'current': return 'rgb(var(--gb-modified) / 0.6)';
+    case 'both': return 'rgb(var(--gb-accent) / 0.55)';
+    case 'base': return 'rgb(var(--gb-text-muted) / 0.45)';
+    case 'manual': return 'rgb(var(--gb-accent) / 0.45)';
+    default: return 'rgb(var(--gb-removed) / 0.55)';
   }
 }
 
-function updateConnectors() {
-  if (!incomingEditor || conflicts.value.length === 0) { connectorBands.value = []; return; }
-  const scrollTop = incomingEditor.getScrollTop();
-  const viewH = incomingEditor.getLayoutInfo().height;
-  const bands: ConnectorBand[] = [];
+function ribbonPath(w: number, lTop: number, lBot: number, rTop: number, rBot: number): string {
+  const m = (w * 0.5).toFixed(1);
+  return `M 0 ${lTop.toFixed(1)} C ${m} ${lTop.toFixed(1)}, ${m} ${rTop.toFixed(1)}, ${w} ${rTop.toFixed(1)}`
+    + ` L ${w} ${rBot.toFixed(1)} C ${m} ${rBot.toFixed(1)}, ${m} ${lBot.toFixed(1)}, 0 ${lBot.toFixed(1)} Z`;
+}
+
+function computeRibbons(leftEd: any, rightEd: any, w: number): Ribbon[] {
+  if (!leftEd || !rightEd || conflicts.value.length === 0) return [];
+  const viewH = rightEd.getLayoutInfo().height;
+  const H = CONNECTOR_HEADER_H;
+  const out: Ribbon[] = [];
   for (const c of conflicts.value) {
-    const top = Math.max(0, incomingEditor.getTopForLineNumber(c.startLine) - scrollTop);
-    const bottom = Math.min(viewH, incomingEditor.getTopForLineNumber(c.endLine + 1) - scrollTop);
-    if (bottom <= 0 || top >= viewH || bottom <= top) continue;
-    bands.push({ index: c.index, top, height: bottom - top, state: conflictStates.value[c.index] ?? 'none' });
+    const lTop = leftEd.getTopForLineNumber(c.startLine) - leftEd.getScrollTop() + H;
+    const lBot = leftEd.getTopForLineNumber(c.endLine + 1) - leftEd.getScrollTop() + H;
+    const rTop = rightEd.getTopForLineNumber(c.startLine) - rightEd.getScrollTop() + H;
+    const rBot = rightEd.getTopForLineNumber(c.endLine + 1) - rightEd.getScrollTop() + H;
+    if (Math.max(lBot, rBot) < H - 8 || Math.min(lTop, rTop) > H + viewH + 8) continue;
+    const state = conflictStates.value[c.index] ?? 'none';
+    out.push({ index: c.index, d: ribbonPath(w, lTop, lBot, rTop, rBot), fill: connectorColor(state), stroke: connectorStroke(state), arrowY: (rTop + rBot) / 2 });
   }
-  connectorBands.value = bands;
+  return out;
+}
+
+function updateConnectors() {
+  if (mergeLayout.value === 'stacked') {
+    midRibbons.value = computeRibbons(incomingEditor, currentEditor, STACK_GUTTER);
+    leftRibbons.value = [];
+    rightRibbons.value = [];
+  } else {
+    leftRibbons.value = computeRibbons(currentEditor, resultEditor, GUTTER_W);
+    rightRibbons.value = computeRibbons(resultEditor, incomingEditor, GUTTER_W);
+    midRibbons.value = [];
+  }
 }
 
 watch([conflicts, conflictStates], () => nextTick(updateConnectors), { deep: true });
@@ -311,15 +350,38 @@ function sendLineToResult(text: string) {
   resultEditor.focus();
 }
 
-/** Clicking a conflict line's glyph in the incoming/current editor sends it. */
-function onSideGlyphClick(editor: any, model: any, e: any) {
-  if (!monaco.value || !e?.target || !e.target.position) return;
-  if (e.target.type !== monaco.value.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+// Line-by-line mode: track which source lines were already sent so a line can't
+// be added to the result twice; sent lines are dimmed.
+let sentIncomingLines = new Set<number>();
+let sentCurrentLines = new Set<number>();
+let incomingSentDec: string[] = [];
+let currentSentDec: string[] = [];
+
+function refreshSentDecorations() {
+  if (!monaco.value) return;
+  const mk = (lines: Set<number>) => [...lines].map((l) => ({
+    range: new monaco.value.Range(l, 1, l, 1),
+    options: { isWholeLine: true, className: 'merge-line-sent' },
+  }));
+  if (incomingEditor) incomingSentDec = incomingEditor.deltaDecorations(incomingSentDec, mk(sentIncomingLines));
+  if (currentEditor) currentSentDec = currentEditor.deltaDecorations(currentSentDec, mk(sentCurrentLines));
+}
+
+/** When line-by-line is on, clicking a conflict line sends it to the result — once. */
+function onSideLineClick(editor: any, model: any, side: 'incoming' | 'current', e: any) {
+  if (!lineByLine.value || !monaco.value || !e?.target?.position) return;
+  const MT = monaco.value.editor.MouseTargetType;
+  const t = e.target.type;
+  if (t !== MT.CONTENT_TEXT && t !== MT.CONTENT_EMPTY && t !== MT.GUTTER_LINE_NUMBERS && t !== MT.GUTTER_GLYPH_MARGIN) return;
   const line = e.target.position.lineNumber;
   if (!lineInAnyConflict(line)) return;
   const text = model.getLineContent(line);
-  if (text === '') return; // skip the padding lines the parser inserts
+  if (text === '') return; // skip the parser's padding lines
+  const set = side === 'incoming' ? sentIncomingLines : sentCurrentLines;
+  if (set.has(line)) return; // already added — no duplicates
+  set.add(line);
   sendLineToResult(text);
+  refreshSentDecorations();
 }
 
 function applyConflictAt(index: number, strategy: 'incoming' | 'current' | 'both' | 'base') {
@@ -417,12 +479,12 @@ function clampSplitters() {
 function buildDecorations() {
   if (!monaco.value || !incomingEditor || !currentEditor || !resultEditor) return;
 
+  const sendable = lineByLine.value ? ' merge-sendable' : '';
   const newIncoming = conflicts.value.map((conflict) => ({
     range: new monaco.value.Range(conflict.startLine, 1, conflict.endLine, 1),
     options: {
       isWholeLine: true,
-      className: 'merge-editor-block merge-editor-block-incoming',
-      glyphMarginClassName: 'merge-editor-glyph merge-editor-glyph-incoming',
+      className: 'merge-editor-block merge-editor-block-incoming' + sendable,
       minimap: { color: '#6cab4f66', position: monaco.value.editor.MinimapPosition.Inline },
       overviewRuler: { color: '#6cab4f99', position: monaco.value.editor.OverviewRulerLane.Full },
     },
@@ -432,8 +494,7 @@ function buildDecorations() {
     range: new monaco.value.Range(conflict.startLine, 1, conflict.endLine, 1),
     options: {
       isWholeLine: true,
-      className: 'merge-editor-block merge-editor-block-current',
-      glyphMarginClassName: 'merge-editor-glyph merge-editor-glyph-current',
+      className: 'merge-editor-block merge-editor-block-current' + sendable,
       minimap: { color: '#57b0ff66', position: monaco.value.editor.MinimapPosition.Inline },
       overviewRuler: { color: '#57b0ff99', position: monaco.value.editor.OverviewRulerLane.Full },
     },
@@ -446,9 +507,6 @@ function buildDecorations() {
       className: index === selectedConflictIndex.value
         ? 'merge-editor-block merge-editor-block-selected'
         : 'merge-editor-block merge-editor-block-result',
-      glyphMarginClassName: index === selectedConflictIndex.value
-        ? 'merge-editor-glyph merge-editor-glyph-selected'
-        : 'merge-editor-glyph merge-editor-glyph-result',
       minimap: { color: index === selectedConflictIndex.value ? '#f59e0b99' : '#f59e0b66', position: monaco.value.editor.MinimapPosition.Inline },
       overviewRuler: { color: index === selectedConflictIndex.value ? '#f59e0bcc' : '#f59e0b88', position: monaco.value.editor.OverviewRulerLane.Full },
     },
@@ -606,6 +664,12 @@ function moveConflict(direction: 'next' | 'prev') {
 async function setupEditors() {
   if (!incomingContainer.value || !currentContainer.value || !resultContainer.value) return;
 
+  // Fresh file → clear the line-by-line "already sent" tracking.
+  sentIncomingLines = new Set();
+  sentCurrentLines = new Set();
+  incomingSentDec = [];
+  currentSentDec = [];
+
   monaco.value = await initMonaco();
 
   const language = getLanguage(props.filename);
@@ -656,9 +720,9 @@ async function setupEditors() {
     resultEditor.onDidLayoutChange(() => updateVisibleBlame()),
     incomingEditor.onDidScrollChange(() => updateConnectors()),
     incomingEditor.onDidLayoutChange(() => updateConnectors()),
-    // Line-by-line: click a conflict line's glyph in either side to send it.
-    incomingEditor.onMouseDown((e: any) => onSideGlyphClick(incomingEditor, incomingModel, e)),
-    currentEditor.onMouseDown((e: any) => onSideGlyphClick(currentEditor, currentModel, e)),
+    // Line-by-line: when the toggle is on, click a conflict line to send it.
+    incomingEditor.onMouseDown((e: any) => onSideLineClick(incomingEditor, incomingModel, 'incoming', e)),
+    currentEditor.onMouseDown((e: any) => onSideLineClick(currentEditor, currentModel, 'current', e)),
   );
   nextTick(updateConnectors);
 
@@ -726,6 +790,9 @@ watch([() => props.modified, () => props.filename], async () => {
   await nextTick();
   setupEditors();
 });
+
+// Toggling line-by-line updates the "sendable" line highlight.
+watch(lineByLine, () => buildDecorations());
 
 watch(currentTheme, (val) => {
   if (monaco.value) monaco.value.editor.setTheme(getMonacoTheme(val));
@@ -819,6 +886,19 @@ onBeforeUnmount(() => {
                 <Icon icon="lucide:git-commit-vertical" class="text-xs" />
               </button>
             </Tooltip>
+            <Tooltip :text="t('changes.line_by_line')">
+              <button
+                @click="lineByLine = !lineByLine"
+                :class="[
+                  'w-7 h-7 center rounded border transition-colors',
+                  lineByLine
+                    ? 'bg-accent/20 border-accent/40 text-accent'
+                    : 'border-line-strong text-content-muted hover:text-content-strong'
+                ]"
+              >
+                <Icon icon="lucide:list-plus" class="text-xs" />
+              </button>
+            </Tooltip>
             <span
               v-if="isDirty"
               class="inline-flex w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-1"
@@ -870,15 +950,19 @@ onBeforeUnmount(() => {
             <span>{{ t('changes.current') }}</span>
             <span class="text-content-muted truncate max-w-[40%]">{{ currentRefLabel }}</span>
           </div>
-          <div class="h-stack items-center gap-1">
-            <button @click="applyAllConflicts('current')" :disabled="totalConflicts <= 0"
-                    class="px-2 py-0.5 text-[9px] rounded border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-40">
-              {{ t('changes.accept_all_current') }}
-            </button>
-            <button @click="openCompareWithBase('current')"
-                    class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
-              {{ t('changes.compare_with_base') }}
-            </button>
+          <div class="h-stack items-center gap-1 shrink-0">
+            <Tooltip :text="t('changes.accept_all_current')">
+              <button @click="applyAllConflicts('current')" :disabled="totalConflicts <= 0"
+                      class="w-6 h-6 center rounded border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-40">
+                <Icon icon="lucide:check-check" class="text-xs" />
+              </button>
+            </Tooltip>
+            <Tooltip :text="t('changes.compare_with_base')">
+              <button @click="openCompareWithBase('current')"
+                      class="w-6 h-6 center rounded border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover">
+                <Icon icon="lucide:git-compare" class="text-xs" />
+              </button>
+            </Tooltip>
           </div>
         </header>
         <div ref="currentContainer" class="flex-1 min-h-0" />
@@ -887,28 +971,24 @@ onBeforeUnmount(() => {
       <!-- LEFT gutter (columns): bands + accept current -> result -->
       <div v-if="mergeLayout === 'columns'" style="grid-area: gl" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
            @mousedown="startSplitDrag('current', $event)">
-        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <rect v-for="band in connectorBands" :key="band.index"
-                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
-                :style="{ fill: connectorColor(band.state) }" />
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <path v-for="r in leftRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
         </svg>
-        <button v-for="a in connectorArrows" :key="a.index"
-                @mousedown.stop @click="applyConflictAt(a.index, 'current')"
+        <button v-for="r in leftRibbons" :key="'a'+r.index"
+                @mousedown.stop @click="applyConflictAt(r.index, 'current')"
                 :title="t('changes.accept_all_current')"
                 class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
-                :style="{ top: (a.y - 10) + 'px' }">
+                :style="{ top: (r.arrowY - 10) + 'px' }">
           <Icon icon="lucide:chevron-right" class="text-xs" />
         </button>
       </div>
 
-      <!-- MIDDLE gutter (stacked): bands between incoming & current, + resize -->
+      <!-- MIDDLE gutter (stacked): ribbons between incoming & current, + resize -->
       <div v-if="mergeLayout === 'stacked'" style="grid-area: gm" class="relative h-full z-20 cursor-col-resize"
            :class="hasConnectors ? 'bg-app border-x border-line' : 'bg-transparent hover:bg-accent/40'"
            @mousedown="startSplitDrag('horizontal', $event)">
-        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <rect v-for="band in connectorBands" :key="band.index"
-                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
-                :style="{ fill: connectorColor(band.state) }" />
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <path v-for="r in midRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
         </svg>
       </div>
 
@@ -965,19 +1045,17 @@ onBeforeUnmount(() => {
         <div v-show="isComparingWithBase" ref="compareContainer" class="flex-1 min-h-0" />
       </section>
 
-      <!-- RIGHT gutter (columns): bands + accept incoming -> result -->
+      <!-- RIGHT gutter (columns): ribbons + accept incoming -> result -->
       <div v-if="mergeLayout === 'columns'" style="grid-area: gr" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
            @mousedown="startSplitDrag('incoming', $event)">
-        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <rect v-for="band in connectorBands" :key="band.index"
-                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
-                :style="{ fill: connectorColor(band.state) }" />
+        <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <path v-for="r in rightRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
         </svg>
-        <button v-for="a in connectorArrows" :key="a.index"
-                @mousedown.stop @click="applyConflictAt(a.index, 'incoming')"
+        <button v-for="r in rightRibbons" :key="'a'+r.index"
+                @mousedown.stop @click="applyConflictAt(r.index, 'incoming')"
                 :title="t('changes.accept_all_incoming')"
                 class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
-                :style="{ top: (a.y - 10) + 'px' }">
+                :style="{ top: (r.arrowY - 10) + 'px' }">
           <Icon icon="lucide:chevron-left" class="text-xs" />
         </button>
       </div>
@@ -989,15 +1067,19 @@ onBeforeUnmount(() => {
             <span>{{ t('changes.incoming') }}</span>
             <span class="text-content-muted truncate max-w-[40%]">{{ incomingRefLabel }}</span>
           </div>
-          <div class="h-stack items-center gap-1">
-            <button @click="applyAllConflicts('incoming')" :disabled="totalConflicts <= 0"
-                    class="px-2 py-0.5 text-[9px] rounded border border-added/50 text-added hover:bg-added/10 disabled:opacity-40">
-              {{ t('changes.accept_all_incoming') }}
-            </button>
-            <button @click="openCompareWithBase('incoming')"
-                    class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
-              {{ t('changes.compare_with_base') }}
-            </button>
+          <div class="h-stack items-center gap-1 shrink-0">
+            <Tooltip :text="t('changes.accept_all_incoming')">
+              <button @click="applyAllConflicts('incoming')" :disabled="totalConflicts <= 0"
+                      class="w-6 h-6 center rounded border border-added/50 text-added hover:bg-added/10 disabled:opacity-40">
+                <Icon icon="lucide:check-check" class="text-xs" />
+              </button>
+            </Tooltip>
+            <Tooltip :text="t('changes.compare_with_base')">
+              <button @click="openCompareWithBase('incoming')"
+                      class="w-6 h-6 center rounded border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover">
+                <Icon icon="lucide:git-compare" class="text-xs" />
+              </button>
+            </Tooltip>
           </div>
         </header>
         <div ref="incomingContainer" class="flex-1 min-h-0" />
@@ -1031,38 +1113,20 @@ onBeforeUnmount(() => {
   border-left-color: rgba(245, 158, 11, 1);
 }
 
-:deep(.merge-editor-glyph) {
-  width: 6px !important;
-  margin-left: 4px;
-  border-radius: 999px;
-}
-
-/* Incoming/current glyphs are clickable: send that line into the result. */
-:deep(.merge-editor-glyph-incoming),
-:deep(.merge-editor-glyph-current) {
+/* Line-by-line mode: conflict lines are clickable (send to result); once sent,
+   the line is dimmed and can't be sent again. */
+:deep(.merge-sendable) {
   cursor: pointer;
-  transition: transform 0.1s ease, filter 0.1s ease;
 }
-:deep(.merge-editor-glyph-incoming:hover),
-:deep(.merge-editor-glyph-current:hover) {
-  transform: scaleX(2.2);
-  filter: brightness(1.25);
+:deep(.merge-sendable:hover) {
+  filter: brightness(1.2);
+  outline: 1px solid rgb(var(--gb-accent) / 0.5);
+  outline-offset: -1px;
 }
-
-:deep(.merge-editor-glyph-incoming) {
-  background: rgba(110, 191, 81, 0.9);
-}
-
-:deep(.merge-editor-glyph-current) {
-  background: rgba(87, 176, 255, 0.9);
-}
-
-:deep(.merge-editor-glyph-result) {
-  background: rgba(245, 158, 11, 0.65);
-}
-
-:deep(.merge-editor-glyph-selected) {
-  background: rgba(245, 158, 11, 1);
+:deep(.merge-line-sent) {
+  opacity: 0.4;
+  text-decoration: line-through;
+  text-decoration-color: rgb(var(--gb-text-muted) / 0.6);
 }
 
 :deep(.merge-inline-zone) {

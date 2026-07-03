@@ -204,7 +204,8 @@
     "resolve": "Resolver",
     "use_both": "Usar ambos",
     "merge_manually": "Fusionar manualmente",
-    "conflicts_label": "Conflictos"
+    "conflicts_label": "Conflictos",
+    "line_by_line": "Línea por línea"
   },
   "branch_menu": {
     "merge_into_current": "Fusionar en {branch}",

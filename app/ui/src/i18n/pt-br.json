@@ -227,7 +227,8 @@
     "resolve": "Resolver",
     "use_both": "Usar ambos",
     "merge_manually": "Mesclar manualmente",
-    "conflicts_label": "Conflitos"
+    "conflicts_label": "Conflitos",
+    "line_by_line": "Linha por linha"
   },
   "branch_menu": {
     "merge_into_current": "Mesclar em {branch}",
