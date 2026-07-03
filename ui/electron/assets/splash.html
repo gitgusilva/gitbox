@@ -25,7 +25,7 @@
         }
 
         .container {
-            background-color: #1a1a1a;
+            background-color: var(--sp-bg, #1a1a1a);
             width: 100%;
             height: 100%;
             border-radius: 12px;
@@ -36,7 +36,7 @@
             position: relative;
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            border: 1px solid #2d2d2d;
+            border: 1px solid var(--sp-border, #2d2d2d);
         }
 
         .logo {
@@ -47,7 +47,7 @@
         }
 
         .title {
-            color: #ffffff;
+            color: var(--sp-text, #ffffff);
             font-size: 26px;
             font-weight: bold;
             letter-spacing: 2px;
@@ -60,14 +60,14 @@
             left: 0;
             height: 3px;
             width: 100%;
-            background-color: #252526;
+            background-color: var(--sp-surface, #252526);
             overflow: hidden;
         }
 
         .loader-bar {
             height: 100%;
             width: 30%;
-            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+            background: linear-gradient(90deg, transparent, var(--sp-accent, #3b82f6), transparent);
             animation: move 1.5s infinite ease-in-out;
         }
 

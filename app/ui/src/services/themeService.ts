@@ -110,8 +110,21 @@ let applyingExternal = false;
 
 // Reapply whenever the active theme (or any of its nested tokens) changes, and
 // relay the change to any other open window (e.g. a standalone merge window).
+// Persist a compact snapshot so the native splash screen (which loads before the
+// renderer) can paint itself with the active theme's colors on the next launch.
+function persistSplashTheme(t: GitboxTheme) {
+    try {
+        const c = t.colors;
+        setItem('gitbox_splash_theme', JSON.stringify({
+            bg: c.bg, surface: c.bgElevated, border: c.border, text: c.textStrong, accent: c.accent,
+        }));
+    } catch { /* ignore */ }
+}
+persistSplashTheme(activeTheme.value);
+
 watch(activeTheme, (t) => {
     applyGitboxTheme(t);
+    persistSplashTheme(t);
     if (!applyingExternal) {
         try { window.gitbox?.broadcastTheme?.(JSON.parse(JSON.stringify(t))); } catch { /* ignore */ }
     }

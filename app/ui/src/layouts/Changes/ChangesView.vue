@@ -305,7 +305,9 @@ async function loadConflictType() {
   } catch { /* ignore */ }
 }
 
-watch([selectedFile, isSelectedFileConflicted], loadConflictType, { immediate: true });
+// NOTE: the watcher that drives loadConflictType is registered AFTER
+// `allChangedFiles` is declared (below), because watch() evaluates its source
+// once at setup and isSelectedFileConflicted reads allChangedFiles.
 
 /** Resolve the selected conflict by taking a whole side, then refresh. */
 async function resolveConflictSide(side: 'ours' | 'theirs') {
@@ -432,6 +434,11 @@ function isConflicted(filePath: string) {
   const file = allChangedFiles.value.find(f => f.path === filePath);
   return file && file.status.indexOf('conflicted') !== -1;
 }
+
+// Registered here (after allChangedFiles) so the setup-time source evaluation
+// doesn't hit a temporal-dead-zone on it. Refreshes the conflict kind whenever
+// the selection or its conflicted state changes.
+watch([selectedFile, isSelectedFileConflicted], loadConflictType, { immediate: true });
 
 /**
  * Saves resolved merge content and stages the file.
