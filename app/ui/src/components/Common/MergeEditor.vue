@@ -292,6 +292,36 @@ function updateConnectors() {
 
 watch([conflicts, conflictStates], () => nextTick(updateConnectors), { deep: true });
 
+/** True when a source-editor line falls inside any conflict block. */
+function lineInAnyConflict(line: number): boolean {
+  return conflicts.value.some((c) => line >= c.startLine && line < c.endLine);
+}
+
+/** Insert a single line (from incoming/current) into the result at its cursor —
+ *  the building block for line-by-line resolution. */
+function sendLineToResult(text: string) {
+  if (!resultEditor || !resultModel) return;
+  const pos = resultEditor.getPosition() || { lineNumber: 1, column: 1 };
+  resultEditor.executeEdits('merge-send-line', [{
+    range: { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column },
+    text: text + '\n',
+    forceMoveMarkers: true,
+  }]);
+  resultEditor.setPosition({ lineNumber: pos.lineNumber + 1, column: 1 });
+  resultEditor.focus();
+}
+
+/** Clicking a conflict line's glyph in the incoming/current editor sends it. */
+function onSideGlyphClick(editor: any, model: any, e: any) {
+  if (!monaco.value || !e?.target || !e.target.position) return;
+  if (e.target.type !== monaco.value.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+  const line = e.target.position.lineNumber;
+  if (!lineInAnyConflict(line)) return;
+  const text = model.getLineContent(line);
+  if (text === '') return; // skip the padding lines the parser inserts
+  sendLineToResult(text);
+}
+
 function applyConflictAt(index: number, strategy: 'incoming' | 'current' | 'both' | 'base') {
   applyConflictAtAction(index, strategy);
   revealConflict(index);
@@ -626,6 +656,9 @@ async function setupEditors() {
     resultEditor.onDidLayoutChange(() => updateVisibleBlame()),
     incomingEditor.onDidScrollChange(() => updateConnectors()),
     incomingEditor.onDidLayoutChange(() => updateConnectors()),
+    // Line-by-line: click a conflict line's glyph in either side to send it.
+    incomingEditor.onMouseDown((e: any) => onSideGlyphClick(incomingEditor, incomingModel, e)),
+    currentEditor.onMouseDown((e: any) => onSideGlyphClick(currentEditor, currentModel, e)),
   );
   nextTick(updateConnectors);
 
@@ -1002,6 +1035,18 @@ onBeforeUnmount(() => {
   width: 6px !important;
   margin-left: 4px;
   border-radius: 999px;
+}
+
+/* Incoming/current glyphs are clickable: send that line into the result. */
+:deep(.merge-editor-glyph-incoming),
+:deep(.merge-editor-glyph-current) {
+  cursor: pointer;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+:deep(.merge-editor-glyph-incoming:hover),
+:deep(.merge-editor-glyph-current:hover) {
+  transform: scaleX(2.2);
+  filter: brightness(1.25);
 }
 
 :deep(.merge-editor-glyph-incoming) {
