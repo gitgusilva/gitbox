@@ -141,6 +141,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:repoState', async (_, repoPath) => mergeCmd.state(repoPath));
     ipcMain.handle('gitbox:conflictTypes', async (_, repoPath) => mergeCmd.conflictTypes(repoPath));
     ipcMain.handle('gitbox:resolveConflict', async (_, repoPath, filePath, side) => mergeCmd.resolveConflict(repoPath, filePath, side));
+    ipcMain.handle('gitbox:mergeInfo', async (_, repoPath) => mergeCmd.mergeInfo(repoPath));
 
     // Statistics
     ipcMain.handle('gitbox:statistics', async (_, repoPath, sinceMonths) => statisticsCmd.compute(repoPath, sinceMonths));

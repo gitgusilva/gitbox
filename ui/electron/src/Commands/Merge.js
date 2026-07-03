@@ -2,6 +2,8 @@
  * @fileoverview Auto-generated Git Command class
  */
 const Command = require('./Command');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Merge Command Class
@@ -102,6 +104,17 @@ class Merge extends Command {
      * Handles modify/modify and delete conflicts, then stages the result.
      */
     async resolveConflict(repoPath, filePath, side) {
+        // 'both' keeps our version followed by theirs (like the merge editor's
+        // "accept both"); only valid when both sides still have content.
+        if (side === 'both') {
+            const ours = await this.execGit(repoPath, ['show', `:2:${filePath}`]).then((r) => r.stdout).catch(() => '');
+            const theirs = await this.execGit(repoPath, ['show', `:3:${filePath}`]).then((r) => r.stdout).catch(() => '');
+            const merged = [ours.replace(/\n$/, ''), theirs.replace(/\n$/, '')].filter((s) => s.length).join('\n') + '\n';
+            fs.writeFileSync(path.join(repoPath, filePath), merged);
+            await this.execGit(repoPath, ['add', '--', filePath]);
+            return true;
+        }
+
         const { stdout } = await this.execGit(repoPath, ['status', '--porcelain', '--', filePath]);
         const xy = (stdout.slice(0, 2) || '').toUpperCase();
         const oursDeleted = xy[0] === 'D';
@@ -114,6 +127,20 @@ class Merge extends Command {
             await this.execGit(repoPath, ['add', '--', filePath]);
         }
         return true;
+    }
+
+    /** The incoming branch/ref being merged, parsed from MERGE_MSG (best-effort). */
+    async mergeInfo(repoPath) {
+        const info = { incoming: '' };
+        try {
+            const { stdout } = await this.execGit(repoPath, ['rev-parse', '--git-path', 'MERGE_MSG']);
+            const rel = stdout.trim();
+            const p = path.isAbsolute(rel) ? rel : path.join(repoPath, rel);
+            const msg = fs.readFileSync(p, 'utf8');
+            const m = msg.match(/Merge (?:remote-tracking )?branch(?:es)? '([^']+)'/);
+            if (m) info.incoming = m[1];
+        } catch { /* not merging / no message */ }
+        return info;
     }
 
     /**

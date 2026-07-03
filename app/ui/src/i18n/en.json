@@ -188,7 +188,17 @@
     "open_external_mergetool": "External mergetool",
     "resolving": "Resolving…",
     "use_current": "Use Current",
-    "use_incoming": "Use Incoming"
+    "use_incoming": "Use Incoming",
+    "conflict_description": "Pick a side (or both), or merge manually.",
+    "status_modified": "Modified",
+    "status_added": "Added",
+    "status_deleted": "Deleted",
+    "remote": "remote",
+    "local": "local",
+    "resolve": "Resolve",
+    "use_both": "Use Both",
+    "merge_manually": "Merge manually",
+    "conflicts_label": "Conflicts"
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",

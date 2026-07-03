@@ -21,7 +21,8 @@ import {
   includeUntracked,
   stashes,
   loadRepoData,
-  currentBranchName
+  currentBranchName,
+  repoState
 } from '../../services/gitService';
 import { 
   layoutRefs
@@ -283,9 +284,12 @@ const isMergeEditorActive = computed(() => {
   return !!selectedFile.value && !selectedSubmodule.value && isSelectedFileConflicted.value && isMergeEditorRequested.value;
 });
 
-// --- Conflict panel (shown for a conflicted file that isn't in the merge editor) ---
+// --- Conflict panel (Fork-style: pick incoming/current/both, or merge manually) ---
 const conflictCode = ref('');           // two-letter porcelain code: UU / DU / UD / …
+const incomingBranch = ref('');         // the branch being merged in (best-effort)
 const isResolvingConflict = ref(false);
+const selIncoming = ref(false);         // "Theirs" card checkbox
+const selCurrent = ref(false);          // "Ours" card checkbox
 
 const CONFLICT_LABELS: Record<string, string> = {
   UU: 'conflict_both_modified', AA: 'conflict_both_added', DD: 'conflict_both_deleted',
@@ -293,24 +297,50 @@ const CONFLICT_LABELS: Record<string, string> = {
   AU: 'conflict_added_by_us', UA: 'conflict_added_by_them',
 };
 const conflictTypeLabel = computed(() => t(`changes.${CONFLICT_LABELS[conflictCode.value] || 'conflict_generic'}`));
-// The inline merge editor only makes sense when both sides still have content.
+// Merging both sides (or the manual editor) only makes sense with content on both.
 const isContentConflict = computed(() => conflictCode.value === 'UU' || conflictCode.value === 'AA');
+
+// Per-side status from the XY code (X = ours/current, Y = theirs/incoming).
+const statusKey = (ch?: string) => (ch === 'D' ? 'deleted' : ch === 'A' ? 'added' : 'modified');
+const currentStatusKey = computed(() => statusKey(conflictCode.value[0]));
+const incomingStatusKey = computed(() => statusKey(conflictCode.value[1]));
+
+/** The side implied by the current checkbox selection (null = nothing usable). */
+const selectedSide = computed<'ours' | 'theirs' | 'both' | null>(() => {
+  if (selIncoming.value && selCurrent.value) return isContentConflict.value ? 'both' : null;
+  if (selIncoming.value) return 'theirs';
+  if (selCurrent.value) return 'ours';
+  return null;
+});
+const canResolve = computed(() => !!selectedSide.value && !isResolvingConflict.value);
 
 async function loadConflictType() {
   conflictCode.value = '';
+  incomingBranch.value = '';
+  selIncoming.value = false;
+  selCurrent.value = false;
   if (!repoPath.value || !selectedFile.value || !isSelectedFileConflicted.value) return;
   try {
     const map = await (window as any).gitbox?.conflictTypes?.(repoPath.value);
     conflictCode.value = map?.[selectedFile.value] || '';
   } catch { /* ignore */ }
+  try {
+    const info = await (window as any).gitbox?.mergeInfo?.(repoPath.value);
+    incomingBranch.value = info?.incoming || '';
+  } catch { /* ignore */ }
+}
+
+async function resolveSelection() {
+  const side = selectedSide.value;
+  if (side) await resolveConflictSide(side);
 }
 
 // NOTE: the watcher that drives loadConflictType is registered AFTER
 // `allChangedFiles` is declared (below), because watch() evaluates its source
 // once at setup and isSelectedFileConflicted reads allChangedFiles.
 
-/** Resolve the selected conflict by taking a whole side, then refresh. */
-async function resolveConflictSide(side: 'ours' | 'theirs') {
+/** Resolve the selected conflict by taking a side (or both), then refresh. */
+async function resolveConflictSide(side: 'ours' | 'theirs' | 'both') {
   if (!repoPath.value || !selectedFile.value || isResolvingConflict.value) return;
   isResolvingConflict.value = true;
   try {
@@ -439,6 +469,28 @@ function isConflicted(filePath: string) {
 // doesn't hit a temporal-dead-zone on it. Refreshes the conflict kind whenever
 // the selection or its conflicted state changes.
 watch([selectedFile, isSelectedFileConflicted], loadConflictType, { immediate: true });
+
+// When a merge starts, seed the commit box with the merge subject + a localized
+// list of conflicts (git-style), without clobbering anything the user typed.
+const mergeCommitSeeded = ref(false);
+async function seedMergeCommitMessage() {
+  if (repoState.value !== 'merge') { mergeCommitSeeded.value = false; return; }
+  if (mergeCommitSeeded.value) return;
+  if (commitSubject.value.trim() || commitDescription.value.trim()) return;
+  const conflicted = allChangedFiles.value
+    .filter((f) => (f.status || '').indexOf('conflicted') !== -1)
+    .map((f) => f.path);
+  if (conflicted.length === 0) return;
+  let incoming = '';
+  try { incoming = (await (window as any).gitbox?.mergeInfo?.(repoPath.value))?.incoming || ''; } catch { /* ignore */ }
+  const cur = currentBranchName.value || 'HEAD';
+  commitSubject.value = incoming ? `Merge branch '${incoming}' into ${cur}` : `Merge into ${cur}`;
+  commitDescription.value = `# ${t('changes.conflicts_label')}:\n` + conflicted.map((p) => `#\t${p}`).join('\n');
+  mergeCommitSeeded.value = true;
+}
+// No immediate: the callback reads commitSubject (declared lower), and the watch
+// fires anyway once the status loads after setup.
+watch([repoState, allChangedFiles], seedMergeCommitMessage);
 
 /**
  * Saves resolved merge content and stages the file.
@@ -664,44 +716,63 @@ async function handleExplainChanges() {
                </div>
             </template>
             <template v-else>
-              <!-- Conflict panel: what to do with an unmerged file. The merge
-                   editor always opens in a separate window, never inline here. -->
+              <!-- Conflict panel (Fork-style). The merge editor always opens in a
+                   separate window, never inline here. -->
               <div v-if="isSelectedFileConflicted"
-                   :class="cn('flex-1 flex flex-col items-center justify-center gap-5 p-8 text-center bg-app')">
-                <div class="w-16 h-16 rounded-2xl bg-removed/10 border border-removed/30 center">
-                  <Icon icon="lucide:git-merge" class="text-3xl text-removed" />
-                </div>
-                <div>
-                  <div class="text-sm font-bold uppercase tracking-widest text-content-strong">{{ t('changes.conflicts_detected') }}</div>
-                  <div class="text-xs text-content-muted mt-1">{{ conflictTypeLabel }}</div>
-                </div>
-                <div class="text-[11px] text-content-muted flex flex-col gap-1.5 items-center">
-                  <div class="h-stack items-center gap-2">
-                    <span class="uppercase font-bold tracking-wider text-modified">{{ t('changes.current') }}</span>
-                    <Icon icon="lucide:git-branch" class="w-3 h-3" />
-                    <span class="text-content font-mono truncate max-w-[240px]">{{ currentBranchName || '-' }}</span>
-                  </div>
-                  <div class="h-stack items-center gap-2">
-                    <span class="uppercase font-bold tracking-wider text-added">{{ t('changes.incoming') }}</span>
-                    <Icon icon="lucide:git-merge" class="w-3 h-3" />
-                    <span class="text-content">{{ t('changes.incoming_changes') }}</span>
+                   :class="cn('flex-1 flex flex-col items-center justify-center gap-7 p-8 bg-app overflow-auto')">
+                <!-- header -->
+                <div class="flex items-start gap-3 max-w-lg">
+                  <Icon icon="lucide:alert-triangle" class="text-2xl text-amber-500 shrink-0 mt-0.5" />
+                  <div class="text-left">
+                    <div class="text-base font-bold text-content-strong">{{ t('changes.conflicts_detected') }}</div>
+                    <div class="text-xs text-content-muted mt-1">{{ conflictTypeLabel }} · {{ t('changes.conflict_description') }}</div>
                   </div>
                 </div>
-                <div class="flex flex-wrap items-center justify-center gap-2 mt-1">
+
+                <!-- two selectable side cards + center merge -->
+                <div class="flex items-center gap-4">
+                  <!-- Incoming (remote) -->
+                  <button type="button" @click="selIncoming = !selIncoming"
+                          :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selIncoming ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
+                    <span v-if="selIncoming" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
+                    <div class="text-[13px] font-bold text-added">{{ t('changes.incoming') }} <span class="text-content-muted font-normal">({{ t('changes.remote') }})</span></div>
+                    <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
+                      <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
+                      <span class="font-mono truncate">{{ incomingBranch || t('changes.incoming_changes') }}</span>
+                    </div>
+                    <div class="text-[10px] text-content-muted mt-1 uppercase tracking-wide">{{ t(`changes.status_${incomingStatusKey}`) }}</div>
+                  </button>
+
+                  <div class="flex flex-col items-center text-content-muted">
+                    <Icon icon="lucide:git-merge" class="text-lg" />
+                  </div>
+
+                  <!-- Current (local) -->
+                  <button type="button" @click="selCurrent = !selCurrent"
+                          :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selCurrent ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
+                    <span v-if="selCurrent" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
+                    <div class="text-[13px] font-bold text-modified">{{ t('changes.current') }} <span class="text-content-muted font-normal">({{ t('changes.local') }})</span></div>
+                    <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
+                      <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
+                      <span class="font-mono truncate">{{ currentBranchName || '—' }}</span>
+                    </div>
+                    <div class="text-[10px] text-content-muted mt-1 uppercase tracking-wide">{{ t(`changes.status_${currentStatusKey}`) }}</div>
+                  </button>
+                </div>
+
+                <!-- actions -->
+                <div class="flex flex-wrap items-center justify-center gap-2">
+                  <button @click="resolveSelection" :disabled="!canResolve"
+                          class="px-5 py-2 rounded text-[11px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed h-stack items-center gap-1.5">
+                    <Icon :icon="isResolvingConflict ? 'lucide:loader-2' : 'lucide:check'" :class="isResolvingConflict ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
+                    {{ selectedSide === 'both' ? t('changes.use_both') : t('changes.resolve') }}
+                  </button>
                   <button v-if="isContentConflict" @click="openMergeWindow(selectedFile)"
-                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors h-stack items-center gap-1.5">
-                    <Icon icon="lucide:git-merge" class="w-3.5 h-3.5" /> {{ t('changes.open_merge_editor') }}
-                  </button>
-                  <button @click="resolveConflictSide('ours')" :disabled="isResolvingConflict"
-                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-50 transition-colors">
-                    {{ t('changes.use_current') }}
-                  </button>
-                  <button @click="resolveConflictSide('theirs')" :disabled="isResolvingConflict"
-                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-added/50 text-added hover:bg-added/10 disabled:opacity-50 transition-colors">
-                    {{ t('changes.use_incoming') }}
+                          class="px-4 py-2 rounded text-[11px] font-bold uppercase tracking-wider border border-line-strong text-content hover:bg-surface-hover transition-colors h-stack items-center gap-1.5">
+                    <Icon icon="lucide:git-merge" class="w-3.5 h-3.5" /> {{ t('changes.merge_manually') }}
                   </button>
                   <button @click="openExternalMergeTool(selectedFile)"
-                          class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover transition-colors">
+                          class="px-4 py-2 rounded text-[11px] font-bold uppercase tracking-wider border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover transition-colors">
                     {{ t('changes.open_external_mergetool') }}
                   </button>
                 </div>

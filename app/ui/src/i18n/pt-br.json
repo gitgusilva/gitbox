@@ -217,7 +217,17 @@
     "open_external_mergetool": "Ferramenta externa",
     "resolving": "Resolvendo…",
     "use_current": "Usar current",
-    "use_incoming": "Usar incoming"
+    "use_incoming": "Usar incoming",
+    "conflict_description": "Escolha um lado (ou ambos), ou mescle manualmente.",
+    "status_modified": "Modificado",
+    "status_added": "Adicionado",
+    "status_deleted": "Removido",
+    "remote": "remoto",
+    "local": "local",
+    "resolve": "Resolver",
+    "use_both": "Usar ambos",
+    "merge_manually": "Mesclar manualmente",
+    "conflicts_label": "Conflitos"
   },
   "branch_menu": {
     "merge_into_current": "Mesclar em {branch}",
