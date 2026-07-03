@@ -186,7 +186,9 @@
     "use_mine": "Use Mine",
     "use_theirs": "Use Theirs",
     "open_external_mergetool": "External mergetool",
-    "resolving": "Resolving…"
+    "resolving": "Resolving…",
+    "use_current": "Use Current",
+    "use_incoming": "Use Incoming"
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",

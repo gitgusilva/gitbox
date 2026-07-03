@@ -192,7 +192,9 @@
     "use_mine": "Usar el mío",
     "use_theirs": "Usar el suyo",
     "open_external_mergetool": "Herramienta externa",
-    "resolving": "Resolviendo…"
+    "resolving": "Resolviendo…",
+    "use_current": "Usar current",
+    "use_incoming": "Usar incoming"
   },
   "branch_menu": {
     "merge_into_current": "Fusionar en {branch}",

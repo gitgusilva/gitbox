@@ -679,12 +679,12 @@ async function handleExplainChanges() {
                 </div>
                 <div class="text-[11px] text-content-muted flex flex-col gap-1.5 items-center">
                   <div class="h-stack items-center gap-2">
-                    <span class="uppercase font-bold tracking-wider text-modified">{{ t('changes.mine') }}</span>
+                    <span class="uppercase font-bold tracking-wider text-modified">{{ t('changes.current') }}</span>
                     <Icon icon="lucide:git-branch" class="w-3 h-3" />
                     <span class="text-content font-mono truncate max-w-[240px]">{{ currentBranchName || '-' }}</span>
                   </div>
                   <div class="h-stack items-center gap-2">
-                    <span class="uppercase font-bold tracking-wider text-added">{{ t('changes.theirs') }}</span>
+                    <span class="uppercase font-bold tracking-wider text-added">{{ t('changes.incoming') }}</span>
                     <Icon icon="lucide:git-merge" class="w-3 h-3" />
                     <span class="text-content">{{ t('changes.incoming_changes') }}</span>
                   </div>
@@ -696,11 +696,11 @@ async function handleExplainChanges() {
                   </button>
                   <button @click="resolveConflictSide('ours')" :disabled="isResolvingConflict"
                           class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-50 transition-colors">
-                    {{ t('changes.use_mine') }}
+                    {{ t('changes.use_current') }}
                   </button>
                   <button @click="resolveConflictSide('theirs')" :disabled="isResolvingConflict"
                           class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-added/50 text-added hover:bg-added/10 disabled:opacity-50 transition-colors">
-                    {{ t('changes.use_theirs') }}
+                    {{ t('changes.use_incoming') }}
                   </button>
                   <button @click="openExternalMergeTool(selectedFile)"
                           class="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover transition-colors">

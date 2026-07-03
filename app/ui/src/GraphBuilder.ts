@@ -46,7 +46,7 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
     const cellTop = -1;
     const cellH = 31;
     const midY = 14;
-    const curveTension = 11;
+    const cornerR = 6; // rounded-corner radius where a line turns at the middle
     const laneW = 12;
     const offset = 10;
     const x = (l: number) => l * laneW + offset;
@@ -102,11 +102,12 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
                 if (k === dotLane) {
                     lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY}`, color });
                 } else {
-                    // Converging branch: drop straight down its own lane, then
-                    // curve into the SIDE of the dot (horizontal tangent at the
-                    // dot) instead of stacking in from above.
-                    const dir = k > dotLane ? 1 : -1;
-                    lines.push({ path: `M ${x(k)} ${cellTop} C ${x(k)} ${midY}, ${x(dotLane) + dir * curveTension} ${midY}, ${x(dotLane)} ${midY}`, color });
+                    // Converging branch: straight down its own lane, a rounded
+                    // corner at the middle, then a horizontal run into the dot —
+                    // so multi-lane jumps read as clean L-bends, not wide swoops.
+                    const sgn = dotLane > k ? 1 : -1;
+                    const r = Math.min(cornerR, Math.abs(x(dotLane) - x(k)));
+                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY - r} Q ${x(k)} ${midY}, ${x(k) + sgn * r} ${midY} L ${x(dotLane)} ${midY}`, color });
                 }
             } else if (inLanes[k] !== null) {
                 // Line just passing straight through this row keeps its lane color
@@ -122,10 +123,11 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
         }
 
         for (const mL of mergeTargets) {
-            // Merge parent: leave the SIDE of the dot horizontally, then bend
-            // down into the target lane (vertical tangent at the bottom).
-            const dir = mL > dotLane ? 1 : -1;
-            lines.push({ path: `M ${x(dotLane)} ${midY} C ${x(dotLane) + dir * curveTension} ${midY}, ${x(mL)} ${midY}, ${x(mL)} ${cellH}`, color: colorFor(mL) });
+            // Merge parent: horizontal out of the dot along the middle, a rounded
+            // corner, then straight down the target lane.
+            const sgn = mL > dotLane ? 1 : -1;
+            const r = Math.min(cornerR, Math.abs(x(mL) - x(dotLane)));
+            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(mL) - sgn * r} ${midY} Q ${x(mL)} ${midY}, ${x(mL)} ${midY + r} L ${x(mL)} ${cellH}`, color: colorFor(mL) });
         }
 
         // Drop trailing empty lanes so the graph width tracks the lanes that are
