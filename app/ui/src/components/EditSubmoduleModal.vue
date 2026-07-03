@@ -79,22 +79,22 @@ async function deleteSubmodule() {
       <div class="space-y-4">
         <!-- Remote URL -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-neutral-600 dark:text-neutral-400">{{ t('modal.remote_url') }}</label>
-          <div class="relative bg-neutral-100 dark:bg-[#252526] border border-neutral-300 dark:border-neutral-700 rounded overflow-hidden flex items-center">
-            <input v-model="remoteUrl" disabled type="text" class="flex-1 bg-transparent px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 outline-none w-full opacity-70" />
+          <label class="text-xs font-medium text-content-muted">{{ t('modal.remote_url') }}</label>
+          <div class="relative bg-surface border border-line-strong rounded overflow-hidden flex items-center">
+            <input v-model="remoteUrl" disabled type="text" class="flex-1 bg-transparent px-3 py-2 text-sm text-content outline-none w-full opacity-70" />
           </div>
         </div>
 
         <!-- Name/Path -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-neutral-600 dark:text-neutral-400">{{ t('modal.path') }}</label>
-          <div class="relative bg-neutral-100 dark:bg-[#252526] border border-neutral-300 dark:border-neutral-700 rounded overflow-hidden flex items-center">
-            <input v-model="targetPath" disabled type="text" class="flex-1 bg-transparent px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 outline-none w-full opacity-70" />
+          <label class="text-xs font-medium text-content-muted">{{ t('modal.path') }}</label>
+          <div class="relative bg-surface border border-line-strong rounded overflow-hidden flex items-center">
+            <input v-model="targetPath" disabled type="text" class="flex-1 bg-transparent px-3 py-2 text-sm text-content outline-none w-full opacity-70" />
           </div>
         </div>
       </div>
 
-      <button disabled class="w-full bg-neutral-100 dark:bg-[#252526] border border-neutral-300 dark:border-neutral-700 text-neutral-500 rounded px-4 py-2 text-xs font-medium opacity-50 cursor-not-allowed">
+      <button disabled class="w-full bg-surface border border-line-strong text-neutral-500 rounded px-4 py-2 text-xs font-medium opacity-50 cursor-not-allowed">
         {{ t('modal.edit_this_submodule') }}
       </button>
 
@@ -103,13 +103,13 @@ async function deleteSubmodule() {
          {{ t('modal.submodule_not_committed') }}
       </div>
 
-      <div class="bg-neutral-100 dark:bg-[#2A2D31] rounded overflow-hidden text-xs border border-neutral-300 dark:border-neutral-700 flex flex-col">
-          <div class="px-3 py-2 flex items-center justify-between text-neutral-600 dark:text-neutral-400 border-b border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-[#252526]">
+      <div class="bg-surface rounded overflow-hidden text-xs border border-line-strong flex flex-col">
+          <div class="px-3 py-2 flex items-center justify-between text-content-muted border-b border-line-strong bg-surface">
               <span>{{ t('modal.checked_out_commit') }}</span>
               <span class="font-mono">{{ activeSubmodule.sha.substring(0, 8) }}</span>
           </div>
           <div class="flex items-center">
-             <button @click="commitChanges()" class="flex-1 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 px-4 py-3 border-r border-neutral-300 dark:border-neutral-700 transition-colors flex items-center justify-center font-medium">
+             <button @click="commitChanges()" class="flex-1 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-content px-4 py-3 border-r border-line-strong transition-colors flex items-center justify-center font-medium">
                {{ t('modal.commit_changes') }}
              </button>
           </div>

@@ -34,21 +34,21 @@ const filteredRecents = computed(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col bg-white dark:bg-[#1E1E1E] text-neutral-700 dark:text-neutral-300 font-sans" style="font-family: Inter, system-ui, sans-serif;">
+  <div class="h-full flex flex-col bg-app text-content font-sans" style="font-family: Inter, system-ui, sans-serif;">
      <div class="flex-1 flex w-full max-w-[1200px] mx-auto px-12 py-16 gap-20">
         
         <!-- Left Column -->
         <div class="flex flex-col w-5/12 min-w-[350px]">
-            <h2 class="text-[20px] text-neutral-700 dark:text-neutral-300 mb-8 font-semibold tracking-tight">{{ t('view.repositories') }}</h2>
+            <h2 class="text-[20px] text-content mb-8 font-semibold tracking-tight">{{ t('view.repositories') }}</h2>
             
             <div class="flex items-center gap-3 mb-10 w-full">
-                <button @click="handleAddWorkspace" class="flex-1 py-2 px-3 bg-neutral-100 dark:bg-[#2D2E30] hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-neutral-800 dark:text-neutral-200 rounded font-medium text-[13px] border border-neutral-300 dark:border-[#3E4044] transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <button @click="handleAddWorkspace" class="flex-1 py-2 px-3 bg-surface hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-content rounded font-medium text-[13px] border border-line-strong transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Icon icon="lucide:folder-open" class="w-4 h-4 opacity-70" /> {{ t('view.open') }}
                 </button>
-                <button @click="handleClone" class="flex-1 py-2 px-3 bg-neutral-100 dark:bg-[#2D2E30] hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-neutral-800 dark:text-neutral-200 rounded font-medium text-[13px] border border-neutral-300 dark:border-[#3E4044] transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <button @click="handleClone" class="flex-1 py-2 px-3 bg-surface hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-content rounded font-medium text-[13px] border border-line-strong transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Icon icon="lucide:cloud-download" class="w-4 h-4 opacity-70" /> {{ t('view.clone') }}
                 </button>
-                <button @click="handleCreate" class="flex-1 py-2 px-3 bg-neutral-100 dark:bg-[#2D2E30] hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-neutral-800 dark:text-neutral-200 rounded font-medium text-[13px] border border-neutral-300 dark:border-[#3E4044] transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <button @click="handleCreate" class="flex-1 py-2 px-3 bg-surface hover:bg-neutral-200 dark:hover:bg-[#3D3E40] text-content rounded font-medium text-[13px] border border-line-strong transition-colors flex items-center justify-center gap-2 shadow-sm">
                     <Icon icon="lucide:plus-square" class="w-4 h-4 opacity-70" /> {{ t('view.create') }}
                 </button>
             </div>
@@ -58,7 +58,7 @@ const filteredRecents = computed(() => {
                     <span class="text-[12px] text-neutral-500">{{ t('view.recent') }}</span>
                     <div class="relative w-40 flex items-center">
                       <Icon icon="lucide:search" class="absolute left-2.5 w-3 h-3 text-neutral-500" />
-                      <input v-model="searchQuery" type="text" :placeholder="t('common.search')" class="w-full bg-neutral-50 dark:bg-[#1A1A1A] border border-neutral-300 dark:border-[#2D2D2D] text-[12px] rounded-full pl-7 pr-3 py-1 outline-none focus:border-blue-500 transition-colors placeholder:text-neutral-600 text-neutral-700 dark:text-neutral-300 shadow-inner" />
+                      <input v-model="searchQuery" type="text" :placeholder="t('common.search')" class="w-full bg-app border border-line text-[12px] rounded-full pl-7 pr-3 py-1 outline-none focus:border-accent transition-colors placeholder:text-neutral-600 text-content shadow-inner" />
                     </div>
                 </div>
 
@@ -83,12 +83,12 @@ const filteredRecents = computed(() => {
         </div>
 
         <!-- Right Column -->
-        <div class="flex flex-col w-7/12 pl-12 border-l border-neutral-300/50 dark:border-[#2D2D2D]/50 pt-2">
-             <h2 class="text-[17px] text-neutral-800 dark:text-neutral-200 mb-6 tracking-tight">{{ t('view.boost_workflow') }}</h2>
-             <p class="text-[13px] text-neutral-600 dark:text-neutral-400 mb-8 leading-relaxed max-w-lg">
+        <div class="flex flex-col w-7/12 pl-12 border-l border-line/50 pt-2">
+             <h2 class="text-[17px] text-content mb-6 tracking-tight">{{ t('view.boost_workflow') }}</h2>
+             <p class="text-[13px] text-content-muted mb-8 leading-relaxed max-w-lg">
                  {{ t('view.boost_workflow_desc') }}
              </p>
-             <button class="w-fit py-2 px-5 bg-neutral-100 dark:bg-[#2D2E30] hover:bg-neutral-200 dark:hover:bg-[#3D3E40] border border-neutral-300 dark:border-[#3E4044] rounded text-[13px] text-neutral-800 dark:text-neutral-200 font-medium mb-12 flex items-center gap-2 transition-colors shadow-sm">
+             <button class="w-fit py-2 px-5 bg-surface hover:bg-neutral-200 dark:hover:bg-[#3D3E40] border border-line-strong rounded text-[13px] text-content font-medium mb-12 flex items-center gap-2 transition-colors shadow-sm">
                  {{ t('view.explore_features') }} <Icon icon="lucide:external-link" class="w-3.5 h-3.5 opacity-60" />
              </button>
 

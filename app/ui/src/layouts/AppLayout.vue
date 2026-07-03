@@ -98,7 +98,7 @@ const { t } = useI18n();
         <Sidebar />
 
         <!-- Main Content -->
-        <main class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-white dark:bg-[#1E1E1E] transition-colors relative">
+        <main class="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-app transition-colors relative">
           <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
             <slot />
           </div>

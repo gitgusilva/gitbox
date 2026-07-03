@@ -85,21 +85,21 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
 </script>
 
 <template>
-  <aside class="flex flex-col border-r border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1E1E1E] flex-shrink-0 relative select-none min-h-0 overflow-hidden" :style="{ width: sidebarWidth + 'px' }">
+  <aside class="flex flex-col border-r border-line bg-app flex-shrink-0 relative select-none min-h-0 overflow-hidden" :style="{ width: sidebarWidth + 'px' }">
     <Resizer :target="layoutRefs.sidebarWidth" :options="{ min: 150, max: 800 }" class="absolute right-0 top-0 bottom-0" />
     
     <!-- Tab buttons -->
-    <div class="v-stack py-2 border-b border-neutral-200 dark:border-neutral-800">
+    <div class="v-stack py-2 border-b border-line">
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'history' ? 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white' : ''
+          activeTab === 'history' ? 'bg-surface-hover text-content-strong' : ''
         )"
         @click="activeTab = 'history'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:history" /> {{ t('common.history') }}</span>
       </button>
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'local_changes' ? 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white' : ''
+          activeTab === 'local_changes' ? 'bg-surface-hover text-content-strong' : ''
         )"
         @click="activeTab = 'local_changes'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:file-edit" /> {{ t('common.local_changes') }}</span>
@@ -107,7 +107,7 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
       </button>
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'stashes' ? 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white' : ''
+          activeTab === 'stashes' ? 'bg-surface-hover text-content-strong' : ''
         )"
         @click="activeTab = 'stashes'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:layers" /> {{ t('common.stashes') }}</span>
@@ -118,10 +118,10 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
     <!-- Lists -->
     <div class="v-stack flex-1 min-h-0">
       <!-- Filter -->
-      <div class="p-2 border-b border-neutral-200 dark:border-neutral-800">
+      <div class="p-2 border-b border-line">
         <div class="relative h-stack">
           <Icon icon="lucide:search" class="absolute left-2 text-neutral-500 text-xs" />
-          <input v-model="branchFilter" class="w-full bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 pl-6 pr-2 py-1 text-xs text-neutral-700 dark:text-neutral-300 outline-none rounded focus:border-neutral-500" :placeholder="t('common.search')" />
+          <input v-model="branchFilter" class="w-full bg-surface border border-line pl-6 pr-2 py-1 text-xs text-content outline-none rounded focus:border-neutral-500" :placeholder="t('common.search')" />
         </div>
       </div>
       

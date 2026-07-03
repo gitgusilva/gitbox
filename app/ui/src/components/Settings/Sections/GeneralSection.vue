@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
-import { useTheme } from '../../../services/themeService';
 import { useLanguage } from '../../../services/languageService';
 import { generalSettings } from '../../../services/settingsService';
 import { formatDate } from '../../../utils/formatters';
@@ -11,7 +9,6 @@ import Checkbox from '../../Common/Checkbox.vue';
 import Select from '../../Common/Select.vue';
 
 const { t, locale } = useI18n();
-const { currentTheme, applyTheme } = useTheme();
 const { languages, changeLanguage } = useLanguage();
 
 const emit = defineEmits(['close']);
@@ -61,27 +58,13 @@ const notificationPositionOptions = computed(() => [
     <!-- Appearance & Language -->
     <div class="flex flex-col gap-8">
       <section>
-        <label class="block text-xs font-bold text-neutral-500 uppercase mb-4">{{ t('settings.theme') }}</label>
-        <div class="grid grid-cols-3 gap-2">
-          <button v-for="theme in ['light', 'dark', 'system'] as const" 
-                  :key="theme"
-                  @click="applyTheme(theme)"
-                  class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all"
-                  :class="currentTheme === theme ? 'bg-blue-600/10 border-blue-600 text-blue-400' : 'bg-neutral-100 dark:bg-[#252526] border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-700'">
-            <Icon :icon="theme === 'light' ? 'lucide:sun' : (theme === 'dark' ? 'lucide:moon' : 'lucide:monitor')" class="text-lg" />
-            <span class="text-[10px] font-medium">{{ t(`settings.${theme}`) }}</span>
-          </button>
-        </div>
-      </section>
-
-      <section>
         <label class="block text-xs font-bold text-neutral-500 uppercase mb-4">{{ t('settings.language') }}</label>
         <Select :modelValue="locale" @update:modelValue="handleLanguageChange" :options="languageOptions" class="w-full" searchable />
       </section>
     </div>
 
     <!-- Date & History Settings -->
-    <section class="space-y-6 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
+    <section class="space-y-6 pt-4 border-t border-line/50">
       <div class="flex items-center justify-between gap-4">
           <div class="flex-1">
               <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.date_format') }}</label>
@@ -134,7 +117,7 @@ const notificationPositionOptions = computed(() => [
     </section>
 
     <!-- Checkboxes -->
-    <section class="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
+    <section class="space-y-4 pt-4 border-t border-line/50">
         <Checkbox v-model="generalSettings.showTagsInGraph" :label="t('settings.show_tags_graph')" />
         <Checkbox v-model="generalSettings.checkForUpdates" :label="t('settings.check_updates_startup')" />
         <Checkbox v-model="generalSettings.hideIconLabels" :label="t('settings.hide_icon_labels')" />
@@ -144,7 +127,7 @@ const notificationPositionOptions = computed(() => [
     </section>
 
     <!-- Notifications -->
-    <section class="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800/50">
+    <section class="space-y-4 pt-4 border-t border-line/50">
         <label class="block text-xs font-bold text-neutral-500 uppercase">{{ t('settings.notifications') }}</label>
         <Checkbox v-model="generalSettings.notificationsEnabled" :label="t('settings.notifications_enabled')" />
         <div :class="generalSettings.notificationsEnabled ? '' : 'opacity-40 pointer-events-none'">

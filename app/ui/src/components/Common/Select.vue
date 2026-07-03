@@ -238,16 +238,16 @@ const isCreatingNew = computed(() => {
                 spellcheck="false"
                  :placeholder="placeholder || t('common.search') || 'Search...'" 
                  :class="cn(
-                    'w-full bg-neutral-100 dark:bg-[#2a2a2d] border rounded-lg py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-all shadow-inner',
+                    'w-full bg-surface border rounded-lg py-2 text-xs text-content-strong outline-none focus:border-accent transition-all shadow-inner',
                     isOpen ? 'border-blue-500' : 'border-neutral-300/50 dark:border-neutral-700/50',
                     icon ? 'pl-9 pr-8' : 'px-3 pr-8'
                  )" />
                 
-         <Icon v-if="icon" :icon="icon" class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400 pointer-events-none" />
+         <Icon v-if="icon" :icon="icon" class="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none" />
 
          <!-- Visual suffix decorators -->
-         <Icon v-if="isOpen && !creatable" icon="lucide:search" class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400 pointer-events-none" />
-         <Icon v-else-if="!isOpen" icon="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400 pointer-events-none transition-transform" />
+         <Icon v-if="isOpen && !creatable" icon="lucide:search" class="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none" />
+         <Icon v-else-if="!isOpen" icon="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none transition-transform" />
          
          <!-- Slot right bound (e.g for 'NEW' tags) -->
          <div class="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -259,20 +259,20 @@ const isCreatingNew = computed(() => {
     <div v-else 
          @click="toggleDropdown" 
          :class="cn(
-             'h-stack w-full bg-neutral-100 dark:bg-[#2a2a2d] border border-neutral-300/50 dark:border-neutral-700/50 rounded-lg py-2 text-xs text-neutral-700 dark:text-neutral-300 outline-none hover:border-neutral-600 focus:border-blue-500 cursor-pointer transition-all select-none',
+             'h-stack w-full bg-surface border border-neutral-300/50 dark:border-neutral-700/50 rounded-lg py-2 text-xs text-content outline-none hover:border-neutral-600 focus:border-accent cursor-pointer transition-all select-none',
              icon ? 'pl-9 pr-3' : 'px-3'
          )">
          
-       <Icon v-if="icon" :icon="icon" class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-400 pointer-events-none" />
+       <Icon v-if="icon" :icon="icon" class="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none" />
 
-       <span class="truncate pr-4 flex-1 text-neutral-900 dark:text-white text-[11px]">{{ displayLabel }}</span>
+       <span class="truncate pr-4 flex-1 text-content-strong text-[11px]">{{ displayLabel }}</span>
        <Icon icon="lucide:chevron-down" class="text-neutral-600 flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
     </div>
     
     <!-- Dropdown Core -->
     <Teleport to="body">
       <div v-if="isOpen && filteredOptions.length > 0" ref="dropdownRef"
-           :class="cn('fixed bg-neutral-100 dark:bg-[#2D2D2D] border border-neutral-300 dark:border-neutral-700 rounded shadow-2xl z-[99999] flex flex-col overflow-hidden max-h-48')"
+           :class="cn('fixed bg-surface border border-line-strong rounded shadow-2xl z-[99999] flex flex-col overflow-hidden max-h-48')"
            :style="dropdownStyle">
          <ScrollArea class="flex-1 w-full p-1 h-full max-h-48">
             <div class="v-stack gap-0.5">
@@ -281,8 +281,8 @@ const isCreatingNew = computed(() => {
                    :class="cn(
                      'h-stack gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors',
                      (multiple ? (Array.isArray(modelValue) && modelValue.includes(opt.value)) : modelValue === opt.value) 
-                       ? (multiple ? 'bg-neutral-200 dark:bg-[#4A4A4A]' : 'bg-blue-600')
-                       : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D] text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
+                       ? (multiple ? 'bg-surface-hover' : 'bg-blue-600')
+                       : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D] text-content hover:text-neutral-900 dark:hover:text-white'
                    )">
                 
                 <!-- Checkbox visual for multiple -->

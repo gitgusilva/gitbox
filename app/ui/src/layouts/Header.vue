@@ -106,7 +106,7 @@ const openBranchMenu = (e: MouseEvent) => {
 </script>
 
 <template>
-  <header class="flex-shrink-0 bg-neutral-100 dark:bg-[#2D2D2D] border-b border-neutral-200 dark:border-[#1E1E1E] flex items-center gap-2 px-3 py-1.5 z-20 shadow-sm pointer-events-auto relative" style="-webkit-app-region: drag;">
+  <header class="flex-shrink-0 bg-surface border-b border-line flex items-center gap-2 px-3 py-1.5 z-20 shadow-sm pointer-events-auto relative" style="-webkit-app-region: drag;">
       
       <!-- Left side: Repo and Branch context -->
       <div class="flex items-center gap-2 mr-2 h-full py-0 min-w-[150px]" style="-webkit-app-region: no-drag;">

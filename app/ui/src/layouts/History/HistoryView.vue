@@ -422,7 +422,7 @@ function openContextMenu(e: MouseEvent, c: Commit) {
 </script>
 
 <template>
-  <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden bg-white dark:bg-[#1E1E1E]">
+  <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden bg-app">
     <HistoryCommitList
       ref="commitListRef"
       class="flex-1 min-w-0"

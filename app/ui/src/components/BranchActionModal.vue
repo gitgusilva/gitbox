@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Icon } from '@iconify/vue';
 import { branchActionModal } from '../services/modalService';
 import { generalSettings } from '../services/settingsService';
 import Modal from './Common/Modal.vue';
@@ -8,6 +9,8 @@ import Modal from './Common/Modal.vue';
 const { t } = useI18n();
 const inputValue = ref('');
 const inputRef = ref<HTMLInputElement | null>(null);
+// How to handle local changes on a conflicting checkout (mirrors the radios).
+const localChangeChoice = ref<'stash' | 'discard'>('stash');
 
 const confirmDisabled = computed(() => {
     if (branchActionModal.value?.type === 'create_branch' && !inputValue.value.trim()) return true;
@@ -41,6 +44,8 @@ watch(() => branchActionModal.value, (newVal) => {
         nextTick(() => {
             if (inputRef.value) inputRef.value.focus();
         });
+    } else if (newVal?.type === 'checkout_conflict') {
+        localChangeChoice.value = 'stash';
     }
 }, { immediate: true });
 
@@ -51,58 +56,79 @@ function handleAction(action: 'stash' | 'discard' | 'keep') {
     }
 }
 
+// Confirm a conflicting checkout: apply the chosen local-changes strategy.
+function confirmCheckout() {
+    handleAction(branchActionModal.value?.hasChanges ? localChangeChoice.value : 'keep');
+}
+
 function handleCancel() {
     branchActionModal.value = null;
 }
 </script>
 
 <template>
-  <Modal v-if="branchActionModal" :modelValue="true" @update:modelValue="!$event && handleCancel()" :title="branchActionModal.type === 'create_branch' ? t('modal.create_new_branch') : t('modal.checkout_conflicts')" width="512px">
-        
-        <div class="p-6 pb-2">
-          <div class="flex flex-col gap-4 mb-6">
+  <Modal v-if="branchActionModal" :modelValue="true" @update:modelValue="!$event && handleCancel()" :title="branchActionModal.type === 'create_branch' ? t('modal.create_new_branch') : t('modal.checkout_branch')" width="480px">
+    <div class="p-6">
 
-          <div v-if="branchActionModal.type === 'create_branch'" class="space-y-2">
-            <span class="text-xs text-neutral-600 dark:text-neutral-400">{{ t('modal.branch_name') }}</span>
-            <div class="relative w-full">
-                <!-- Highlight Overlay -->
-                <template v-if="generalSettings.highlightBranchPrefixes">
-                    <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden" aria-hidden="true" v-if="inputValue">
-                       <div v-html="highlightedBranchName" class="translate-y-[1px]"></div>
-                    </div>
-                    <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden text-neutral-600" aria-hidden="true" v-else>
-                       {{ t('modal.branch_name_placeholder') }}
-                    </div>
-                    <!-- Actual Input -->
-                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-transparent border border-neutral-300 dark:border-neutral-700/50 rounded px-3 py-2 text-xs text-transparent caret-white focus:border-blue-500 outline-none font-mono placeholder-transparent" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
-                </template>
-                <template v-else>
-                    <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-neutral-100 dark:bg-[#252526] border border-neutral-300 dark:border-neutral-700/50 rounded px-3 py-2 text-xs text-neutral-900 dark:text-white focus:border-blue-500 outline-none placeholder-neutral-500" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
-                </template>
+      <!-- Create branch -->
+      <template v-if="branchActionModal.type === 'create_branch'">
+        <div class="space-y-2 mb-6">
+          <span class="text-xs text-content-muted">{{ t('modal.branch_name') }}</span>
+          <div class="relative w-full">
+            <template v-if="generalSettings.highlightBranchPrefixes">
+              <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden" aria-hidden="true" v-if="inputValue">
+                <div v-html="highlightedBranchName" class="translate-y-[1px]"></div>
+              </div>
+              <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden text-neutral-600" aria-hidden="true" v-else>
+                {{ t('modal.branch_name_placeholder') }}
+              </div>
+              <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-transparent border border-line-strong/50 rounded px-3 py-2 text-xs text-transparent caret-white focus:border-accent outline-none font-mono placeholder-transparent" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
+            </template>
+            <template v-else>
+              <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-surface border border-line-strong/50 rounded px-3 py-2 text-xs text-content-strong focus:border-accent outline-none placeholder-neutral-500" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
+            </template>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
+          <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20 transition-all outline-none disabled:opacity-30 disabled:cursor-not-allowed">{{ t('common.create') }}</button>
+        </div>
+      </template>
+
+      <!-- Checkout branch (with optional local-changes handling) -->
+      <template v-else>
+        <div class="flex flex-col gap-3 mb-6 text-xs">
+          <div class="flex items-center gap-3">
+            <span class="w-32 shrink-0 text-right text-content-muted">{{ t('modal.branch_label') }}:</span>
+            <span class="flex items-center gap-1.5 text-content-strong font-medium">
+              <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted" />{{ branchActionModal.targetBranch }}
+            </span>
+          </div>
+          <div v-if="branchActionModal.hasChanges" class="flex items-center gap-3">
+            <span class="w-32 shrink-0 text-right text-content-muted">{{ t('modal.local_changes_label') }}:</span>
+            <div class="flex items-center gap-5">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="radio" value="stash" v-model="localChangeChoice" class="w-3.5 h-3.5" style="accent-color: rgb(var(--gb-accent))" />
+                <span class="text-content">{{ t('modal.stash_reapply') }}</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="radio" value="discard" v-model="localChangeChoice" class="w-3.5 h-3.5" style="accent-color: rgb(var(--gb-accent))" />
+                <span class="text-content">{{ t('modal.discard') }}</span>
+              </label>
             </div>
           </div>
-
-          <div v-else-if="branchActionModal.type === 'checkout_conflict'" class="text-xs text-neutral-600 dark:text-neutral-400" v-html="t('modal.checkout_conflict_text', { branch: branchActionModal.targetBranch })">
-          </div>
-
-          <div v-if="branchActionModal.hasChanges" class="text-xs text-yellow-500 bg-yellow-500/10 p-3 rounded border-l-2 border-yellow-500 mt-2">
-             {{ t('modal.local_changes_prompt') }}
-          </div>
         </div>
-        
-        <div class="flex justify-end gap-3 flex-wrap">
-          <button @click="handleCancel" class="px-5 py-2 rounded border border-neutral-300 dark:border-neutral-700 text-xs font-bold bg-neutral-100 dark:bg-[#252526] hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all outline-none uppercase tracking-widest">{{ t('common.cancel') }}</button>
-          
-          <template v-if="branchActionModal.hasChanges">
-             <button @click="handleAction('discard')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-red-600 hover:bg-red-500">{{ t('modal.discard_and_proceed') }}</button>
-             <button @click="handleAction('stash')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-orange-600 hover:bg-orange-500">{{ t('modal.stash_and_proceed') }}</button>
-          </template>
-
-          <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-4 py-2 rounded text-xs font-bold text-white transition-all outline-none disabled:opacity-30 uppercase tracking-widest bg-blue-600 hover:bg-blue-500">
-              {{ branchActionModal.hasChanges ? t('modal.keep_and_proceed') : t('modal.proceed') }}
+        <div class="flex justify-end gap-3">
+          <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
+          <button @click="confirmCheckout"
+                  class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest text-white shadow-lg transition-all outline-none"
+                  :class="branchActionModal.hasChanges && localChangeChoice === 'discard' ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20'">
+            {{ t('common.ok') }}
           </button>
         </div>
-        </div>
+      </template>
+
+    </div>
   </Modal>
 </template>
 

@@ -35,11 +35,39 @@ contextBridge.exposeInMainWorld('gitbox', {
   mergeContinue: (repoPath, message) => ipcRenderer.invoke('gitbox:mergeContinue', repoPath, message),
   mergeAbort: (repoPath) => ipcRenderer.invoke('gitbox:mergeAbort', repoPath),
   repoState: (repoPath) => ipcRenderer.invoke('gitbox:repoState', repoPath),
+  statistics: (repoPath, sinceMonths) => ipcRenderer.invoke('gitbox:statistics', repoPath, sinceMonths),
+
+  // Per-file actions (Local Changes context menu)
+  openPath: (fullPath) => ipcRenderer.invoke('gitbox:openPath', fullPath),
+  revealInFolder: (fullPath) => ipcRenderer.invoke('gitbox:revealInFolder', fullPath),
+  assumeUnchanged: (repoPath, filePath, assume) => ipcRenderer.invoke('gitbox:assumeUnchanged', repoPath, filePath, assume),
+  stashFile: (repoPath, filePath, message) => ipcRenderer.invoke('gitbox:stashFile', repoPath, filePath, message),
+  savePatch: (repoPath, filePath, staged) => ipcRenderer.invoke('gitbox:savePatch', repoPath, filePath, staged),
+  fileHistory: (repoPath, filePath, maxCount) => ipcRenderer.invoke('gitbox:fileHistory', repoPath, filePath, maxCount),
+  saveTextFile: (defaultName, content) => ipcRenderer.invoke('gitbox:saveTextFile', defaultName, content),
+  openTextFile: () => ipcRenderer.invoke('gitbox:openTextFile'),
+  fetchText: (url) => ipcRenderer.invoke('gitbox:fetchText', url),
   notifyMergeResolved: () => ipcRenderer.send('merge:resolved'),
   onMergeResolved: (callback) => {
     const listener = () => callback();
     ipcRenderer.on('merge:resolved-broadcast', listener);
     return () => ipcRenderer.removeListener('merge:resolved-broadcast', listener);
+  },
+
+  // Live theme sync across windows (main editor -> open merge windows).
+  broadcastTheme: (theme) => ipcRenderer.send('theme:broadcast', theme),
+  onThemeChanged: (callback) => {
+    const listener = (_event, theme) => callback(theme);
+    ipcRenderer.on('theme:changed', listener);
+    return () => ipcRenderer.removeListener('theme:changed', listener);
+  },
+
+  // Live general-settings sync across windows (e.g. merge layout -> open merge windows).
+  broadcastSettings: (settings) => ipcRenderer.send('settings:broadcast', settings),
+  onSettingsChanged: (callback) => {
+    const listener = (_event, settings) => callback(settings);
+    ipcRenderer.on('settings:changed', listener);
+    return () => ipcRenderer.removeListener('settings:changed', listener);
   },
 
   // ==========================================
@@ -61,6 +89,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   getFileBlame: (repoPath, filePath, rev) => ipcRenderer.invoke('gitbox:getFileBlame', repoPath, filePath, rev),
   stashChanges: (repoPath, stashId) => ipcRenderer.invoke('gitbox:stashChanges', repoPath, stashId),
   stashSave: (repoPath, message) => ipcRenderer.invoke('gitbox:stashSave', repoPath, message),
+  stashApply: (repoPath, stashId) => ipcRenderer.invoke('gitbox:stashApply', repoPath, stashId),
   stashPop: (repoPath, stashId) => ipcRenderer.invoke('gitbox:stashPop', repoPath, stashId),
   stashDrop: (repoPath, stashId) => ipcRenderer.invoke('gitbox:stashDrop', repoPath, stashId),
   createBranch: (repoPath, name, startPoint) => ipcRenderer.invoke('gitbox:createBranch', repoPath, name, startPoint),

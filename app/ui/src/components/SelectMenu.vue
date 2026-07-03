@@ -108,10 +108,10 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div class="fixed z-50 pointer-events-auto" :style="{ top: y + 'px', left: x + 'px' }">
-      <div ref="menuElement" class="bg-neutral-100 dark:bg-[#2D2D2D] border border-neutral-300 dark:border-neutral-700 w-[260px] rounded-lg shadow-2xl py-0 flex flex-col pointer-events-auto text-[#E0E0E0] text-xs overflow-hidden">
+      <div ref="menuElement" class="bg-surface border border-line-strong w-[260px] rounded-lg shadow-2xl py-0 flex flex-col pointer-events-auto text-[#E0E0E0] text-xs overflow-hidden">
         
         <!-- Search Input -->
-        <div class="p-2 border-b border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-[#252526]">
+        <div class="p-2 border-b border-line-strong bg-surface">
           <div class="relative flex items-center">
             <Icon icon="lucide:search" class="absolute left-2.5 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
             <input 
@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
               type="text" 
               spellcheck="false"
               :placeholder="placeholder || t('common.search') || 'Search...'" 
-              class="w-full bg-neutral-50 dark:bg-[#1A1A1A] border border-neutral-300 dark:border-neutral-700 focus:border-blue-500 rounded px-8 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 outline-none transition-colors"
+              class="w-full bg-app border border-line-strong focus:border-accent rounded px-8 py-1.5 text-xs text-content outline-none transition-colors"
               @keydown.esc="emit('close')"
             />
           </div>
@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
                         'h-stack justify-between px-2.5 w-full text-left cursor-pointer transition-colors duration-150 rounded-md group/item',
                         item.active
                           ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                          : 'hover:bg-white/10 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
+                          : 'hover:bg-white/10 text-content hover:text-neutral-900 dark:hover:text-white'
                       )">
 
                 <div class="h-stack gap-2.5 flex-1 min-w-0">
@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
                 <div class="h-stack gap-2 shrink-0">
                   <span v-if="item.badge"
                         :class="cn(
-                          'px-1.5 py-0.5 rounded text-[9px] font-black tracking-tighter bg-black/30 border border-white/5 text-neutral-600 dark:text-neutral-400 transition-colors',
+                          'px-1.5 py-0.5 rounded text-[9px] font-black tracking-tighter bg-black/30 border border-white/5 text-content-muted transition-colors',
                           item.active ? 'bg-white/20 border-white/20 text-white' : ''
                         )">
                     {{ item.badge }}

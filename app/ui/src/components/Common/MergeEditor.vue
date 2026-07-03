@@ -7,11 +7,16 @@ import { getLanguage, getMonacoTheme, monacoOptions, initMonaco } from '../../se
 import Tooltip from './Tooltip.vue';
 import { parseConflicts } from './merge-editor/conflictParser';
 import type { ConflictBlock, ConflictState } from './merge-editor/types';
-import { createResultInfoWidget, createSideConflictWidget } from './merge-editor/widgetFactory';
+import { createResultInfoWidget } from './merge-editor/widgetFactory';
 import { applyConflictViewZones, clearViewZones } from './merge-editor/viewZones';
 import { bindModelsToEditors, createMergeEditors, createMergeModels, disposeMonacoResources, setupScrollSync } from './merge-editor/monacoRuntime';
 import { useMergeConflictActions } from './merge-editor/useMergeConflictActions';
+import { createSideConflictWidget } from './merge-editor/widgetFactory';
+import { generalSettings } from '../../services/settingsService';
 import { gravatarUrl } from '../../utils/avatars';
+
+/** Active merge layout: 'columns' (JetBrains 3-pane) or 'stacked' (classic). */
+const mergeLayout = computed(() => generalSettings.value.mergeLayout ?? 'columns');
 
 const { t } = useI18n();
 const { currentTheme } = useTheme();
@@ -35,8 +40,10 @@ const resultContainer = ref<HTMLElement | null>(null);
 const compareContainer = ref<HTMLElement | null>(null);
 const workspaceContainer = ref<HTMLElement | null>(null);
 
-const leftPaneWidth = ref(0);
-const topPaneHeight = ref(0);
+const currentWidth = ref(0);   // columns layout: current pane width
+const incomingWidth = ref(0);  // columns layout: incoming pane width
+const leftPaneWidth = ref(0);  // stacked layout: incoming pane width (top-left)
+const topPaneHeight = ref(0);  // stacked layout: top row height
 const isComparingWithBase = ref(false);
 const compareTarget = ref<'incoming' | 'current' | 'result'>('result');
 const initialResultText = ref('');
@@ -129,6 +136,12 @@ async function loadBlame() {
   }
 }
 
+// Scrolling over the blame gutter scrolls the result editor (blame follows).
+function onBlameWheel(e: WheelEvent) {
+  if (!resultEditor) return;
+  resultEditor.setScrollTop(resultEditor.getScrollTop() + e.deltaY);
+}
+
 function updateVisibleBlame() {
   if (!resultEditor || !showBlame.value) { visibleBlame.value = []; return; }
   blameScrollTop.value = resultEditor.getScrollTop();
@@ -174,9 +187,11 @@ let resultZoneIds: string[] = [];
 let editorSubscriptions: any[] = [];
 let resizeObserver: ResizeObserver | null = null;
 
-let draggingSplit: null | 'horizontal' | 'vertical' = null;
+let draggingSplit: null | 'current' | 'incoming' | 'horizontal' | 'vertical' = null;
 let dragStartX = 0;
 let dragStartY = 0;
+let dragStartCurrent = 0;
+let dragStartIncoming = 0;
 let dragStartLeft = 0;
 let dragStartTop = 0;
 
@@ -208,6 +223,74 @@ const {
     renderConflictWidgets();
   },
 });
+
+// --- Connector gutter (between the incoming & current panes) -----------------
+// The two panes are line-aligned on conflicts and scroll-synced, so each
+// conflict maps to a band spanning its line range in the middle gutter. The
+// band colour follows the theme tokens and encodes the resolution state, so the
+// connectors match the diff viewer's ribbons and Monaco's diff colours.
+const GUTTER_W = 44; // connector gutter width (holds bands + accept arrows)
+const CONNECTOR_HEADER_H = 32; // the h-8 pane header the gutter also spans
+const hasConnectors = computed(() => conflicts.value.length > 0);
+
+const STACK_GUTTER = 22;
+
+// The same section/gutter elements are placed via grid-template-areas, so the
+// two layouts share one DOM. Columns = JetBrains 3-pane (current | result |
+// incoming) with a connector gutter each side; stacked = classic (incoming |
+// current on top, result below).
+const gridStyle = computed(() => {
+  if (mergeLayout.value === 'stacked') {
+    const l = leftPaneWidth.value > 0 ? `${leftPaneWidth.value}px` : '1fr';
+    const t = topPaneHeight.value > 0 ? `${topPaneHeight.value}px` : '55%';
+    return {
+      gridTemplateColumns: `${l} ${STACK_GUTTER}px 1fr`,
+      gridTemplateRows: `${t} 6px 1fr`,
+      gridTemplateAreas: '"inc gm cur" "rz rz rz" "res res res"',
+    };
+  }
+  const c = currentWidth.value > 0 ? `${currentWidth.value}px` : '1fr';
+  const i = incomingWidth.value > 0 ? `${incomingWidth.value}px` : '1fr';
+  return {
+    gridTemplateColumns: `${c} ${GUTTER_W}px minmax(240px, 1fr) ${GUTTER_W}px ${i}`,
+    gridTemplateRows: '1fr',
+    gridTemplateAreas: '"cur gl res gr inc"',
+  };
+});
+
+/** Per-conflict accept arrows: vertical center of each band, offset by the header. */
+const connectorArrows = computed(() =>
+  connectorBands.value.map((b) => ({ index: b.index, y: b.top + b.height / 2 + CONNECTOR_HEADER_H })),
+);
+type ConnectorBand = { index: number; top: number; height: number; state: ConflictState };
+const connectorBands = ref<ConnectorBand[]>([]);
+
+function connectorColor(state: ConflictState): string {
+  switch (state) {
+    case 'incoming': return 'rgb(var(--gb-added) / 0.55)';
+    case 'current': return 'rgb(var(--gb-modified) / 0.55)';
+    case 'both': return 'rgb(var(--gb-accent) / 0.5)';
+    case 'base': return 'rgb(var(--gb-text-muted) / 0.4)';
+    case 'manual': return 'rgb(var(--gb-accent) / 0.4)';
+    default: return 'rgb(var(--gb-removed) / 0.5)'; // unresolved
+  }
+}
+
+function updateConnectors() {
+  if (!incomingEditor || conflicts.value.length === 0) { connectorBands.value = []; return; }
+  const scrollTop = incomingEditor.getScrollTop();
+  const viewH = incomingEditor.getLayoutInfo().height;
+  const bands: ConnectorBand[] = [];
+  for (const c of conflicts.value) {
+    const top = Math.max(0, incomingEditor.getTopForLineNumber(c.startLine) - scrollTop);
+    const bottom = Math.min(viewH, incomingEditor.getTopForLineNumber(c.endLine + 1) - scrollTop);
+    if (bottom <= 0 || top >= viewH || bottom <= top) continue;
+    bands.push({ index: c.index, top, height: bottom - top, state: conflictStates.value[c.index] ?? 'none' });
+  }
+  connectorBands.value = bands;
+}
+
+watch([conflicts, conflictStates], () => nextTick(updateConnectors), { deep: true });
 
 function applyConflictAt(index: number, strategy: 'incoming' | 'current' | 'both' | 'base') {
   applyConflictAtAction(index, strategy);
@@ -276,19 +359,29 @@ function clampSplitters() {
   const width = workspaceContainer.value?.clientWidth ?? 0;
   const height = workspaceContainer.value?.clientHeight ?? 0;
 
-  if (width > 0) {
-    const minLeft = 220;
-    const maxLeft = Math.max(minLeft, width - 220);
-    if (leftPaneWidth.value <= 0) leftPaneWidth.value = Math.floor(width / 2);
-    leftPaneWidth.value = Math.max(minLeft, Math.min(maxLeft, leftPaneWidth.value));
+  if (mergeLayout.value === 'stacked') {
+    if (width > 0) {
+      const minLeft = 220;
+      const maxLeft = Math.max(minLeft, width - 220);
+      if (leftPaneWidth.value <= 0) leftPaneWidth.value = Math.floor(width / 2);
+      leftPaneWidth.value = Math.max(minLeft, Math.min(maxLeft, leftPaneWidth.value));
+    }
+    if (height > 0) {
+      const minTop = 140;
+      const maxTop = Math.max(minTop, height - 200);
+      if (topPaneHeight.value <= 0) topPaneHeight.value = Math.floor(height * 0.55);
+      topPaneHeight.value = Math.max(minTop, Math.min(maxTop, topPaneHeight.value));
+    }
+    return;
   }
 
-  if (height > 0) {
-    const minTop = 140;
-    const maxTop = Math.max(minTop, height - 200);
-    if (topPaneHeight.value <= 0) topPaneHeight.value = Math.floor(height * 0.55);
-    topPaneHeight.value = Math.max(minTop, Math.min(maxTop, topPaneHeight.value));
-  }
+  if (width <= 0) return;
+  const minCol = 180;
+  const minResult = 240;
+  const budget = width - GUTTER_W * 2 - minResult - minCol;
+  const maxEach = Math.max(minCol, budget);
+  if (currentWidth.value > 0) currentWidth.value = Math.max(minCol, Math.min(maxEach, currentWidth.value));
+  if (incomingWidth.value > 0) incomingWidth.value = Math.max(minCol, Math.min(maxEach, incomingWidth.value));
 }
 
 function buildDecorations() {
@@ -356,22 +449,16 @@ function renderConflictWidgets() {
   }
 
   destroyConflictWidgets();
-  conflictWidgetsIncoming = conflicts.value.map((conflict) => createSideConflictWidget({
-    monaco: monaco.value,
-    editor: incomingEditor,
-    conflict,
-    side: 'incoming',
-    t,
-    onApply: applyConflictAt,
-  }));
-  conflictWidgetsCurrent = conflicts.value.map((conflict) => createSideConflictWidget({
-    monaco: monaco.value,
-    editor: currentEditor,
-    conflict,
-    side: 'current',
-    t,
-    onApply: applyConflictAt,
-  }));
+  // Columns layout accepts via gutter arrows; the classic stacked layout keeps
+  // the in-editor side accept widgets.
+  if (mergeLayout.value === 'stacked') {
+    conflictWidgetsIncoming = conflicts.value.map((conflict) => createSideConflictWidget({
+      monaco: monaco.value, editor: incomingEditor, conflict, side: 'incoming', t, onApply: applyConflictAt,
+    }));
+    conflictWidgetsCurrent = conflicts.value.map((conflict) => createSideConflictWidget({
+      monaco: monaco.value, editor: currentEditor, conflict, side: 'current', t, onApply: applyConflictAt,
+    }));
+  }
   conflictWidgetsResult = conflicts.value.map((conflict) => createResultInfoWidget({
     monaco: monaco.value,
     editor: resultEditor,
@@ -381,10 +468,19 @@ function renderConflictWidgets() {
   })).filter(Boolean);
 }
 
-function startSplitDrag(type: 'horizontal' | 'vertical', event: MouseEvent) {
-  draggingSplit = type;
+function startSplitDrag(side: 'current' | 'incoming' | 'horizontal' | 'vertical', event: MouseEvent) {
+  const w = workspaceContainer.value?.clientWidth ?? 900;
+  const thirds = Math.floor((w - GUTTER_W * 2) / 3);
+  draggingSplit = side;
   dragStartX = event.clientX;
   dragStartY = event.clientY;
+  // Seed fluid columns from the current third so the drag has a start width.
+  dragStartCurrent = currentWidth.value > 0 ? currentWidth.value : thirds;
+  dragStartIncoming = incomingWidth.value > 0 ? incomingWidth.value : thirds;
+  if (side === 'current' || side === 'incoming') {
+    currentWidth.value = dragStartCurrent;
+    incomingWidth.value = dragStartIncoming;
+  }
   dragStartLeft = leftPaneWidth.value;
   dragStartTop = topPaneHeight.value;
   event.preventDefault();
@@ -396,13 +492,14 @@ function stopSplitDrag() {
 
 function onSplitDrag(event: MouseEvent) {
   if (!draggingSplit) return;
-
-  if (draggingSplit === 'horizontal') {
-    leftPaneWidth.value = dragStartLeft + (event.clientX - dragStartX);
-  } else {
-    topPaneHeight.value = dragStartTop + (event.clientY - dragStartY);
-  }
-
+  const dx = event.clientX - dragStartX;
+  // Columns layout: left gutter grows current (drag right), right gutter grows
+  // incoming (drag left). Stacked layout: horizontal = top-left width, vertical
+  // = top row height. The result absorbs the difference.
+  if (draggingSplit === 'current') currentWidth.value = dragStartCurrent + dx;
+  else if (draggingSplit === 'incoming') incomingWidth.value = dragStartIncoming - dx;
+  else if (draggingSplit === 'horizontal') leftPaneWidth.value = dragStartLeft + dx;
+  else if (draggingSplit === 'vertical') topPaneHeight.value = dragStartTop + (event.clientY - dragStartY);
   clampSplitters();
 }
 
@@ -527,7 +624,10 @@ async function setupEditors() {
   editorSubscriptions.push(
     resultEditor.onDidScrollChange(() => updateVisibleBlame()),
     resultEditor.onDidLayoutChange(() => updateVisibleBlame()),
+    incomingEditor.onDidScrollChange(() => updateConnectors()),
+    incomingEditor.onDidLayoutChange(() => updateConnectors()),
   );
+  nextTick(updateConnectors);
 
   resultModel.onDidChangeContent((event: any) => {
     isDirty.value = resultModel.getValue() !== lastSavedValue.value;
@@ -602,9 +702,20 @@ watch([remainingConflicts, isDirty], () => {
   emitEditorState();
 });
 
-watch([leftPaneWidth, topPaneHeight], async () => {
+watch([currentWidth, incomingWidth, leftPaneWidth, topPaneHeight], async () => {
   await nextTick();
   relayoutEditors();
+  updateConnectors();
+});
+
+// Switching layout re-arranges the grid and swaps the accept mechanism
+// (gutter arrows vs in-editor side widgets); re-render and relayout.
+watch(mergeLayout, async () => {
+  await nextTick();
+  clampSplitters();
+  relayoutEditors();
+  renderConflictWidgets();
+  updateConnectors();
 });
 
 onMounted(() => {
@@ -615,6 +726,7 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(() => {
     clampSplitters();
     relayoutEditors();
+    updateConnectors();
   });
 
   if (workspaceContainer.value) resizeObserver.observe(workspaceContainer.value);
@@ -630,8 +742,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex-1 min-h-0 flex flex-col bg-white dark:bg-[#1E1E1E] merge-editor-root">
-    <div class="shrink-0 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 px-3 py-2 flex items-center justify-between gap-3">
+  <div class="flex-1 min-h-0 flex flex-col bg-app merge-editor-root">
+    <div class="shrink-0 bg-surface border-b border-line px-3 py-2 flex items-center justify-between gap-3">
       <div class="min-w-0 flex items-center gap-1">
             <Tooltip :text="t('diff.word_wrap')">
               <button
@@ -639,8 +751,8 @@ onBeforeUnmount(() => {
                 :class="[
                   'w-7 h-7 center rounded border transition-colors',
                   isWordWrap
-                    ? 'bg-blue-600/20 border-blue-500/40 text-blue-500'
-                    : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                    ? 'bg-accent/20 border-accent/40 text-accent'
+                    : 'border-line-strong text-content-muted hover:text-content-strong'
                 ]"
               >
                 <Icon icon="lucide:wrap-text" class="text-xs" />
@@ -654,7 +766,7 @@ onBeforeUnmount(() => {
                   'w-7 h-7 center rounded border transition-colors disabled:opacity-30',
                   onlyConflicts
                     ? 'bg-amber-500/20 border-amber-500/40 text-amber-500'
-                    : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                    : 'border-line-strong text-content-muted hover:text-content-strong'
                 ]"
               >
                 <Icon icon="lucide:list-filter" class="text-xs" />
@@ -667,8 +779,8 @@ onBeforeUnmount(() => {
                 :class="[
                   'w-7 h-7 center rounded border transition-colors disabled:opacity-30',
                   showBlame
-                    ? 'bg-blue-600/20 border-blue-500/40 text-blue-500'
-                    : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                    ? 'bg-accent/20 border-accent/40 text-accent'
+                    : 'border-line-strong text-content-muted hover:text-content-strong'
                 ]"
               >
                 <Icon icon="lucide:git-commit-vertical" class="text-xs" />
@@ -685,26 +797,26 @@ onBeforeUnmount(() => {
         <button
           @click="moveConflict('prev')"
           :disabled="totalConflicts <= 0 || selectedConflictIndex === 0"
-          class="w-6 h-6 center rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white disabled:opacity-30"
+          class="w-6 h-6 center rounded border border-line-strong bg-surface text-content hover:text-content-strong disabled:opacity-30"
         >
           <Icon icon="lucide:chevron-up" class="text-xs" />
         </button>
         <button
           @click="moveConflict('next')"
           :disabled="totalConflicts <= 0 || selectedConflictIndex >= totalConflicts - 1"
-          class="w-6 h-6 center rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white disabled:opacity-30"
+          class="w-6 h-6 center rounded border border-line-strong bg-surface text-content hover:text-content-strong disabled:opacity-30"
         >
           <Icon icon="lucide:chevron-down" class="text-xs" />
         </button>
 
-        <span class="text-[10px] text-neutral-600 dark:text-neutral-400 tabular-nums">
+        <span class="text-[10px] text-content-muted tabular-nums">
           {{ totalConflicts > 0 ? `${selectedConflictIndex + 1}/${totalConflicts}` : '0/0' }}
         </span>
 
         <Tooltip :text="t('common.save')">
           <button
             @click="handleSave"
-            class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter text-white"
+            class="px-3 py-1 rounded bg-accent hover:bg-accent-hover transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter text-accent-fg"
           >
             <Icon icon="lucide:save" class="text-xs" />
             <span>{{ t('common.save') }}</span>
@@ -716,129 +828,146 @@ onBeforeUnmount(() => {
     <div
       ref="workspaceContainer"
       class="flex-1 min-h-0 grid relative"
-      :style="{ gridTemplateRows: `${topPaneHeight > 0 ? `${topPaneHeight}px` : '55%'} 6px 1fr` }"
+      :style="gridStyle"
     >
-      <div
-        class="min-h-0 grid border-b border-neutral-200 dark:border-neutral-800"
-        :style="{ gridTemplateColumns: `${leftPaneWidth > 0 ? `${leftPaneWidth}px` : '1fr'} 6px 1fr` }"
-      >
-        <section class="min-h-0 border-r border-neutral-200 dark:border-neutral-800 flex flex-col">
-          <header class="h-8 px-3 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-900/70">
-            <div class="h-stack items-center gap-2 min-w-0">
-              <span>{{ t('changes.incoming') }}</span>
-              <span class="text-neutral-500 truncate max-w-[40%]">{{ incomingRefLabel }}</span>
-            </div>
-            <div class="h-stack items-center gap-1">
-              <button
-                @click="applyAllConflicts('incoming')"
-                :disabled="totalConflicts <= 0"
-                class="px-2 py-0.5 text-[9px] rounded border border-emerald-700/70 text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-40"
-              >
-                {{ t('changes.accept_all_incoming') }}
-              </button>
-              <button
-                @click="openCompareWithBase('incoming')"
-                class="px-2 py-0.5 text-[9px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
-              >
-                {{ t('changes.compare_with_base') }}
-              </button>
-            </div>
-          </header>
-          <div ref="incomingContainer" class="flex-1 min-h-0" />
-        </section>
+      <!-- CURRENT (ours / local) -->
+      <section class="min-h-0 flex flex-col min-w-0" style="grid-area: cur">
+        <header class="h-8 px-3 text-[11px] text-content-muted flex items-center justify-between border-b border-line bg-surface">
+          <div class="h-stack items-center gap-2 min-w-0">
+            <span>{{ t('changes.current') }}</span>
+            <span class="text-content-muted truncate max-w-[40%]">{{ currentRefLabel }}</span>
+          </div>
+          <div class="h-stack items-center gap-1">
+            <button @click="applyAllConflicts('current')" :disabled="totalConflicts <= 0"
+                    class="px-2 py-0.5 text-[9px] rounded border border-modified/50 text-modified hover:bg-modified/10 disabled:opacity-40">
+              {{ t('changes.accept_all_current') }}
+            </button>
+            <button @click="openCompareWithBase('current')"
+                    class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
+              {{ t('changes.compare_with_base') }}
+            </button>
+          </div>
+        </header>
+        <div ref="currentContainer" class="flex-1 min-h-0" />
+      </section>
 
-        <div
-          class="w-1.5 h-full z-20 bg-transparent hover:bg-blue-500/40 cursor-col-resize"
-          @mousedown="startSplitDrag('horizontal', $event)"
-        />
-
-        <section class="min-h-0 flex flex-col">
-          <header class="h-8 px-3 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-900/70">
-            <div class="h-stack items-center gap-2 min-w-0">
-              <span>{{ t('changes.current') }}</span>
-              <span class="text-neutral-500 truncate max-w-[40%]">{{ currentRefLabel }}</span>
-            </div>
-            <div class="h-stack items-center gap-1">
-              <button
-                @click="applyAllConflicts('current')"
-                :disabled="totalConflicts <= 0"
-                class="px-2 py-0.5 text-[9px] rounded border border-sky-700/70 text-sky-300 hover:bg-sky-900/30 disabled:opacity-40"
-              >
-                {{ t('changes.accept_all_current') }}
-              </button>
-              <button
-                @click="openCompareWithBase('current')"
-                class="px-2 py-0.5 text-[9px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
-              >
-                {{ t('changes.compare_with_base') }}
-              </button>
-            </div>
-          </header>
-          <div ref="currentContainer" class="flex-1 min-h-0" />
-        </section>
+      <!-- LEFT gutter (columns): bands + accept current -> result -->
+      <div v-if="mergeLayout === 'columns'" style="grid-area: gl" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
+           @mousedown="startSplitDrag('current', $event)">
+        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <rect v-for="band in connectorBands" :key="band.index"
+                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
+                :style="{ fill: connectorColor(band.state) }" />
+        </svg>
+        <button v-for="a in connectorArrows" :key="a.index"
+                @mousedown.stop @click="applyConflictAt(a.index, 'current')"
+                :title="t('changes.accept_all_current')"
+                class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
+                :style="{ top: (a.y - 10) + 'px' }">
+          <Icon icon="lucide:chevron-right" class="text-xs" />
+        </button>
       </div>
 
-      <div
-        class="h-1.5 w-full z-20 bg-transparent hover:bg-blue-500/40 cursor-row-resize"
-        @mousedown="startSplitDrag('vertical', $event)"
-      />
+      <!-- MIDDLE gutter (stacked): bands between incoming & current, + resize -->
+      <div v-if="mergeLayout === 'stacked'" style="grid-area: gm" class="relative h-full z-20 cursor-col-resize"
+           :class="hasConnectors ? 'bg-app border-x border-line' : 'bg-transparent hover:bg-accent/40'"
+           @mousedown="startSplitDrag('horizontal', $event)">
+        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <rect v-for="band in connectorBands" :key="band.index"
+                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
+                :style="{ fill: connectorColor(band.state) }" />
+        </svg>
+      </div>
 
-      <section class="min-h-0 flex flex-col">
-        <header class="h-8 px-3 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100/70 dark:bg-neutral-900/70">
+      <!-- Row resizer (stacked): between the top panes and the result -->
+      <div v-if="mergeLayout === 'stacked'" style="grid-area: rz"
+           class="w-full h-1.5 z-20 bg-transparent hover:bg-accent/40 cursor-row-resize"
+           @mousedown="startSplitDrag('vertical', $event)" />
+
+      <!-- RESULT (middle, editable) -->
+      <section class="min-h-0 flex flex-col min-w-0" style="grid-area: res">
+        <header class="h-8 px-3 text-[11px] text-content-muted flex items-center justify-between border-b border-line bg-surface">
           <div class="h-stack items-center gap-2 min-w-0">
             <span>{{ t('changes.result') }}</span>
-            <span class="text-neutral-500 truncate">{{ filename || t('changes.untitled') }}</span>
-            <span
-              v-if="isDirty"
-              class="inline-flex w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
-              :title="t('common.save')"
-            />
+            <span class="text-content-muted truncate">{{ filename || t('changes.untitled') }}</span>
+            <span v-if="isDirty" class="inline-flex w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" :title="t('common.save')" />
           </div>
           <div class="h-stack items-center gap-2">
-            <button
-              v-if="isComparingWithBase"
-              @click="closeCompare"
-              class="px-2 py-0.5 text-[9px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200/70 dark:hover:bg-neutral-800/70"
-            >
+            <button v-if="isComparingWithBase" @click="closeCompare"
+                    class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
               {{ t('changes.back_to_editor') }}
             </button>
-            <span class="text-neutral-500">{{ remainingConflicts }} {{ t('changes.conflicts_remaining') }}</span>
-            <button
-              @click="resetResultEditor"
-              class="w-6 h-6 center rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-100/60 dark:bg-neutral-900/60 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
-              :title="t('changes.reset_result')"
-            >
+            <span class="text-content-muted">{{ remainingConflicts }} {{ t('changes.conflicts_remaining') }}</span>
+            <button @click="resetResultEditor" class="w-6 h-6 center rounded border border-line-strong bg-surface text-content hover:text-content-strong" :title="t('changes.reset_result')">
               <Icon icon="lucide:rotate-ccw" class="text-xs" />
             </button>
           </div>
         </header>
         <div v-show="!isComparingWithBase" class="flex-1 min-h-0 flex">
           <!-- Blame gutter (HEAD) next to the result editor -->
-          <div v-if="showBlame" class="shrink-0 bg-neutral-50 dark:bg-[#181818] border-r border-neutral-200 dark:border-neutral-800 overflow-hidden relative select-none" :style="{ width: BLAME_WIDTH + 'px' }">
-            <div v-if="isBlameLoading" class="absolute inset-0 center bg-white/70 dark:bg-[#181818]/70 z-10">
-              <Icon icon="lucide:loader-2" class="animate-spin text-neutral-500" />
+          <div v-if="showBlame" @wheel.prevent="onBlameWheel" class="shrink-0 bg-app border-r border-line overflow-hidden relative select-none" :style="{ width: BLAME_WIDTH + 'px' }">
+            <div v-if="isBlameLoading" class="absolute inset-0 center bg-app/70 z-10">
+              <Icon icon="lucide:loader-2" class="animate-spin text-content-muted" />
             </div>
             <div v-else-if="blameError" class="p-3 text-[10px] text-red-400 text-center opacity-70">{{ blameError }}</div>
             <div v-else class="absolute left-0 right-0 top-0 will-change-transform" :style="{ transform: `translateY(-${blameScrollTop}px)` }">
               <div v-for="vb in visibleBlame" :key="vb.line" class="absolute left-0 w-full h-stack px-1 group overflow-hidden" :style="{ top: vb.top + 'px', height: vb.height + 'px' }">
                 <template v-if="vb.blame && vb.isNewCommit">
-                  <div class="h-full w-full h-stack items-center border-t border-neutral-200/50 dark:border-neutral-800/50 -mt-px px-1 group-hover:bg-neutral-200/40 dark:group-hover:bg-neutral-800/40 transition-colors">
-                    <Tooltip :text="`${vb.blame.author}\n${vb.blame.summary}`" position="right">
-                      <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-neutral-300 dark:border-neutral-700 shrink-0 mr-2 cursor-help" />
+                  <div class="h-full w-full flex items-center gap-2 border-t border-line -mt-px px-1 group-hover:bg-surface-hover transition-colors overflow-hidden">
+                    <Tooltip :text="`${vb.blame.author}\n${vb.blame.summary}`" position="right" class="shrink-0">
+                      <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-line-strong shrink-0 cursor-help" />
                     </Tooltip>
-                    <Tooltip :text="vb.blame.summary" position="right" class="flex-1 min-w-0 mr-1">
-                      <span class="truncate text-[10px] font-mono text-neutral-600/80 dark:text-neutral-400/80">{{ vb.blame.summary }}</span>
+                    <Tooltip :text="vb.blame.summary" position="right" class="flex-1 min-w-0 overflow-hidden">
+                      <span class="block w-full truncate text-[10px] font-mono text-content-muted">{{ vb.blame.summary }}</span>
                     </Tooltip>
-                    <span class="text-[9px] font-mono opacity-40 shrink-0">{{ new Date(Number(vb.blame.time) * 1000).toLocaleDateString('en-GB') }}</span>
+                    <span class="text-[9px] font-mono opacity-40 shrink-0 whitespace-nowrap tabular-nums">{{ new Date(Number(vb.blame.time) * 1000).toLocaleDateString('en-GB') }}</span>
                   </div>
                 </template>
-                <div v-else-if="vb.blame" class="w-[2px] h-full bg-neutral-200/40 dark:bg-neutral-800/40 ml-[7px]"></div>
+                <div v-else-if="vb.blame" class="w-[2px] h-full bg-line ml-[7px]"></div>
               </div>
             </div>
           </div>
           <div ref="resultContainer" class="flex-1 min-h-0 min-w-0" />
         </div>
         <div v-show="isComparingWithBase" ref="compareContainer" class="flex-1 min-h-0" />
+      </section>
+
+      <!-- RIGHT gutter (columns): bands + accept incoming -> result -->
+      <div v-if="mergeLayout === 'columns'" style="grid-area: gr" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
+           @mousedown="startSplitDrag('incoming', $event)">
+        <svg v-if="hasConnectors" class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+          <rect v-for="band in connectorBands" :key="band.index"
+                x="0" :y="band.top + CONNECTOR_HEADER_H" width="100%" :height="band.height"
+                :style="{ fill: connectorColor(band.state) }" />
+        </svg>
+        <button v-for="a in connectorArrows" :key="a.index"
+                @mousedown.stop @click="applyConflictAt(a.index, 'incoming')"
+                :title="t('changes.accept_all_incoming')"
+                class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
+                :style="{ top: (a.y - 10) + 'px' }">
+          <Icon icon="lucide:chevron-left" class="text-xs" />
+        </button>
+      </div>
+
+      <!-- INCOMING (theirs / remote) -->
+      <section class="min-h-0 flex flex-col min-w-0" style="grid-area: inc">
+        <header class="h-8 px-3 text-[11px] text-content-muted flex items-center justify-between border-b border-line bg-surface">
+          <div class="h-stack items-center gap-2 min-w-0">
+            <span>{{ t('changes.incoming') }}</span>
+            <span class="text-content-muted truncate max-w-[40%]">{{ incomingRefLabel }}</span>
+          </div>
+          <div class="h-stack items-center gap-1">
+            <button @click="applyAllConflicts('incoming')" :disabled="totalConflicts <= 0"
+                    class="px-2 py-0.5 text-[9px] rounded border border-added/50 text-added hover:bg-added/10 disabled:opacity-40">
+              {{ t('changes.accept_all_incoming') }}
+            </button>
+            <button @click="openCompareWithBase('incoming')"
+                    class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
+              {{ t('changes.compare_with_base') }}
+            </button>
+          </div>
+        </header>
+        <div ref="incomingContainer" class="flex-1 min-h-0" />
       </section>
     </div>
   </div>

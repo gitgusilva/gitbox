@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { startMarquee, stopMarquee } from '../../utils/dom';
 import { cn } from '../../utils/cn';
 import VirtualScroll from './VirtualScroll.vue';
+
+const { t } = useI18n();
 
 interface FileNode {
   path: string;
@@ -133,6 +136,7 @@ function getStatusIcon(status: string) {
   if (!status) return 'lucide:file';
   const s = status.toLowerCase();
 
+  if (s.includes('conflicted')) return 'lucide:alert-triangle';
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'lucide:plus';
   if (s.includes('deleted')) return 'lucide:minus';
   if (s.includes('renamed') || s.includes('moved')) return 'lucide:repeat';
@@ -142,24 +146,26 @@ function getStatusIcon(status: string) {
 }
 
 function getStatusColor(status: string, isSelected: boolean) {
-  if (isSelected) return 'text-white';
-  if (!status) return 'text-neutral-500';
-
-  const s = status.toLowerCase();
+  const s = (status || '').toLowerCase();
+  if (s.includes('conflicted')) return 'text-removed';
+  if (isSelected) return 'text-accent-fg';
+  if (!status) return 'text-content-muted';
 
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
   if (s.includes('deleted')) return 'text-red-500';
   if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
   if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
 
-  return 'text-neutral-500';
+  return 'text-content-muted';
 }
+
+const isConflicted = (status?: string) => (status || '').toLowerCase().includes('conflicted');
 </script>
 
 <template>
   <div :class="cn('v-stack select-none h-full overflow-hidden')" style="contain: content;">
-    <div v-if="files.length === 0" :class="cn('px-4 py-8 text-center text-xs text-neutral-600 italic uppercase tracking-widest font-bold')">
-      No files changed
+    <div v-if="files.length === 0" :class="cn('px-4 py-8 text-center text-xs text-content-muted italic uppercase tracking-widest font-bold')">
+      {{ t('changes.no_files_changed') }}
     </div>
     <VirtualScroll
       v-else
@@ -175,8 +181,9 @@ function getStatusColor(status: string, isSelected: boolean) {
         @dblclick="!item.data.isDir && emit('dblclick', item.data.fullPath)"
         @contextmenu.stop.prevent="emit('contextmenu', item.data.fullPath, $event)"
         :class="cn(
-          'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-none group overflow-hidden border-l-2 border-transparent',
-          (selectedPath === item.data.fullPath || (selectedPaths && selectedPaths.includes(item.data.fullPath))) ? 'bg-blue-900/40 text-white border-l-blue-400' : 'text-neutral-600 dark:text-neutral-400'
+          'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-surface-hover transition-none group overflow-hidden border-l-2 border-transparent',
+          (selectedPath === item.data.fullPath || (selectedPaths && selectedPaths.includes(item.data.fullPath))) ? 'bg-accent/20 text-content-strong border-l-accent'
+            : (isConflicted(item.data.status) ? 'text-removed' : 'text-content-muted')
         )"
         :style="{ paddingLeft: (item.data.level * 12 + 12) + 'px', height: '28px' }"
         @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
@@ -188,8 +195,8 @@ function getStatusColor(status: string, isSelected: boolean) {
           <Icon
             :icon="isDirOpen(item.data.fullPath) ? 'lucide:folder-open' : 'lucide:folder'"
             :class="cn(
-              'text-xs shrink-0 marquee-icon text-blue-500/50',
-              selectedPath === item.data.fullPath ? 'text-white' : ''
+              'text-xs shrink-0 marquee-icon text-accent/50',
+              selectedPath === item.data.fullPath ? 'text-content-strong' : ''
             )"
           />
         </template>

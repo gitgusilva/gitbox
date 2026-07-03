@@ -35,6 +35,8 @@ export interface GeneralSettings {
     notificationsEnabled: boolean;
     /** Screen corner where toast notifications appear. */
     notificationPosition: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+    /** Merge editor layout: JetBrains-style 3 columns, or the classic stacked panes. */
+    mergeLayout: 'columns' | 'stacked';
 }
 
 const defaultSettings: GeneralSettings = {
@@ -52,7 +54,8 @@ const defaultSettings: GeneralSettings = {
     externalEditor: 'none',
     externalTerminal: 'none',
     notificationsEnabled: true,
-    notificationPosition: 'bottom-right'
+    notificationPosition: 'bottom-right',
+    mergeLayout: 'columns'
 };
 
 function loadSettings(): GeneralSettings {
@@ -70,9 +73,31 @@ function loadSettings(): GeneralSettings {
 /** Global reactive settings state. */
 export const generalSettings = ref<GeneralSettings>(loadSettings());
 
+// Guard so applying a broadcast from another window doesn't echo back and loop.
+let applyingExternal = false;
+const gitbox = (): any => (typeof window !== 'undefined' ? (window as any).gitbox : undefined);
+
 watch(generalSettings, (val) => {
     setItem('gitbox_general_settings', JSON.stringify(val));
+    if (!applyingExternal) {
+        try { gitbox()?.broadcastSettings?.(JSON.parse(JSON.stringify(val))); } catch { /* ignore */ }
+    }
 }, { deep: true, flush: 'post' });
+
+// Receive settings changed in another window (e.g. the main Settings) and apply
+// them without persisting a broadcast back — keeps open merge windows in sync.
+if (gitbox()?.onSettingsChanged) {
+    gitbox().onSettingsChanged((incoming: Partial<GeneralSettings>) => {
+        if (!incoming) return;
+        applyingExternal = true;
+        try {
+            generalSettings.value = { ...defaultSettings, ...generalSettings.value, ...incoming };
+        } finally {
+            // Release after the watcher flush so our own write doesn't re-broadcast.
+            setTimeout(() => { applyingExternal = false; }, 0);
+        }
+    });
+}
 
 /**
  * Partially updates the general settings and persists them.

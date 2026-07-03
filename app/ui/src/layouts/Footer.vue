@@ -59,18 +59,28 @@ const openZoomMenu = (e: MouseEvent) => {
 </script>
 
 <template>
-  <div class="h-[22px] bg-white dark:bg-[#1E1E1E] border-t border-neutral-300 dark:border-[#2D2D2D] flex items-center justify-between px-3 text-neutral-700 dark:text-[#CCCCCC] text-[11px] select-none flex-shrink-0 z-50">
+  <div class="h-[22px] bg-app border-t border-line flex items-center justify-between px-3 text-content text-[11px] select-none flex-shrink-0 z-50">
     
-    <!-- Left Side -->
-    <div class="flex items-center h-full gap-3">
+    <!-- Left Side: main-content panels (Command Log + Statistics side by side) -->
+    <div class="flex items-center h-full">
         <Tooltip :text="t('common.output_log')" position="top">
-            <div 
-              @click="activeTab = activeTab === 'output_log' ? 'history' : 'output_log'" 
-              class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5 border-r border-neutral-300 dark:border-[#2D2D2D] pr-3"
+            <div
+              @click="activeTab = activeTab === 'output_log' ? 'history' : 'output_log'"
+              class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5"
               :class="{ 'text-blue-400 bg-blue-400/5': activeTab === 'output_log' }"
             >
                 <Icon icon="lucide:terminal" class="w-3.5 h-3.5" />
                 <span class="font-medium">{{ t('common.output_log') }}</span>
+            </div>
+        </Tooltip>
+        <Tooltip :text="t('stats.title')" position="top">
+            <div
+              @click="activeTab = activeTab === 'statistics' ? 'history' : 'statistics'"
+              class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5 border-r border-line"
+              :class="{ 'text-blue-400 bg-blue-400/5': activeTab === 'statistics' }"
+            >
+                <Icon icon="lucide:chart-pie" class="w-3.5 h-3.5" />
+                <span class="font-medium">{{ t('stats.title') }}</span>
             </div>
         </Tooltip>
     </div>
@@ -89,7 +99,7 @@ const openZoomMenu = (e: MouseEvent) => {
             </div>
         </Tooltip>
 
-        <div class="w-px h-3.5 bg-neutral-300 dark:bg-[#333333] hidden sm:block"></div>
+        <div class="w-px h-3.5 bg-line hidden sm:block"></div>
 
         <div @click="openSupport" class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-1 text-blue-400">
             {{ t('common.support') }}
@@ -103,8 +113,8 @@ const openZoomMenu = (e: MouseEvent) => {
     </div>
 
     <!-- Shortcuts Modal -->
-    <ConfirmModal v-if="isShortcutsModalOpen" :title="t('common.keyboard_shortcuts')" hide-buttons class="max-w-lg p-0 bg-white dark:bg-[#252526]" @cancel="isShortcutsModalOpen = false">
-        <ScrollArea class="p-5 max-h-[60vh] bg-neutral-50 dark:bg-[#1E1E1E] rounded-b-xl relative">
+    <ConfirmModal v-if="isShortcutsModalOpen" :title="t('common.keyboard_shortcuts')" hide-buttons class="max-w-lg p-0 bg-surface" @cancel="isShortcutsModalOpen = false">
+        <ScrollArea class="p-5 max-h-[60vh] bg-app rounded-b-xl relative">
             <div v-for="category in ['global', 'repository', 'terminal', 'editor', 'other']" :key="category">
                 <template v-if="getShortcutsRegistry().filter(item => (item.category || 'other') === category).length > 0">
                     <div class="font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest text-[9px] mb-3 mt-4 first:mt-0 flex items-center gap-2">
@@ -112,10 +122,10 @@ const openZoomMenu = (e: MouseEvent) => {
                         <div class="h-px bg-neutral-200 dark:bg-neutral-800 flex-1"></div>
                     </div>
                     <div class="flex flex-col gap-1.5 mb-6">
-                        <div v-for="(item, idx) in getShortcutsRegistry().filter(item => (item.category || 'other') === category)" :key="idx" class="flex items-center justify-between bg-white dark:bg-[#2A2A2B] px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800/50 shadow-sm">
-                            <div class="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">{{ item.titleKey ? t(item.titleKey) : (item.descriptionKey || 'Shortcut Action') }}</div>
+                        <div v-for="(item, idx) in getShortcutsRegistry().filter(item => (item.category || 'other') === category)" :key="idx" class="flex items-center justify-between bg-surface-hover px-3 py-2 rounded-lg border border-line/50 shadow-sm">
+                            <div class="text-[11px] font-medium text-content">{{ item.titleKey ? t(item.titleKey) : (item.descriptionKey || 'Shortcut Action') }}</div>
                             <div class="flex items-center gap-1">
-                                <span v-for="(key, kIdx) in item.pattern.split('+')" :key="kIdx" class="bg-neutral-100 dark:bg-[#141414] border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold min-w-[20px] text-center shadow-[0_1px_0_rgba(255,255,255,0.05)_inset,0_1px_1px_rgba(0,0,0,0.2)]">
+                                <span v-for="(key, kIdx) in item.pattern.split('+')" :key="kIdx" class="bg-surface border border-line text-content-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold min-w-[20px] text-center shadow-[0_1px_0_rgba(255,255,255,0.05)_inset,0_1px_1px_rgba(0,0,0,0.2)]">
                                     {{ key }}
                                 </span>
                             </div>

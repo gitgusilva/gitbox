@@ -49,7 +49,12 @@
     "clear": "Limpar",
     "confirm_clear_logs": "Limpar Logs",
     "confirm_clear_logs_msg": "Tem certeza que deseja limpar todos os logs de comandos?",
-    "message": "Mensagem"
+    "message": "Mensagem",
+    "panels": "Painéis",
+    "success": "Sucesso",
+    "error": "Erro",
+    "ok": "OK",
+    "create": "Criar"
   },
   "logs": {
     "command": "Comando",
@@ -84,7 +89,12 @@
   "stash": {
     "pop": "Aplicar e Remover (Pop)",
     "drop_title": "Remover Stash",
-    "drop_msg": "Tem certeza que deseja remover stash@{{index}}?"
+    "drop_msg": "Tem certeza que deseja remover stash@{{index}}?",
+    "apply": "Aplicar",
+    "apply_title": "Aplicar stash?",
+    "apply_msg": "Aplicar o stash {index} na cópia de trabalho? Ele será mantido na lista.",
+    "pop_title": "Aplicar e remover stash?",
+    "pop_msg": "Aplicar o stash {index} e removê-lo da lista?"
   },
   "workspace": {
     "add": "Adicionar Workspace",
@@ -184,7 +194,12 @@
     "open_in_external": "Abrir no {tool}",
     "finish_merge_session": "Concluir",
     "all_conflicts_done": "Todos os conflitos resolvidos.",
-    "no_blame_available": "Blame indisponível."
+    "no_blame_available": "Blame indisponível.",
+    "stashed_file": "Arquivo movido para stash",
+    "saved_patch": "Patch salvo",
+    "assumed_unchanged": "Marcado como assume-unchanged",
+    "no_history": "Sem histórico para este arquivo.",
+    "no_files_changed": "Nenhum arquivo alterado"
   },
   "branch_menu": {
     "merge_into_current": "Mesclar em {branch}",
@@ -204,7 +219,8 @@
     "file_view": "Arquivo",
     "diff_view": "Diff",
     "prev_change": "Alteração Anterior",
-    "next_change": "Próxima Alteração"
+    "next_change": "Próxima Alteração",
+    "connectors": "Conectores"
   },
   "settings": {
     "title": "Configurações",
@@ -289,7 +305,13 @@
       "desc_placeholder": "Descrição do pull request..."
     },
     "date_format_relative": "Relativo",
-    "ai_cli_no_key": "Usa o login do CLI local — não precisa de API key."
+    "ai_cli_no_key": "Usa o login do CLI local — não precisa de API key.",
+    "appearance": "Aparência",
+    "merge_editor": "Editor de merge",
+    "merge_layout": "Layout",
+    "merge_layout_columns": "Colunas (estilo JetBrains)",
+    "merge_layout_stacked": "Empilhado (clássico)",
+    "merge_layout_hint": "Como os painéis incoming, resultado e current são organizados no editor de merge."
   },
   "time": {
     "just_now": "Agora mesmo",
@@ -496,7 +518,12 @@
     "no_integrations_connected": "Nenhuma integração externa conectada.",
     "connect_in_settings": "Conecte uma nas Configurações",
     "branch": "Branch",
-    "configure_ai_hint": "Configurações > Integrações > Configurar IA"
+    "configure_ai_hint": "Configurações > Integrações > Configurar IA",
+    "branch_label": "Branch",
+    "local_changes_label": "Alterações locais",
+    "stash_reapply": "Stash e reaplicar",
+    "discard": "Descartar",
+    "checkout_branch": "Trocar de branch"
   },
   "view": {
     "github_pull_request": "Pull Request do GitHub",
@@ -564,5 +591,119 @@
     "toggle_terminal_focus": "Alternar foco do terminal",
     "search_repositories": "Buscar repositórios...",
     "search_branches": "Buscar branches..."
+  },
+  "stats": {
+    "title": "Estatísticas",
+    "depth": "Período",
+    "compute": "Calcular",
+    "computing": "Calculando estatísticas…",
+    "empty": "Sem histórico de commits para analisar.",
+    "no_repo": "Abra um repositório para ver as estatísticas.",
+    "all_history": "Todo o histórico",
+    "n_months": "{n} meses",
+    "commits": "Commits",
+    "contributors": "Contribuidores",
+    "branches": "Branches",
+    "tags": "Tags",
+    "size": "Tamanho",
+    "churn": "Alterações",
+    "contribution_share": "Participação nas Contribuições",
+    "summary": "Resumo",
+    "developer": "Desenvolvedor",
+    "lines": "Linhas",
+    "lines_lc": "linhas",
+    "avg": "Média/Commit",
+    "monthly_contributions": "Contribuições Mensais",
+    "commit_activity": "Atividade de Commits",
+    "by_weekday": "Commits por Dia da Semana",
+    "by_hour": "Atividade por Hora",
+    "other": "Outros",
+    "weekday": {
+      "sun": "Dom",
+      "mon": "Seg",
+      "tue": "Ter",
+      "wed": "Qua",
+      "thu": "Qui",
+      "fri": "Sex",
+      "sat": "Sáb"
+    },
+    "reset_zoom": "Resetar zoom"
+  },
+  "appearance": {
+    "mode": "Modo base",
+    "mode_system": "Sistema",
+    "mode_light": "Claro",
+    "mode_dark": "Escuro",
+    "themes": "Temas",
+    "dark_themes": "Escuros",
+    "light_themes": "Claros",
+    "import": "Importar",
+    "export": "Exportar",
+    "imported": "Tema importado",
+    "import_failed": "Arquivo de tema inválido",
+    "exported": "JSON do tema copiado",
+    "duplicate": "Duplicar",
+    "reset": "Restaurar",
+    "builtin_note": "Temas nativos são somente leitura. Editar uma cor cria uma cópia editável.",
+    "name": "Nome do tema",
+    "colors": "Cores",
+    "typography": "Tipografia",
+    "ui_font": "Fonte da UI",
+    "ui_font_size": "Tamanho da fonte da UI",
+    "editor_font": "Fonte do editor",
+    "editor_font_size": "Tamanho da fonte do editor",
+    "editor_line_height": "Altura da linha do editor",
+    "radius": "Arredondamento",
+    "preview": "Pré-visualização",
+    "group": {
+      "backgrounds": "Fundos",
+      "borders": "Bordas",
+      "text": "Texto",
+      "accent": "Destaque",
+      "git": "Git"
+    },
+    "color": {
+      "bg": "Fundo",
+      "bgElevated": "Elevado",
+      "bgOverlay": "Sobreposição",
+      "surfaceHover": "Hover",
+      "border": "Borda",
+      "borderStrong": "Borda forte",
+      "text": "Texto",
+      "textMuted": "Texto suave",
+      "accent": "Destaque",
+      "accentHover": "Destaque hover",
+      "accentFg": "Texto do destaque",
+      "added": "Adicionado",
+      "removed": "Removido",
+      "modified": "Modificado",
+      "textStrong": "Texto forte"
+    },
+    "mode_hint": "Sistema, Claro e Escuro usam os temas padrão do GitBox.",
+    "custom_themes": "Temas",
+    "duplicate_current": "Duplicar atual",
+    "identity": "Detalhes do tema",
+    "version": "Versão",
+    "author": "Autor",
+    "author_email": "Email do autor",
+    "description": "Descrição",
+    "by": "por {author}",
+    "search": "Buscar temas…",
+    "all": "Todos",
+    "no_match": "Nenhum tema corresponde à busca.",
+    "repository": "Repositório de temas",
+    "refresh": "Atualizar",
+    "loading": "Carregando…",
+    "install": "Instalar",
+    "installing": "Instalando…",
+    "update": "Atualizar",
+    "installed_ok": "{name} instalado",
+    "install_failed": "Não foi possível instalar o tema",
+    "repo_offline": "Não foi possível acessar o repositório de temas. Seus temas padrão e instalados continuam funcionando offline — ou importe um arquivo de tema.",
+    "import_local": "Importar arquivo de tema",
+    "repo_offline_cached": "Offline — mostrando a lista salva. Buscar novos temas está indisponível.",
+    "active": "Ativo",
+    "customize_hint": "Para personalizar um tema, exporte-o, edite o JSON e importe de volta.",
+    "publish_theme": "Publicar um tema"
   }
 }

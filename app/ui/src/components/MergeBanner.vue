@@ -24,18 +24,18 @@ function onComplete() {
 </script>
 
 <template>
-  <div v-if="isMerging" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-amber-900/25 border-b border-amber-500/30">
+  <div v-if="isMerging" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-amber-500/60">
     <div class="h-stack items-center gap-2 min-w-0">
-      <Icon icon="lucide:git-merge" class="text-amber-400 shrink-0" />
+      <Icon icon="lucide:git-merge" class="text-amber-500 shrink-0" />
       <div class="v-stack min-w-0 leading-tight">
-        <span class="text-[11px] font-bold text-amber-200 uppercase tracking-wider">{{ t('changes.merge_in_progress') }}</span>
-        <span class="text-[10px] text-amber-200/60 truncate">{{ t('changes.merge_resolve_hint') }}</span>
+        <span class="text-[11px] font-bold text-content-strong uppercase tracking-wider">{{ t('changes.merge_in_progress') }}</span>
+        <span class="text-[10px] text-content-muted truncate">{{ t('changes.merge_resolve_hint') }}</span>
       </div>
     </div>
     <div class="h-stack items-center gap-2 shrink-0">
       <button
         @click="onAbort"
-        class="h-stack items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-neutral-300 dark:border-neutral-700 bg-neutral-100/50 dark:bg-neutral-900/50 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
+        class="h-stack items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-line-strong bg-app text-content hover:bg-surface-hover transition-colors"
       >
         <Icon icon="lucide:x" />
         {{ t('changes.abort_merge') }}
@@ -46,8 +46,8 @@ function onComplete() {
         :class="[
           'h-stack items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors border',
           hasUnresolvedConflicts
-            ? 'bg-neutral-200/70 dark:bg-neutral-800/70 border-neutral-300 dark:border-neutral-700 text-neutral-500 cursor-not-allowed'
-            : 'bg-blue-700/80 hover:bg-blue-600 border-blue-400/40 text-blue-100',
+            ? 'bg-surface border-line-strong text-content-muted cursor-not-allowed'
+            : 'bg-accent hover:bg-accent-hover border-accent/40 text-accent-fg',
         ]"
       >
         <Icon icon="lucide:check" />

@@ -4,9 +4,14 @@ import { Icon } from '@iconify/vue';
 import Select from '../../Common/Select.vue';
 import Tooltip from '../../Common/Tooltip.vue';
 import { generalSettings } from '../../../services/settingsService';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 
 const { t } = useI18n();
+
+const mergeLayoutOptions = computed(() => [
+    { value: 'columns', label: t('settings.merge_layout_columns') },
+    { value: 'stacked', label: t('settings.merge_layout_stacked') },
+]);
 
 const diffToolOptions = ref([
     { value: 'use_merge_tool', label: '<Use Merge Tool>' },
@@ -48,7 +53,7 @@ onMounted(async () => {
   <div class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
     <!-- External Tools Section -->
     <section class="space-y-6">
-      <h2 class="text-xl font-bold text-neutral-700 dark:text-neutral-300">
+      <h2 class="text-xl font-bold text-content">
         {{ t('settings.external_tools') }}
       </h2>
       
@@ -98,6 +103,22 @@ onMounted(async () => {
           <Select v-model="generalSettings.externalTerminal" :options="terminalOptions" class="w-full" />
         </div>
 
+      </div>
+    </section>
+
+    <!-- Merge editor Section -->
+    <section class="space-y-6">
+      <h2 class="text-xl font-bold text-content">
+        {{ t('settings.merge_editor') }}
+      </h2>
+      <div class="flex flex-col gap-6">
+        <div>
+          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+            {{ t('settings.merge_layout') }}
+          </label>
+          <Select v-model="generalSettings.mergeLayout" :options="mergeLayoutOptions" class="w-full" />
+          <p class="text-[11px] text-content-muted mt-2">{{ t('settings.merge_layout_hint') }}</p>
+        </div>
       </div>
     </section>
   </div>

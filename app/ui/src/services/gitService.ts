@@ -574,6 +574,7 @@ export const commitAll = async () => {
 };
 
 export const deleteBranch = (name: string) => runAction(() => window.gitbox.deleteBranch(repoPath.value, name), 'full', `Delete branch ${name}`, true);
+export const stashApply = (stashId?: string) => runAction(() => window.gitbox.stashApply(repoPath.value, stashId), 'full', "Apply stash", true);
 export const stashPop = (stashId?: string) => runAction(() => window.gitbox.stashPop(repoPath.value, stashId), 'full', "Pop stash", true);
 export const dropStash = (stashId?: string) => runAction(() => window.gitbox.stashDrop(repoPath.value, stashId), 'full', "Drop stash", true);
 

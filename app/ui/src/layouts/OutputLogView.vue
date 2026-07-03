@@ -121,25 +121,25 @@ const getColor = (type: string) => {
     if (type === 'success') return 'text-green-400';
     if (type === 'command') return 'text-blue-400';
 
-    return 'text-neutral-600 dark:text-neutral-400';
+    return 'text-content-muted';
 };
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-white dark:bg-[#1E1E1E]">
+  <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-app">
     <Tabs v-model="activeCategoryModel" type="underlined" @change="visibleCount = pageSize">
         <template #sidebar-footer>
             <div class="flex items-center gap-2 h-full">
                 <div class="flex items-center gap-2">
                     <div class="relative w-48 sm:w-64">
-                         <Icon icon="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                         <Icon icon="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-content-muted" />
                          <input
                           v-model="searchQuery"
                           type="text"
                           :placeholder="t('common.search') || 'Search logs...'"
-                          class="w-full bg-black/20 border border-white/5 rounded px-8 py-1 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-blue-500/50 transition-colors h-7"
+                          class="w-full bg-app border border-line rounded px-8 py-1 text-xs text-content-strong focus:outline-none focus:border-accent/50 transition-colors h-7"
                          />
-                         <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
+                         <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-strong transition-colors">
                              <Icon icon="lucide:x" class="w-3.5 h-3.5" />
                          </button>
                     </div>
@@ -161,16 +161,16 @@ const getColor = (type: string) => {
             <!-- Register all tabs (they don't render content here, just register themselves) -->
             <Tab v-for="cat in categories" :key="cat" :id="cat" :label="t('logs.categories.' + cat.toLowerCase())" />
             
-            <div class="flex flex-col h-full bg-neutral-50 dark:bg-[#1A1A1A]">
+            <div class="flex flex-col h-full bg-app">
                 <!-- Panel Header -->
-                <div class="grid px-4 font-bold text-[10px] text-neutral-500 uppercase tracking-widest border-b border-neutral-300 dark:border-[#2D2D2D] bg-neutral-100 dark:bg-[#252526] shrink-0" style="grid-template-columns: 1fr 120px;">
+                <div class="grid px-4 font-bold text-[10px] text-content-muted uppercase tracking-widest border-b border-line bg-surface shrink-0" style="grid-template-columns: 1fr 120px;">
                     <div class="py-2">{{ t('common.message') || 'Message' }}</div>
-                    <div class="py-2 pl-3 border-l border-white/5">{{ t('history.time') }}</div>
+                    <div class="py-2 pl-3 border-l border-line">{{ t('history.time') }}</div>
                 </div>
 
                 <!-- Shared List for all tabs -->
                 <ScrollArea ref="scrollAreaRef" class="flex-1">
-                    <div v-if="visibleLogs.length === 0" class="h-full flex flex-col items-center justify-center text-[#888888] gap-3 opacity-50">
+                    <div v-if="visibleLogs.length === 0" class="h-full flex flex-col items-center justify-center text-content-muted gap-3 opacity-50">
                         <Icon icon="lucide:list" class="w-12 h-12" />
                         <span class="text-sm font-medium">{{ t('common.no_logs') || 'No logs found' }}</span>
                     </div>
@@ -179,8 +179,8 @@ const getColor = (type: string) => {
                         <div
                             v-for="log in visibleLogs"
                             :key="log.id"
-                            class="border-b border-neutral-300 dark:border-[#2D2D2D] hover:bg-white/[0.02] transition-colors"
-                            :class="{ 'bg-white/[0.01]': expandedIds.has(log.id) }"
+                            class="border-b border-line hover:bg-surface-hover transition-colors"
+                            :class="{ 'bg-surface': expandedIds.has(log.id) }"
                         >
                             <!-- Log Row -->
                             <div
@@ -195,31 +195,31 @@ const getColor = (type: string) => {
 
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 overflow-hidden h-5" @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')">
-                                            <div class="text-[11px] text-neutral-700 dark:text-neutral-300 font-medium truncate group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                                            <div class="text-[11px] text-content font-medium truncate group-hover:text-content-strong transition-colors">
                                                 {{ log.message }}
                                             </div>
                                         </div>
                                         <div v-if="log.command && !expandedIds.has(log.id)" 
                                             class="overflow-hidden h-4"
                                             @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')">
-                                            <div class="text-[10px] text-neutral-500 font-mono truncate opacity-60">
+                                            <div class="text-[10px] text-content-muted font-mono truncate opacity-60">
                                                 {{ log.command }}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div v-if="log.duration" class="flex-shrink-0 text-[10px] text-neutral-600 font-mono italic">
+                                    <div v-if="log.duration" class="flex-shrink-0 text-[10px] text-content-muted font-mono italic">
                                         {{ log.duration }}ms
                                     </div>
                                 </div>
 
-                                <div class="flex items-center justify-end pl-3 border-l border-white/5 h-full tabular-nums">
-                                    <div class="text-[10px] text-neutral-500 font-mono">
+                                <div class="flex items-center justify-end pl-3 border-l border-line h-full tabular-nums">
+                                    <div class="text-[10px] text-content-muted font-mono">
                                         {{ formatLogDate(log.timestamp) }}
                                     </div>
                                     <Icon
                                         icon="lucide:chevron-down"
-                                        class="ml-2 w-3.5 h-3.5 text-neutral-600 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-transform duration-200"
+                                        class="ml-2 w-3.5 h-3.5 text-content-muted transition-transform duration-200"
                                         :class="{ 'rotate-180': expandedIds.has(log.id) }"
                                     />
                                 </div>
@@ -227,20 +227,20 @@ const getColor = (type: string) => {
 
                             <!-- Details -->
                             <div v-if="expandedIds.has(log.id)" class="px-4 pb-4 pt-0">
-                                <div class="ml-11 bg-black/30 rounded border border-white/5 p-3 overflow-hidden">
+                                <div class="ml-11 bg-app rounded border border-line p-3 overflow-hidden">
                                     <div v-if="log.command" class="mb-3">
-                                        <div class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                        <div class="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1.5 flex items-center gap-2">
                                             <span>{{ t('logs.command') }}</span>
-                                            <div class="h-px bg-white/5 flex-1"></div>
+                                            <div class="h-px bg-line flex-1"></div>
                                         </div>
                                         <pre class="text-[11px] text-blue-300 font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.command }}</pre>
                                     </div>
                                     <div v-if="log.details">
-                                        <div class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                        <div class="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1.5 flex items-center gap-2">
                                             <span>{{ t('logs.output') }}</span>
-                                            <div class="h-px bg-white/5 flex-1"></div>
+                                            <div class="h-px bg-line flex-1"></div>
                                         </div>
-                                        <pre class="text-[11px] text-neutral-600 dark:text-neutral-400 font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.details }}</pre>
+                                        <pre class="text-[11px] text-content-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.details }}</pre>
                                     </div>
                                 </div>
                             </div>

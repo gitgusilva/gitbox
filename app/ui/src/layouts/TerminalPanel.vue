@@ -193,9 +193,9 @@ const handleTerminalResize = () => {
     <!-- Persistent bottom panel (VSCode-style). Rendered inline at the bottom of the
          main content area; when maximized it becomes absolute inset-0 to fill that
          whole area (over the tab views, but not the sidebar/toolbar/footer). -->
-    <div ref="panelEl" v-show="isTerminalOpen" class="bg-white dark:bg-[#1E1E1E] flex flex-col relative transition-none"
+    <div ref="panelEl" v-show="isTerminalOpen" class="bg-app flex flex-col relative transition-none"
          :style="isMaximized ? {} : { height: terminalHeight + 'px' }"
-         :class="isMaximized ? 'absolute inset-0 z-40' : 'flex-shrink-0 border-t border-neutral-200 dark:border-neutral-800'">
+         :class="isMaximized ? 'absolute inset-0 z-40' : 'flex-shrink-0 border-t border-line'">
              
             <!-- Resize Handle (Top) -->
             <Resizer vertical v-if="!isMaximized" 
@@ -205,9 +205,9 @@ const handleTerminalResize = () => {
                      @resize="handleTerminalResize" />
             
             <!-- Header -->
-            <div class="h-9 bg-neutral-50 dark:bg-[#18181A] border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between pr-2 select-none flex-shrink-0 rounded-t" :class="isMaximized ? 'rounded-none' : ''">
+            <div class="h-9 bg-app border-b border-line flex items-center justify-between pr-2 select-none flex-shrink-0 rounded-t" :class="isMaximized ? 'rounded-none' : ''">
                 <div class="flex items-center h-full overflow-hidden">
-                    <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400 text-xs font-medium uppercase tracking-widest px-4 h-full">
+                    <div class="flex items-center gap-2 text-content-muted text-xs font-medium uppercase tracking-widest px-4 h-full">
                         <Icon icon="lucide:terminal" class="text-xs" />
                         {{ t('view.terminal') }}
                     </div>
@@ -216,18 +216,18 @@ const handleTerminalResize = () => {
                 <!-- Controls -->
                 <div class="flex items-center gap-1">
                     <Tooltip :text="t('view.new_terminal')">
-                        <button @click="addTerminal" class="text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                        <button @click="addTerminal" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
                             <Icon icon="lucide:plus" class="text-sm" />
                         </button>
                     </Tooltip>
                     <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-700 mx-1"></div>
                     <Tooltip :text="isMaximized ? t('view.restore_panel') : t('view.maximize_panel')">
-                        <button @click="isMaximized = !isMaximized" class="text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                        <button @click="isMaximized = !isMaximized" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
                             <Icon :icon="isMaximized ? 'lucide:minimize-2' : 'lucide:maximize-2'" class="text-xs" />
                         </button>
                     </Tooltip>
                     <Tooltip :text="t('view.close_panel')">
-                        <button @click="toggleTerminal" class="text-neutral-600 dark:text-neutral-400 hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-red-500">
+                        <button @click="toggleTerminal" class="text-content-muted hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-red-500">
                             <Icon icon="lucide:x" class="text-sm" />
                         </button>
                     </Tooltip>
@@ -235,7 +235,7 @@ const handleTerminalResize = () => {
             </div>
             
             <!-- Terminal Container Area -->
-            <div class="flex-1 w-full relative min-h-0 bg-white dark:bg-[#1E1E1E] flex">
+            <div class="flex-1 w-full relative min-h-0 bg-app flex">
                 <!-- Main Output -->
                 <div class="flex-1 relative min-w-0 py-1">
                     <div v-for="t in terminals" :key="t.id" v-show="activeTerminalId === t.id" class="absolute inset-0 px-2 pb-1 overflow-hidden outline-none">
@@ -250,12 +250,12 @@ const handleTerminalResize = () => {
                          @resize="fitActiveTerminal" />
                 
                 <!-- Sessions List -->
-                <ScrollArea class="bg-neutral-50 dark:bg-[#18181A] border-l border-neutral-200 dark:border-neutral-800 flex flex-shrink-0 min-h-0" :style="{ width: terminalListWidth + 'px', height: '100%' }">
+                <ScrollArea class="bg-app border-l border-line flex flex-shrink-0 min-h-0" :style="{ width: terminalListWidth + 'px', height: '100%' }">
                     <div class="flex flex-col flex-shrink-0">
                         <div v-for="t in terminals" :key="t.id"
                              @click="activeTerminalId = t.id; fitActiveTerminal()"
                              class="h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors group relative"
-                             :class="activeTerminalId === t.id ? 'bg-neutral-100 dark:bg-[#252526] text-blue-400' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
+                             :class="activeTerminalId === t.id ? 'bg-surface text-blue-400' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
                              <Icon icon="lucide:terminal-square" class="w-3.5 h-3.5 flex-shrink-0" />
                              <span class="text-xs flex-1 truncate">{{ t.name }}</span>
                              <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity flex-shrink-0" @click.stop="removeTerminal(t.id)" />

@@ -72,10 +72,10 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-h-0 border-r border-neutral-200 dark:border-neutral-800 min-w-0 bg-neutral-50 dark:bg-[#181818] relative">
+  <div class="flex-1 flex flex-col min-h-0 border-r border-line min-w-0 bg-app relative">
     
     <!-- Column Header (h-[42px] to line up with the detail panel's title bar) -->
-    <div class="grid items-center h-[42px] border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-[#252526] px-3 font-bold text-[10px] text-neutral-500 dark:text-neutral-400 select-none uppercase tracking-widest shrink-0"
+    <div class="grid items-center h-[42px] border-b border-line bg-surface px-3 font-bold text-[10px] text-content-muted select-none uppercase tracking-widest shrink-0"
          :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px` }">
        <div class="py-2 flex items-center justify-center gap-2 min-w-0 overflow-hidden"
             @mouseenter="startMarquee($event, '.hdr-title')" @mouseleave="stopMarquee($event, '.hdr-title')">
@@ -102,7 +102,7 @@ defineExpose({
       @scroll="handleScroll"
     >
       <!-- Loading Skeleton — mirrors the real commit-row layout -->
-      <div v-if="isLoadingData" class="sticky top-0 left-0 right-0 z-50 bg-neutral-50 dark:bg-[#181818]">
+      <div v-if="isLoadingData" class="sticky top-0 left-0 right-0 z-50 bg-app">
         <div v-for="i in 18" :key="'sk-' + i"
              class="grid px-3 items-center"
              :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }">
@@ -134,8 +134,8 @@ defineExpose({
             class="grid px-3 items-center text-[11px] relative group"
             :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }"
             :class="selectedIdSet.has(c.id)
-              ? 'bg-blue-100 dark:bg-[#143B66] text-black dark:text-white shadow-inner'
-              : 'hover:bg-neutral-200 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300'"
+              ? 'bg-blue-100 dark:bg-[#143B66] text-content-strong shadow-inner'
+              : 'hover:bg-neutral-200 dark:hover:bg-neutral-800/50 text-content'"
             @click="emit('select', c, $event)"
             @contextmenu.prevent="emit('contextMenu', $event, c)"
           >
@@ -179,10 +179,10 @@ defineExpose({
                  :class="selectedIdSet.has(c.id)
                    ? 'text-blue-700 dark:text-blue-200 bg-blue-100 dark:bg-[#143B66]'
                    : (graphOutput.get(c.id)?.dotLane === 0
-                     ? 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 group-hover:text-black dark:group-hover:text-neutral-200'
-                     : 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400 dark:text-neutral-600')">
+                     ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-content-muted group-hover:text-black dark:group-hover:text-neutral-200'
+                     : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400 dark:text-neutral-600')">
               <img :src="gravatarUrl(c.authorEmail || c.author + '@localhost')"
-                   class="w-[18px] h-[18px] rounded border-2 border-neutral-200 dark:border-neutral-800 shadow-sm flex-shrink-0 object-cover" />
+                   class="w-[18px] h-[18px] rounded border-2 border-line shadow-sm flex-shrink-0 object-cover" />
               <Tooltip :text="c.author" position="top" class="min-w-0 flex-1 overflow-hidden">
                 <span class="block truncate">{{ c.author }}</span>
               </Tooltip>
@@ -193,8 +193,8 @@ defineExpose({
                  :class="selectedIdSet.has(c.id)
                    ? 'text-blue-500/80 dark:text-blue-300/50 bg-blue-100 dark:bg-[#143B66]'
                    : (graphOutput.get(c.id)?.dotLane === 0
-                     ? 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-500 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
-                     : 'bg-neutral-50 dark:bg-[#181818] group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400/70 dark:text-neutral-600')">
+                     ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-500 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
+                     : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400/70 dark:text-neutral-600')">
               <Tooltip :text="formatDate(c.timestamp, dateFormat)" position="left" class="min-w-0 w-full overflow-hidden">
                 <span class="block truncate">{{ formatDate(c.timestamp, dateFormat) }}</span>
               </Tooltip>
@@ -209,7 +209,7 @@ defineExpose({
       <button
         v-show="showScrollToTop"
         @click="scrollToTop"
-        class="absolute bottom-4 right-4 bg-white dark:bg-[#252526] border border-neutral-200 dark:border-neutral-700 shadow-lg text-neutral-600 dark:text-neutral-400 hover:text-blue-500 dark:hover:text-blue-400 p-2 rounded-full transition-all z-20 hover:scale-105 active:scale-95 outline-none flex items-center justify-center w-10 h-10"
+        class="absolute bottom-4 right-4 bg-surface border border-line shadow-lg text-content-muted hover:text-blue-500 dark:hover:text-blue-400 p-2 rounded-full transition-all z-20 hover:scale-105 active:scale-95 outline-none flex items-center justify-center w-10 h-10"
       >
         <Icon icon="lucide:arrow-up-to-line" class="text-xl" />
       </button>

@@ -41,28 +41,28 @@ async function browseFolder(formType: 'clone' | 'init') {
      <template #header><div class="hidden"></div></template>
      <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
-      <aside class="w-64 bg-neutral-100 dark:bg-[#212224] border-r border-neutral-300 dark:border-[#3E4044] py-3 flex flex-col">
-        <div class="text-[15px] font-bold text-neutral-800 dark:text-neutral-200 px-4 mb-4 mt-2">{{ props.action === 'init' ? t('modal.initialize_a_repository') : t('modal.clone_a_repository') }}</div>
+      <aside class="w-64 bg-surface border-r border-line-strong py-3 flex flex-col">
+        <div class="text-[15px] font-bold text-content px-4 mb-4 mt-2">{{ props.action === 'init' ? t('modal.initialize_a_repository') : t('modal.clone_a_repository') }}</div>
         
         <button v-if="props.action === 'init'"
                 @click="activeTab = 'local'" 
                 class="flex items-center gap-2 px-4 py-2.5 text-[13px] transition-colors text-left"
-                :class="activeTab === 'local' ? 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white border-l-2 border-[#4182E1]' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
+                :class="activeTab === 'local' ? 'bg-surface-hover text-content-strong border-l-2 border-[#4182E1]' : 'text-content-muted hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
           <Icon icon="lucide:monitor" class="w-4 h-4 ml-1" /> {{ t('modal.local_only') }}
         </button>
 
         <button v-if="props.action === 'clone'"
                 @click="activeTab = 'url'" 
                 class="flex items-center gap-2 px-4 py-2.5 text-[13px] transition-colors text-left"
-                :class="activeTab === 'url' ? 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white border-l-2 border-[#4182E1]' : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
+                :class="activeTab === 'url' ? 'bg-surface-hover text-content-strong border-l-2 border-[#4182E1]' : 'text-content-muted hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
           <Icon icon="lucide:globe" class="w-4 h-4 ml-1" /> {{ t('modal.clone_with_url') }}
         </button>
       </aside>
 
       <!-- Main Config -->
-      <main class="flex-1 flex flex-col min-w-0 bg-neutral-100 dark:bg-[#252526]">
+      <main class="flex-1 flex flex-col min-w-0 bg-surface">
         <header class="h-12 flex items-center justify-between px-6 pt-2">
-          <h1 class="text-[17px] text-neutral-800 dark:text-neutral-200">
+          <h1 class="text-[17px] text-content">
              {{ props.action === 'init' ? t('modal.initialize_a_repo') : t('modal.clone_a_repo') }}
           </h1>
           <button @click="emit('close')" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
@@ -75,28 +75,28 @@ async function browseFolder(formType: 'clone' | 'init') {
           <!-- Local Init -->
           <div v-if="activeTab === 'local'" class="flex flex-col gap-6 max-w-[500px]">
              <div class="flex justify-between items-center gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.name') }}</label>
-                <input v-model="initName" type="text" class="flex-1 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-[#3E4044] rounded-sm px-3 py-1.5 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-blue-500" />
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.name') }}</label>
+                <input v-model="initName" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
              </div>
              
              <div class="flex justify-between items-center gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.initialize_in') }}</label>
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.initialize_in') }}</label>
                 <div class="flex-1 flex gap-2">
-                    <input v-model="initTargetDir" type="text" class="flex-1 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-[#3E4044] rounded-sm px-3 py-1.5 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-blue-500" />
+                    <input v-model="initTargetDir" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
                     <button @click="browseFolder('init')" class="bg-[#3A6B9B] hover:bg-[#467FB7] text-white px-4 rounded-sm text-[13px] font-medium transition-colors">{{ t('modal.browse') }}</button>
                 </div>
              </div>
              
              <div class="flex justify-between gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.full_path') }}</label>
-                <div class="flex-1 text-[13px] text-neutral-900 dark:text-white font-mono opacity-80 break-all select-all">
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.full_path') }}</label>
+                <div class="flex-1 text-[13px] text-content-strong font-mono opacity-80 break-all select-all">
                     {{ initTargetDir || '/' }}{{ initTargetDir && !initTargetDir.endsWith('/') && !initTargetDir.endsWith('\\') ? '/' : '' }}{{ initName }}
                 </div>
              </div>
 
              <div class="flex justify-between items-center gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.default_branch_name') }}</label>
-                <input v-model="defaultBranch" type="text" class="flex-1 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-[#3E4044] rounded-sm px-3 py-1.5 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-blue-500" />
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.default_branch_name') }}</label>
+                <input v-model="defaultBranch" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
              </div>
              
              <div class="flex justify-end mt-4">
@@ -108,21 +108,21 @@ async function browseFolder(formType: 'clone' | 'init') {
           <div v-if="activeTab === 'url'" class="flex flex-col gap-6 max-w-[500px]">
              
              <div class="flex justify-between items-center gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.where_to_clone_to') }}</label>
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.where_to_clone_to') }}</label>
                 <div class="flex-1 flex gap-2">
-                    <input v-model="cloneTargetDir" type="text" class="flex-1 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-[#3E4044] rounded-sm px-3 py-1.5 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-blue-500" />
+                    <input v-model="cloneTargetDir" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
                     <button @click="browseFolder('clone')" class="bg-[#3A6B9B] hover:bg-[#467FB7] text-white px-4 rounded-sm text-[13px] font-medium transition-colors">{{ t('modal.browse') }}</button>
                 </div>
              </div>
              
              <div class="flex justify-between items-center gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.url') }}</label>
-                <input v-model="cloneUrl" type="text" class="flex-1 bg-white dark:bg-[#1E1E1E] border border-neutral-300 dark:border-[#3E4044] rounded-sm px-3 py-1.5 text-[13px] text-neutral-900 dark:text-white outline-none focus:border-blue-500" />
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.url') }}</label>
+                <input v-model="cloneUrl" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
              </div>
 
              <div class="flex justify-between gap-4">
-                <label class="text-[13px] text-neutral-600 dark:text-neutral-400 w-32 text-right shrink-0">{{ t('modal.full_path') }}</label>
-                <div class="flex-1 text-[13px] text-neutral-900 dark:text-white font-mono opacity-80 break-all select-all">
+                <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.full_path') }}</label>
+                <div class="flex-1 text-[13px] text-content-strong font-mono opacity-80 break-all select-all">
                     {{ cloneTargetDir || '/' }}
                 </div>
              </div>

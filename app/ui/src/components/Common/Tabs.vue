@@ -128,8 +128,8 @@ onBeforeUnmount(() => {
   )">
     <!-- Tabs Navigation -->
     <div :class="cn(
-      'bg-neutral-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 shrink-0 overflow-hidden relative flex flex-col',
-      isVertical ? 'w-48 border-r h-full bg-neutral-100 dark:bg-[#252526]' : 'flex-row items-center h-9 border-b w-full'
+      'bg-surface border-line shrink-0 overflow-hidden relative flex flex-col',
+      isVertical ? 'w-48 border-r h-full' : 'flex-row items-center h-9 border-b w-full'
     )">
       <!-- Sidebar Header (vertical mode only) -->
       <slot v-if="isVertical" name="sidebar-header" />
@@ -154,14 +154,14 @@ onBeforeUnmount(() => {
               !isVertical
                 ? 'h-8 px-4 text-xs rounded-t-md mx-[1px] border-b-2 border-transparent'
                 : 'px-3 py-2 text-xs rounded-md w-full text-left',
-              !isVertical && activeTabId === tab.id && 'bg-neutral-100 dark:bg-[#2D2D2D] text-neutral-900 dark:text-white border-blue-500',
-              !isVertical && activeTabId !== tab.id && 'bg-white dark:bg-[#1E1E1E] text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200',
-              isVertical && activeTabId === tab.id && 'bg-neutral-200 dark:bg-[#37373D] text-neutral-900 dark:text-white font-bold border-neutral-300 dark:border-neutral-700 shadow-sm shadow-black/20',
-              isVertical && activeTabId !== tab.id && 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800'
+              !isVertical && activeTabId === tab.id && 'bg-surface text-content-strong border-accent',
+              !isVertical && activeTabId !== tab.id && 'bg-app text-content-muted hover:bg-surface-hover hover:text-content',
+              isVertical && activeTabId === tab.id && 'bg-surface-hover text-content-strong font-bold border-line-strong shadow-sm shadow-black/20',
+              isVertical && activeTabId !== tab.id && 'text-content-muted hover:bg-surface-hover'
             )"
           >
             <!-- Tab Icon -->
-            <div v-if="tab.icon" class="flex-shrink-0 flex items-center justify-center w-4 h-4" :class="activeTabId === tab.id ? 'text-blue-400' : 'text-neutral-500'">
+            <div v-if="tab.icon" class="flex-shrink-0 flex items-center justify-center w-4 h-4" :class="activeTabId === tab.id ? 'text-accent' : 'text-content-muted'">
               <Icon :icon="tab.icon" />
             </div>
             
@@ -169,13 +169,13 @@ onBeforeUnmount(() => {
             <Icon
               v-if="closable"
               icon="lucide:x"
-              class="text-[10px] opacity-0 group-hover:opacity-100 hover:text-neutral-900 dark:hover:text-white transition-all ml-1"
+              class="text-[10px] opacity-0 group-hover:opacity-100 hover:text-content-strong transition-all ml-1"
               @click="closeTab(tab.id, $event)"
             />
 
             <!-- Vertical Left Blue Indicator Bar -->
             <div v-if="isVertical && activeTabId === tab.id"
-                 class="absolute left-0 top-1 bottom-1 w-1 bg-blue-500 rounded-r-full">
+                 class="absolute left-0 top-1 bottom-1 w-1 bg-accent rounded-r-full">
             </div>
           </div>
         </div>
@@ -187,13 +187,13 @@ onBeforeUnmount(() => {
         <template v-if="isOverflowing">
           <Tooltip :text="t('ui.scroll_left')" position="bottom">
             <button @click="scrollTabs('left')"
-                    class="h-7 w-6 flex items-center justify-center rounded text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
+                    class="h-7 w-6 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors">
               <Icon icon="lucide:chevron-left" class="text-xs" />
             </button>
           </Tooltip>
           <Tooltip :text="t('ui.scroll_right')" position="bottom">
             <button @click="scrollTabs('right')"
-                    class="h-7 w-6 flex items-center justify-center rounded text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
+                    class="h-7 w-6 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors">
               <Icon icon="lucide:chevron-right" class="text-xs" />
             </button>
           </Tooltip>

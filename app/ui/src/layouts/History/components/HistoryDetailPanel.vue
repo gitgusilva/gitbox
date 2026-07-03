@@ -74,15 +74,15 @@ function onSetTab(tab: string) {
 </script>
 
 <template>
-  <div class="flex flex-col bg-white dark:bg-[#2D2D2D] border-l border-neutral-200 dark:border-transparent flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden" :style="{ width: layoutRefs.detailsWidth.value + 'px' }">
+  <div class="flex flex-col bg-overlay border-l border-neutral-200 dark:border-transparent flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden" :style="{ width: layoutRefs.detailsWidth.value + 'px' }">
     <Resizer :target="layoutRefs.detailsWidth" :options="{ invert: true, min: 200, max: 1200, clampToContainer: true, reserve: 260 }" class="absolute left-0 top-0 bottom-0 -translate-x-1/2 z-30" />
     
     <!-- Top Title Bar like SourceGit: commit pinned left, explain as an icon
          button on the right. Both flex so they adapt when the panel is resized. -->
-    <div v-if="selectedCommits.length === 1" class="flex-shrink-0 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
+    <div v-if="selectedCommits.length === 1" class="flex-shrink-0 bg-surface border-b border-line flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
         <div class="flex items-center gap-1.5 min-w-0">
             <span class="text-xs text-neutral-500 shrink-0">{{ t('history_detail.commit_label') }}</span>
-            <span class="text-xs font-mono font-bold tracking-wider text-black dark:text-white truncate">{{ selectedCommits[0].id.substring(0,6) }}</span>
+            <span class="text-xs font-mono font-bold tracking-wider text-content-strong truncate">{{ selectedCommits[0].id.substring(0,6) }}</span>
         </div>
 
         <Tooltip :text="t('history_detail.explain_commit')" position="bottom">
@@ -93,8 +93,8 @@ function onSetTab(tab: string) {
     </div>
 
     <!-- Multiple Commits Title Bar -->
-    <div v-if="selectedCommits.length > 1" class="flex-shrink-0 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
-        <span class="text-xs text-black dark:text-white font-bold truncate min-w-0">{{ t('history_detail.n_commits_selected', { count: selectedCommits.length }) }}</span>
+    <div v-if="selectedCommits.length > 1" class="flex-shrink-0 bg-surface border-b border-line flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
+        <span class="text-xs text-content-strong font-bold truncate min-w-0">{{ t('history_detail.n_commits_selected', { count: selectedCommits.length }) }}</span>
 
         <Tooltip :text="t('history_detail.explain_commits')" position="bottom">
             <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors outline-none shadow-sm shrink-0">

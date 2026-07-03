@@ -40,7 +40,7 @@ function close() {
          class="fixed inset-0 z-[100] center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" 
          @click.self="close">
       <div :class="cn(
-            'bg-white dark:bg-[#1e1e20] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden scale-in-center v-stack',
+            'bg-app border border-line rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden scale-in-center v-stack',
             height ? '' : 'h-min',
             props.class
            )"
@@ -54,10 +54,10 @@ function close() {
         
         <!-- Header slot or Default Header -->
         <slot name="header">
-          <header v-if="title" class="h-14 border-b border-neutral-200 dark:border-neutral-800 h-stack justify-between px-6 bg-neutral-100 dark:bg-[#252526] shrink-0">
+          <header v-if="title" class="h-14 border-b border-line h-stack justify-between px-6 bg-surface shrink-0">
             <div class="h-stack gap-2.5">
               <Icon v-if="icon" :icon="icon" :class="cn(iconColor || 'text-blue-500', 'text-lg')" />
-              <h1 class="font-bold text-sm text-neutral-800 dark:text-neutral-200 tracking-tight">
+              <h1 class="font-bold text-sm text-content tracking-tight">
                 {{ title }}
               </h1>
             </div>
@@ -76,7 +76,7 @@ function close() {
         </div>
 
         <!-- Footer -->
-        <div v-if="$slots.footer" class="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-6 py-4 bg-white dark:bg-[#1e1e20]">
+        <div v-if="$slots.footer" class="shrink-0 border-t border-line px-6 py-4 bg-app">
           <slot name="footer"></slot>
         </div>
       </div>

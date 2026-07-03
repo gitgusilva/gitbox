@@ -21,9 +21,9 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="h-full flex flex-col min-h-0 animate-in fade-in duration-300 bg-neutral-50 dark:bg-[#1A1A1A] overflow-hidden">
+  <div class="h-full flex flex-col min-h-0 animate-in fade-in duration-300 bg-app overflow-hidden">
      <div class="flex-1 flex overflow-hidden h-full">
-        <div class="border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#1A1A1A] flex-shrink-0 relative h-full flex flex-col overflow-hidden" :style="{ width: layoutRefs.historyDetailTreeWidth.value + 'px' }">
+        <div class="border-r border-line bg-app flex-shrink-0 relative h-full flex flex-col overflow-hidden" :style="{ width: layoutRefs.historyDetailTreeWidth.value + 'px' }">
            <FileTree v-if="files.length" :files="files" :selectedPath="selectedPath" @select="emit('select', $event)" />
            <div v-else-if="isLoading" class="p-8 text-center">
                <Icon icon="lucide:loader-2" class="animate-spin text-blue-500 mx-auto mb-2" />
@@ -37,7 +37,7 @@ const { t } = useI18n();
 
         <div class="flex-1 flex flex-col min-w-0 h-full">
            <DiffViewer v-if="selectedPath" :original="''" :modified="content" :filename="selectedPath" :readOnly="true" class="h-full" />
-           <div v-else class="flex-1 h-full flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-white dark:bg-[#1e1e1e]">
+           <div v-else class="flex-1 h-full flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-app">
                <Icon icon="lucide:file-text" class="text-5xl mb-4 opacity-10" />
                <div class="font-bold uppercase tracking-widest text-sm opacity-20">{{ t('history_detail.select_file_from_repository') }}</div>
            </div>

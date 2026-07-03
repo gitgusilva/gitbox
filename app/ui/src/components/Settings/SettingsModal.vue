@@ -13,6 +13,7 @@ import Tab from '../Common/Tab.vue';
 
 // Section Contents
 import GeneralSection from './Sections/GeneralSection.vue';
+import AppearanceSection from './Sections/AppearanceSection.vue';
 import Modal from '../Common/Modal.vue';
 import GitSection from './Sections/GitSection.vue';
 import IntegrationsSection from './Sections/IntegrationsSection.vue';
@@ -56,9 +57,9 @@ function handleClose() {
 
       <!-- Main Content Container with dynamic title and scroll area -->
       <template #default="{ activeTabLabel }">
-        <div class="flex flex-col h-full bg-white dark:bg-[#1e1e1e]">
-            <header class="h-14 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-8 bg-neutral-100 dark:bg-[#252526] flex-shrink-0">
-                <h1 class="font-bold text-sm text-neutral-800 dark:text-neutral-200 uppercase tracking-tight">{{ activeTabLabel }}</h1>
+        <div class="flex flex-col h-full bg-app">
+            <header class="h-14 border-b border-line flex items-center justify-between px-8 bg-surface flex-shrink-0">
+                <h1 class="font-bold text-sm text-content uppercase tracking-tight">{{ activeTabLabel }}</h1>
                 <button @click="handleClose()" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors p-2 bg-white/0 hover:bg-white/5 rounded-full">
                     <Icon icon="lucide:x" class="text-lg" />
                 </button>
@@ -68,7 +69,11 @@ function handleClose() {
                     <Tab id="general" :label="t('settings.general')" icon="lucide:settings">
                         <GeneralSection @close="handleClose()" />
                     </Tab>
-                    
+
+                    <Tab id="appearance" :label="t('settings.appearance')" icon="lucide:palette">
+                        <AppearanceSection />
+                    </Tab>
+
                     <Tab id="preferences" :label="t('settings.preferences')" icon="lucide:sliders">
                         <PreferencesSection />
                     </Tab>
@@ -87,7 +92,7 @@ function handleClose() {
 
       <!-- Sidebar Footer -->
       <template #sidebar-footer>
-          <div class="p-4 border-t border-neutral-200 dark:border-neutral-800/20 bg-black/5">
+          <div class="p-4 border-t border-line/20 bg-black/5">
               <div class="text-[9px] text-neutral-600 font-mono tracking-tighter opacity-70">GITBOX v{{ appVersion }}</div>
           </div>
       </template>

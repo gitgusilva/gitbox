@@ -7,6 +7,7 @@ import {
   stashes, 
   selectedStash, 
   selectedStashFile,
+  stashApply,
   stashPop,
   dropStash
 } from '../../services/gitService';
@@ -79,12 +80,23 @@ watch(selectedStash, () => {
 
 watch(selectedStashFile, loadDiff, { immediate: true });
 
+/** Apply the stash (keeps it), after confirmation. Also the default action. */
+function applyStash(stash: Stash) {
+  requestConfirm(t('stash.apply_title'), t('stash.apply_msg', { index: stash.index }), false, () => stashApply(stash.id));
+}
+
+/** Apply and drop the stash, after confirmation. */
+function popStash(stash: Stash) {
+  requestConfirm(t('stash.pop_title'), t('stash.pop_msg', { index: stash.index }), true, () => stashPop(stash.id));
+}
+
 function showStashMenu(e: MouseEvent, stash: Stash) {
   contextMenu.value = {
     x: e.clientX,
     y: e.clientY,
     items: [
-      { label: t('stash.pop'), action: () => stashPop(stash.id), icon: 'lucide:download' },
+      { label: t('stash.apply'), action: () => applyStash(stash), icon: 'lucide:check' },
+      { label: t('stash.pop'), action: () => popStash(stash), icon: 'lucide:download' },
       { separator: true },
       { label: t('common.delete'), action: () => requestConfirm(t('stash.drop_title'), t('stash.drop_msg', { index: stash.index }), true, () => dropStash(stash.id)), icon: 'lucide:trash-2', danger: true },
     ]
@@ -102,26 +114,26 @@ const getStatusIcon = (status: string) => {
 };
 
 const getStatusColor = (status: string, isSelected: boolean) => {
-    if (isSelected) return 'text-white';
-    if (!status) return 'text-neutral-500';
+    if (isSelected) return 'text-accent-fg';
+    if (!status) return 'text-content-muted';
     const s = status.toLowerCase();
     if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
     if (s.includes('deleted')) return 'text-red-500';
     if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
     if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
-    return 'text-neutral-500';
+    return 'text-content-muted';
 };
 </script>
 
 <template>
-  <div ref="containerRef" class="flex-1 flex min-h-0 bg-white dark:bg-[#1E1E1E] select-none text-neutral-700 dark:text-neutral-300">
+  <div ref="containerRef" class="flex-1 flex min-h-0 bg-app select-none text-content">
     <!-- Left Column: Stashes and Files -->
-    <div class="w-[480px] border-r border-neutral-200 dark:border-neutral-800 flex flex-col flex-shrink-0 bg-neutral-50 dark:bg-[#1A1A1A] overflow-hidden">
+    <div class="w-[480px] border-r border-line flex flex-col flex-shrink-0 bg-app overflow-hidden">
       <!-- Stash List (Top) -->
-      <div class="flex-1 flex flex-col min-h-0 bg-neutral-50 dark:bg-[#1A1A1A] relative">
-        <header class="bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 px-4 py-2 text-[10px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-widest flex items-center justify-between relative z-10">
+      <div class="flex-1 flex flex-col min-h-0 bg-app relative">
+        <header class="bg-surface border-b border-line px-4 py-2 text-[10px] font-bold text-content-muted uppercase tracking-widest flex items-center justify-between relative z-10">
            <div class="flex items-center gap-2">
-             <Icon icon="lucide:layers" class="text-neutral-500" />
+             <Icon icon="lucide:layers" class="text-content-muted" />
              <span>{{ t('common.stashes') }} ({{ stashes.length }})</span>
            </div>
         </header>
@@ -135,19 +147,21 @@ const getStatusColor = (status: string, isSelected: boolean) => {
           >
           <div
                @click="selectedStash = stashItem.data"
+               @dblclick="applyStash(stashItem.data)"
                @contextmenu.prevent="showStashMenu($event, stashItem.data)"
-               class="px-4 border-b border-neutral-200/30 dark:border-neutral-800/30 cursor-pointer transition-colors relative"
+               class="px-4 border-b border-line cursor-pointer transition-colors relative"
                style="height: 70px; display: flex; flex-direction: column; justify-content: center;"
-               :class="selectedStash?.id === stashItem.data.id ? 'bg-[#143B66] text-white' : 'hover:bg-white/5'">
+               :class="selectedStash?.id === stashItem.data.id ? 'bg-accent text-accent-fg' : 'hover:bg-surface-hover'">
             <div class="flex items-center justify-between mb-1">
-              <span class="text-[11px] font-bold text-blue-400 font-mono">stash@{ {{ stashItem.data.index }} }</span>
-              <span class="text-[10px] text-neutral-500" :class="selectedStash?.id === stashItem.data.id ? 'text-blue-200' : ''">{{ formatStashDate(stashItem.data.timestamp) }}</span>
+              <span class="text-[11px] font-bold font-mono" :class="selectedStash?.id === stashItem.data.id ? 'text-accent-fg' : 'text-accent'">stash@{ {{ stashItem.data.index }} }</span>
+              <span class="text-[10px]" :class="selectedStash?.id === stashItem.data.id ? 'text-accent-fg/80' : 'text-content-muted'">{{ formatStashDate(stashItem.data.timestamp) }}</span>
             </div>
             <div class="flex items-center gap-2 overflow-hidden">
-              <span v-if="parseStashMessage(stashItem.data.message).branch" class="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded bg-black/30 text-neutral-600 dark:text-neutral-400 border border-white/10 font-bold uppercase tracking-tighter">
+              <span v-if="parseStashMessage(stashItem.data.message).branch" class="flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter"
+                    :class="selectedStash?.id === stashItem.data.id ? 'bg-black/20 text-accent-fg border border-white/20' : 'bg-surface text-content-muted border border-line'">
                 {{ parseStashMessage(stashItem.data.message).branch }}
               </span>
-              <span class="text-[11px] truncate font-medium flex-1 min-w-0" :class="selectedStash?.id === stashItem.data.id ? 'text-white' : 'text-neutral-600 dark:text-neutral-400'">{{ parseStashMessage(stashItem.data.message).message }}</span>
+              <span class="text-[11px] truncate font-medium flex-1 min-w-0" :class="selectedStash?.id === stashItem.data.id ? 'text-accent-fg' : 'text-content-muted'">{{ parseStashMessage(stashItem.data.message).message }}</span>
             </div>
           </div>
           </VirtualScroll>
@@ -157,30 +171,30 @@ const getStatusColor = (status: string, isSelected: boolean) => {
           </div>
 
         <!-- Resizable Handle -->
-        <Resizer vertical v-if="selectedStash" :target="(layoutRefs.stashFilesHeight as any)" :options="{ axis: 'y', invert: true, min: 120 }" class="absolute bottom-0 left-0 right-0 h-1.5 z-40 bg-neutral-200/50 dark:bg-neutral-800/50" />
+        <Resizer vertical v-if="selectedStash" :target="(layoutRefs.stashFilesHeight as any)" :options="{ axis: 'y', invert: true, min: 120 }" class="absolute bottom-0 left-0 right-0 h-1.5 z-40 bg-line" />
       </div>
 
       <!-- File List (Bottom) -->
-      <div v-if="selectedStash" :style="{ height: layoutRefs.stashFilesHeight.value + 'px' }" class="flex flex-col min-h-[120px] max-h-[80%] bg-neutral-50 dark:bg-[#1A1A1A] shrink-0 relative">
-        <header class="bg-neutral-100 dark:bg-[#252526] border-b border-t border-neutral-200 dark:border-neutral-800 px-4 py-2 text-[10px] font-bold text-neutral-600 dark:text-neutral-400 uppercase tracking-widest flex items-center justify-between relative z-10">
+      <div v-if="selectedStash" :style="{ height: layoutRefs.stashFilesHeight.value + 'px' }" class="flex flex-col min-h-[120px] max-h-[80%] bg-app shrink-0 relative">
+        <header class="bg-surface border-b border-t border-line px-4 py-2 text-[10px] font-bold text-content-muted uppercase tracking-widest flex items-center justify-between relative z-10">
            <div class="flex items-center gap-2">
-             <Icon icon="lucide:layout-list" class="text-neutral-500" />
+             <Icon icon="lucide:layout-list" class="text-content-muted" />
              <span>{{ t('view.changes') }} ({{ stashFiles.length }})</span>
            </div>
-           <Icon icon="lucide:menu" class="text-neutral-500 text-sm" />
+           <Icon icon="lucide:menu" class="text-content-muted text-sm" />
         </header>
         <ScrollArea class="flex-1" style="height: 100%;" :auto-hide="false">
           <div v-if="isFilesLoading" class="p-10 text-center flex flex-col items-center gap-3">
-             <Icon icon="lucide:loader-2" class="animate-spin text-blue-500 text-xl" />
-             <span class="text-[9px] text-neutral-500 uppercase font-black tracking-widest">{{ t('common.loading') }}</span>
+             <Icon icon="lucide:loader-2" class="animate-spin text-accent text-xl" />
+             <span class="text-[9px] text-content-muted uppercase font-black tracking-widest">{{ t('common.loading') }}</span>
           </div>
           <div v-else class="flex flex-col pb-4">
             <div v-for="file in stashFiles" :key="file.path" 
                  @click="selectedStashFile = file.path"
                  class="px-4 py-2 flex items-center gap-3 cursor-pointer group border-b border-neutral-200/10 dark:border-neutral-800/10 transition-colors"
-                 :class="selectedStashFile === file.path ? 'bg-[#143B66] text-white' : 'hover:bg-white/5'">
+                 :class="selectedStashFile === file.path ? 'bg-accent text-accent-fg' : 'hover:bg-surface-hover'">
               <Icon :icon="getStatusIcon(file.status)" :class="getStatusColor(file.status, selectedStashFile === file.path)" class="text-sm shrink-0" />
-              <span class="text-[11px] font-medium truncate flex-1 min-w-0" :class="selectedStashFile === file.path ? 'text-white' : 'text-neutral-600 dark:text-neutral-400'">
+              <span class="text-[11px] font-medium truncate flex-1 min-w-0" :class="selectedStashFile === file.path ? 'text-accent-fg' : 'text-content-muted'">
                 {{ file.path }}
               </span>
             </div>
@@ -193,7 +207,7 @@ const getStatusColor = (status: string, isSelected: boolean) => {
     </div>
 
     <!-- Right Column: Diff -->
-    <div class="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden relative bg-white dark:bg-[#1E1E1E]">
+    <div class="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden relative bg-app">
       <DiffViewer v-if="selectedStash && selectedStashFile"
                   class="h-full"
                   :original="originalContent"

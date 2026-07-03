@@ -23,6 +23,13 @@ class Stash extends Command {
     }
 
     /**
+     * Apply a stash entry without dropping it
+     */
+    async apply(repoPath, stashId) {
+        try { await this.execGit(repoPath, stashId ? ['stash', 'apply', stashId] : ['stash', 'apply']); return true; } catch (e) { throw new Error(e.message); }
+    }
+
+    /**
      * Apply and drop a stash entry
      */
     async pop(repoPath, stashId) {

@@ -84,8 +84,8 @@ function onScrollRight() {
 </script>
 
 <template>
-    <div class="flex-1 flex flex-col md:flex-row bg-white dark:bg-[#1e1e1e] overflow-auto gap-1 border-t border-neutral-200 dark:border-neutral-800 checkerboard">
-        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-neutral-100 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 relative">
+    <div class="flex-1 flex flex-col md:flex-row bg-app overflow-auto gap-1 border-t border-line checkerboard">
+        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-neutral-100 dark:bg-neutral-900 border-r border-line relative">
             <div ref="leftPane" @scroll="onScrollLeft" class="p-6 flex-1 flex items-center justify-center bg-transparent overflow-auto">
                 <img v-if="props.original" :src="srcOriginal" class="max-w-none max-h-none shadow-lg outline outline-1 outline-neutral-700 bg-black/50" />
                 <div v-else class="text-neutral-600 font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center">

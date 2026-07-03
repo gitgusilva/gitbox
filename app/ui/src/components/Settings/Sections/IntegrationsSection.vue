@@ -84,7 +84,7 @@ watch([aiProvider, aiApiKey], () => {
         <Icon icon="lucide:sparkles" class="text-blue-500" />
         {{ t('settings.ai') }}
       </label>
-      <div class="bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 rounded-xl p-6 space-y-6">
+      <div class="bg-surface border border-line rounded-xl p-6 space-y-6">
         <div>
           <label class="block text-[10px] font-bold text-neutral-500 uppercase mb-2">{{ t('settings.ai_provider') }}</label>
           <Select v-model="aiProvider" :options="providerOptions" searchable />
@@ -93,7 +93,7 @@ watch([aiProvider, aiApiKey], () => {
         <div v-if="requiresKey">
           <label class="block text-[10px] font-bold text-neutral-500 uppercase mb-2">{{ t('settings.api_key') }}</label>
           <div class="relative">
-            <input v-model="aiApiKey" type="password" :placeholder="t('settings.api_key_placeholder')" class="w-full bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-colors shadow-sm pr-10" />
+            <input v-model="aiApiKey" type="password" :placeholder="t('settings.api_key_placeholder')" class="w-full bg-app border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm pr-10" />
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <Icon v-if="isSavingAI" icon="lucide:loader-2" class="w-3.5 h-3.5 animate-spin text-blue-500" />
               <Icon v-else icon="lucide:key" class="text-[10px] text-neutral-600" />
@@ -120,7 +120,7 @@ watch([aiProvider, aiApiKey], () => {
       
       <div class="grid grid-cols-1 gap-3">
         <div v-for="item in integrationsList" :key="item.id" 
-             class="bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 rounded-xl p-4 flex items-center justify-between group hover:border-blue-500/30 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] transition-all shadow-sm">
+             class="bg-surface border border-line rounded-xl p-4 flex items-center justify-between group hover:border-blue-500/30 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] transition-all shadow-sm">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-2xl border border-neutral-200 dark:border-white/10 bg-white relative overflow-hidden flex-shrink-0" :style="{ color: item.color }">
               <div class="absolute inset-0 opacity-10" :style="{ background: `radial-gradient(circle at center, ${item.color}, transparent)` }"></div>
@@ -128,12 +128,12 @@ watch([aiProvider, aiApiKey], () => {
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
-                <h3 class="text-xs font-bold text-neutral-900 dark:text-white">{{ item.name }}</h3>
+                <h3 class="text-xs font-bold text-content-strong">{{ item.name }}</h3>
                 <span v-if="item.connected" class="text-[7px] bg-green-500/10 text-green-500 border border-green-500/20 px-1 py-0.5 rounded uppercase font-black tracking-widest">{{ t('common.active') }}</span>
               </div>
               <div v-if="item.connected" class="flex items-center gap-1.5">
                  <img v-if="item.user?.avatar_url" :src="item.user.avatar_url" class="w-3.5 h-3.5 rounded-full border border-white/10" />
-                 <span class="text-[9px] text-neutral-600 dark:text-neutral-400 font-medium truncate">@{{ item.user?.login || 'User' }}</span>
+                 <span class="text-[9px] text-content-muted font-medium truncate">@{{ item.user?.login || 'User' }}</span>
               </div>
               <p v-else class="text-[9px] text-neutral-500 leading-tight pr-4 truncate">
                 {{ t('settings.integrations_desc_short') }}

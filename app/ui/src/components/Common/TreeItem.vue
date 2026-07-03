@@ -25,6 +25,7 @@ defineEmits(['toggle', 'select', 'dblclick', 'contextmenu']);
 function getStatusIcon(status: string) {
   if (!status) return 'lucide:file';
   const s = status.toLowerCase();
+  if (s.includes('conflicted')) return 'lucide:alert-triangle';
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'lucide:plus';
   if (s.includes('deleted')) return 'lucide:minus';
   if (s.includes('renamed') || s.includes('moved')) return 'lucide:repeat';
@@ -33,15 +34,18 @@ function getStatusIcon(status: string) {
 }
 
 function getStatusColor(status: string, isSelected: boolean) {
-  if (isSelected) return 'text-white';
-  if (!status) return 'text-neutral-500';
-  const s = status.toLowerCase();
+  const s = (status || '').toLowerCase();
+  if (s.includes('conflicted')) return 'text-removed';
+  if (isSelected) return 'text-accent-fg';
+  if (!status) return 'text-content-muted';
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
   if (s.includes('deleted')) return 'text-red-500';
   if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
   if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
-  return 'text-neutral-500';
+  return 'text-content-muted';
 }
+
+const isConflicted = (status?: string) => (status || '').toLowerCase().includes('conflicted');
 </script>
 
 <template>
@@ -51,8 +55,9 @@ function getStatusColor(status: string, isSelected: boolean) {
       @dblclick="!node.isDir && $emit('dblclick', node.fullPath)"
       @contextmenu.prevent="!node.isDir && $emit('contextmenu', node.fullPath, $event)"
       :class="cn(
-        'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors group overflow-hidden',
-        (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))) ? 'bg-[#143B66] text-white' : 'text-neutral-600 dark:text-neutral-400'
+        'h-stack gap-1.5 py-1 px-3 cursor-pointer hover:bg-surface-hover transition-colors group overflow-hidden',
+        (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))) ? 'bg-accent text-accent-fg'
+          : (isConflicted(node.status) ? 'text-removed' : 'text-content-muted')
       )"
       :style="{ paddingLeft: (level * 12 + 12) + 'px' }"
       @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
@@ -64,7 +69,7 @@ function getStatusColor(status: string, isSelected: boolean) {
         :icon="node.isDir ? (isDirOpen(node.fullPath) ? 'lucide:folder-open' : 'lucide:folder') : getStatusIcon(node.status || '')"
         :class="cn(
           'text-xs shrink-0 marquee-icon',
-          node.isDir ? (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath)) ? 'text-white' : 'text-blue-500/50') : getStatusColor(node.status || '', !!(selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))))
+          node.isDir ? (selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath)) ? 'text-accent-fg' : 'text-accent/50') : getStatusColor(node.status || '', !!(selectedPath === node.fullPath || (selectedPaths && selectedPaths.includes(node.fullPath))))
         )"
       />
       <div class="flex-1 min-w-0 overflow-hidden">

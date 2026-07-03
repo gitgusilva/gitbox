@@ -49,7 +49,12 @@
     "clear": "Clear",
     "confirm_clear_logs": "Clear Logs",
     "confirm_clear_logs_msg": "Are you sure you want to clear all command logs?",
-    "message": "Message"
+    "message": "Message",
+    "panels": "Panels",
+    "success": "Success",
+    "error": "Error",
+    "ok": "OK",
+    "create": "Create"
   },
   "logs": {
     "command": "Command",
@@ -160,7 +165,12 @@
     "open_in_external": "Open in {tool}",
     "finish_merge_session": "Finish",
     "all_conflicts_done": "All conflicts resolved.",
-    "no_blame_available": "No blame available."
+    "no_blame_available": "No blame available.",
+    "stashed_file": "File stashed",
+    "saved_patch": "Patch saved",
+    "assumed_unchanged": "Marked as assume-unchanged",
+    "no_history": "No history for this file.",
+    "no_files_changed": "No files changed"
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",
@@ -180,7 +190,8 @@
     "file_view": "File",
     "diff_view": "Diff",
     "prev_change": "Previous Change",
-    "next_change": "Next Change"
+    "next_change": "Next Change",
+    "connectors": "Connectors"
   },
   "settings": {
     "title": "Settings",
@@ -265,7 +276,13 @@
       "desc_placeholder": "Pull request description..."
     },
     "date_format_relative": "Relative",
-    "ai_cli_no_key": "Uses your local CLI login — no API key needed."
+    "ai_cli_no_key": "Uses your local CLI login — no API key needed.",
+    "appearance": "Appearance",
+    "merge_editor": "Merge editor",
+    "merge_layout": "Layout",
+    "merge_layout_columns": "Columns (JetBrains-style)",
+    "merge_layout_stacked": "Stacked (classic)",
+    "merge_layout_hint": "How the incoming, result and current panes are arranged in the built-in merge editor."
   },
   "history_menu": {
     "visibility_graph": "Visibility in Graph",
@@ -289,7 +306,12 @@
   "stash": {
     "pop": "Apply & Drop (Pop)",
     "drop_title": "Drop Stash",
-    "drop_msg": "Are you sure you want to drop stash@{{index}}?"
+    "drop_msg": "Are you sure you want to drop stash@{{index}}?",
+    "apply": "Apply",
+    "apply_title": "Apply stash?",
+    "apply_msg": "Apply stash {index} to your working copy? It will be kept in the list.",
+    "pop_title": "Apply & remove stash?",
+    "pop_msg": "Apply stash {index} and remove it from the list?"
   },
   "time": {
     "just_now": "Just now",
@@ -496,7 +518,12 @@
     "no_integrations_connected": "No external integrations connected.",
     "connect_in_settings": "Connect one in Settings",
     "branch": "Branch",
-    "configure_ai_hint": "Settings > Integrations > Configure AI"
+    "configure_ai_hint": "Settings > Integrations > Configure AI",
+    "branch_label": "Branch",
+    "local_changes_label": "Local Changes",
+    "stash_reapply": "Stash & Reapply",
+    "discard": "Discard",
+    "checkout_branch": "Checkout Branch"
   },
   "view": {
     "github_pull_request": "GitHub Pull Request",
@@ -564,5 +591,119 @@
     "toggle_terminal_focus": "Toggle Terminal Focus",
     "search_repositories": "Search repositories...",
     "search_branches": "Search branches..."
+  },
+  "stats": {
+    "title": "Statistics",
+    "depth": "Depth",
+    "compute": "Compute",
+    "computing": "Computing statistics…",
+    "empty": "No commit history to analyze.",
+    "no_repo": "Open a repository to see statistics.",
+    "all_history": "All history",
+    "n_months": "{n} months",
+    "commits": "Commits",
+    "contributors": "Contributors",
+    "branches": "Branches",
+    "tags": "Tags",
+    "size": "Size",
+    "churn": "Churn",
+    "contribution_share": "Contribution Share",
+    "summary": "Summary",
+    "developer": "Developer",
+    "lines": "Lines",
+    "lines_lc": "lines",
+    "avg": "Avg/Commit",
+    "monthly_contributions": "Monthly Contributions",
+    "commit_activity": "Commit Activity",
+    "by_weekday": "Commits by Weekday",
+    "by_hour": "Activity by Hour",
+    "other": "Other",
+    "weekday": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "reset_zoom": "Reset zoom"
+  },
+  "appearance": {
+    "mode": "Base mode",
+    "mode_system": "System",
+    "mode_light": "Light",
+    "mode_dark": "Dark",
+    "themes": "Themes",
+    "dark_themes": "Dark",
+    "light_themes": "Light",
+    "import": "Import",
+    "export": "Export",
+    "imported": "Theme imported",
+    "import_failed": "Invalid theme file",
+    "exported": "Theme JSON copied to clipboard",
+    "duplicate": "Duplicate",
+    "reset": "Reset",
+    "builtin_note": "Built-in themes are read-only. Editing a color creates an editable copy.",
+    "name": "Theme name",
+    "colors": "Colors",
+    "typography": "Typography",
+    "ui_font": "UI font",
+    "ui_font_size": "UI font size",
+    "editor_font": "Editor font",
+    "editor_font_size": "Editor font size",
+    "editor_line_height": "Editor line height",
+    "radius": "Corner radius",
+    "preview": "Preview",
+    "group": {
+      "backgrounds": "Backgrounds",
+      "borders": "Borders",
+      "text": "Text",
+      "accent": "Accent",
+      "git": "Git"
+    },
+    "color": {
+      "bg": "Background",
+      "bgElevated": "Elevated",
+      "bgOverlay": "Overlay",
+      "surfaceHover": "Hover",
+      "border": "Border",
+      "borderStrong": "Border strong",
+      "text": "Text",
+      "textMuted": "Muted text",
+      "accent": "Accent",
+      "accentHover": "Accent hover",
+      "accentFg": "Accent text",
+      "added": "Added",
+      "removed": "Removed",
+      "modified": "Modified",
+      "textStrong": "Strong text"
+    },
+    "mode_hint": "System, Light and Dark use the default GitBox themes.",
+    "custom_themes": "Themes",
+    "duplicate_current": "Duplicate current",
+    "identity": "Theme details",
+    "version": "Version",
+    "author": "Author",
+    "author_email": "Author email",
+    "description": "Description",
+    "by": "by {author}",
+    "search": "Search themes…",
+    "all": "All",
+    "no_match": "No themes match your search.",
+    "repository": "Theme repository",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "install": "Install",
+    "installing": "Installing…",
+    "update": "Update",
+    "installed_ok": "Installed {name}",
+    "install_failed": "Could not install theme",
+    "repo_offline": "Can’t reach the theme repository. Your default and installed themes still work offline — or import a theme file.",
+    "import_local": "Import theme file",
+    "repo_offline_cached": "Offline — showing the saved list. Fetching new themes is unavailable.",
+    "active": "Active",
+    "customize_hint": "To customize a theme, export it, edit the JSON, and import it back.",
+    "publish_theme": "Publish a theme"
   }
 }

@@ -73,22 +73,22 @@ function getStatusColor(status: string) {
 </script>
 
 <template>
-  <div :class="cn('h-full w-full v-stack min-h-0 bg-neutral-100 dark:bg-[#242424]', props.class)">
+  <div :class="cn('h-full w-full v-stack min-h-0 bg-surface', props.class)">
     <!-- Upper section: metadata and message -->
     <ScrollArea 
       v-if="commit"
       :style="{ height: (showFiles === false ? '100%' : (layoutRefs.detailsWidth.value ? historyDetailInfoHeight : 400) + 'px') }" 
-      class="flex-shrink-0 bg-white dark:bg-[#242424]"
+      class="flex-shrink-0 bg-surface"
       :auto-hide="false"
     >
       <div class="p-6 v-stack gap-6 overflow-x-hidden">
 
         <!-- Header: Authors -->
-        <div class="v-stack gap-6 pb-6 border-b border-neutral-200 dark:border-neutral-800">
+        <div class="v-stack gap-6 pb-6 border-b border-line">
             <div class="h-stack items-start gap-4">
               <div class="relative flex-shrink-0">
-                <img :src="gravatarUrl(commit.authorEmail)" class="w-12 h-12 rounded border-2 border-neutral-200 dark:border-neutral-800 shadow-sm dark:shadow-lg object-cover" />
-                <div class="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-white dark:border-[#242424]"></div>
+                <img :src="gravatarUrl(commit.authorEmail)" class="w-12 h-12 rounded border-2 border-line shadow-sm dark:shadow-lg object-cover" />
+                <div class="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-line"></div>
               </div>
               <div class="v-stack min-w-0 flex-1">
                 <div class="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.author') }}</div>
@@ -107,16 +107,16 @@ function getStatusColor(status: string) {
             </div>
 
             <div class="h-stack items-start gap-4" v-if="(commit.committer && commit.committer !== commit.author) || (commit.committerEmail && commit.committerEmail !== commit.authorEmail)">
-              <div v-if="commit.committer?.toLowerCase() === 'github' || commit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-neutral-200 dark:bg-[#24292e] text-black dark:text-white center border-2 border-neutral-300 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
+              <div v-if="commit.committer?.toLowerCase() === 'github' || commit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-surface-hover text-content-strong center border-2 border-neutral-300 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
                   <Icon icon="mdi:github" class="text-3xl" />
               </div>
-              <div v-else-if="commit.committer?.toLowerCase() === 'gitlab' || commit.committerEmail?.toLowerCase().includes('gitlab')" class="w-12 h-12 rounded bg-[#e24329] text-white center border-2 border-neutral-200 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
+              <div v-else-if="commit.committer?.toLowerCase() === 'gitlab' || commit.committerEmail?.toLowerCase().includes('gitlab')" class="w-12 h-12 rounded bg-[#e24329] text-white center border-2 border-line shadow-lg opacity-80 flex-shrink-0">
                   <Icon icon="mdi:gitlab" class="text-3xl" />
               </div>
-              <div v-else-if="commit.committer?.toLowerCase() === 'bitbucket' || commit.committerEmail?.toLowerCase().includes('bitbucket')" class="w-12 h-12 rounded bg-[#0052cc] text-white center border-2 border-neutral-200 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
+              <div v-else-if="commit.committer?.toLowerCase() === 'bitbucket' || commit.committerEmail?.toLowerCase().includes('bitbucket')" class="w-12 h-12 rounded bg-[#0052cc] text-white center border-2 border-line shadow-lg opacity-80 flex-shrink-0">
                   <Icon icon="mdi:bitbucket" class="text-3xl" />
               </div>
-              <img v-else :src="gravatarUrl(commit.committerEmail || commit.authorEmail)" class="w-12 h-12 rounded border-2 border-neutral-200 dark:border-neutral-800 shadow-lg opacity-80 object-cover flex-shrink-0" />
+              <img v-else :src="gravatarUrl(commit.committerEmail || commit.authorEmail)" class="w-12 h-12 rounded border-2 border-line shadow-lg opacity-80 object-cover flex-shrink-0" />
               
               <div class="v-stack min-w-0 flex-1">
                 <div class="text-[9px] text-neutral-500 uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.committer') }}</div>
@@ -139,8 +139,8 @@ function getStatusColor(status: string) {
         <div class="v-stack gap-4 text-[11px]">
             <div class="h-stack items-start">
                <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.sha') }}</div>
-               <div class="flex-1 h-stack gap-2 bg-neutral-100 dark:bg-[#1E1E1E] px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                  <span class="font-mono text-neutral-700 dark:text-neutral-300 truncate text-[10px]">{{ commit.id }}</span>
+               <div class="flex-1 h-stack gap-2 bg-surface px-2 py-1 rounded border border-line overflow-hidden">
+                  <span class="font-mono text-content truncate text-[10px]">{{ commit.id }}</span>
                </div>
             </div>
 
@@ -173,7 +173,7 @@ function getStatusColor(status: string) {
 
             <div class="h-stack items-start">
                <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.message') }}</div>
-               <div class="flex-1 text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed min-w-0">
+               <div class="flex-1 text-content whitespace-pre-wrap leading-relaxed min-w-0">
                   <div class="font-bold text-black dark:text-neutral-100 mb-2 text-xs truncate">{{ commit.summary }}</div>
                   <div v-html="renderMessageLinks(commit.message || '')" @click="handleLinkClick" class="opacity-80 text-[11px] overflow-hidden"></div>
                </div>
@@ -189,8 +189,8 @@ function getStatusColor(status: string) {
     <Resizer vertical v-if="showFiles !== false" :target="layoutRefs.historyDetailInfoHeight" :options="{ axis: 'y', min: 150 }" class="bg-neutral-200/50 dark:bg-neutral-800/50" />
 
     <!-- Lower section: Changed files -->
-    <div v-if="showFiles !== false" class="flex-1 v-stack min-h-0 bg-neutral-50 dark:bg-[#1A1A1A] overflow-hidden">
-        <div class="p-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-[#252526] h-stack justify-between flex-shrink-0">
+    <div v-if="showFiles !== false" class="flex-1 v-stack min-h-0 bg-app overflow-hidden">
+        <div class="p-4 py-2 border-b border-line bg-surface h-stack justify-between flex-shrink-0">
             <div class="text-neutral-500 font-bold uppercase tracking-widest text-[9px]">{{ t('history_detail.n_changed_files', { count: changedFiles.length }) }}</div>
         </div>
 
@@ -209,7 +209,7 @@ function getStatusColor(status: string) {
                <Icon :icon="getStatusIcon(item.data.status)"
                      :class="getStatusColor(item.data.status)"
                      class="text-[14px] shrink-0" />
-               <span class="text-[11px] text-neutral-600 dark:text-neutral-400 truncate group-hover:text-blue-400 transition-colors">{{ item.data.path }}</span>
+               <span class="text-[11px] text-content-muted truncate group-hover:text-blue-400 transition-colors">{{ item.data.path }}</span>
             </div>
         </VirtualScroll>
 

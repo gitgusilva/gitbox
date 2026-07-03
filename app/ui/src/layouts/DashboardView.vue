@@ -16,6 +16,7 @@ import FilesView from './Files/FilesView.vue';
 import ChangelogView from './ChangelogView.vue';
 import PullRequestView from '../components/PullRequestView.vue';
 import OutputLogView from './OutputLogView.vue';
+import StatisticsView from './StatisticsView.vue';
 import MergeBanner from '../components/MergeBanner.vue';
 import { appVersion } from '../services/versionService';
 import { Icon } from '@iconify/vue';
@@ -61,7 +62,7 @@ function stopMarquee(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-white dark:bg-[#1E1E1E]">
+  <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-app">
     <div v-if="error" class="bg-red-900/50 border-b border-red-800 text-red-100 text-xs p-2 flex items-center justify-between group overflow-hidden" @mouseenter="startMarquee" @mouseleave="stopMarquee">
        <div class="truncate flex-1 relative z-0 transition-transform">{{ error }}</div>
        <Tooltip :text="t('common.copy') || 'Copy'" position="left">
@@ -81,5 +82,6 @@ function stopMarquee(e: MouseEvent) {
     <ChangelogView v-else-if="activeTab === 'changelog'" :version="appVersion" />
     <PullRequestView v-else-if="activeTab === 'pull_request'" />
     <OutputLogView v-else-if="activeTab === 'output_log'" />
+    <StatisticsView v-else-if="activeTab === 'statistics'" />
   </div>
 </template>

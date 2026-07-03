@@ -28,7 +28,7 @@ const positionClass = computed(() => {
           leave-to-class="opacity-0 translate-y-2 scale-95">
           
         <div v-for="toast in toasts" :key="toast.id" 
-             class="w-[380px] rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto bg-white dark:bg-[#2b2d31] border border-neutral-200 dark:border-neutral-700/50"
+             class="w-[380px] rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto bg-surface border border-line/50"
              :class="{
                  'border-l-4 border-l-red-500': toast.type === 'error',
                  'border-l-4 border-l-green-500': toast.type === 'success',
@@ -55,8 +55,8 @@ const positionClass = computed(() => {
               <button @click="removeToast(toast.id)" class="absolute top-2 right-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
                   <Icon icon="lucide:x" class="text-sm" />
               </button>
-              <h3 class="font-bold text-sm text-neutral-800 dark:text-neutral-200 mb-1 leading-tight">{{ toast.title }}</h3>
-              <p class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{{ toast.message }}</p>
+              <h3 class="font-bold text-sm text-content mb-1 leading-tight">{{ toast.title }}</h3>
+              <p class="text-xs text-content-muted leading-relaxed">{{ toast.message }}</p>
               <a v-if="toast.link" :href="toast.link" target="_blank" class="block mt-2 text-xs text-blue-400 hover:underline">
                   {{ toast.link }}
               </a>

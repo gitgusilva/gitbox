@@ -39,7 +39,12 @@
     "delete_branch": "Eliminar Rama",
     "confirm_clear_logs": "Limpiar Logs",
     "confirm_clear_logs_msg": "¿Estás seguro de que deseas limpiar todos los logs de comandos?",
-    "message": "Mensaje"
+    "message": "Mensaje",
+    "panels": "Paneles",
+    "success": "Éxito",
+    "error": "Error",
+    "ok": "OK",
+    "create": "Crear"
   },
   "logs": {
     "command": "Comando",
@@ -74,7 +79,12 @@
   "stash": {
     "pop": "Aplicar y Eliminar (Pop)",
     "drop_title": "Eliminar Stash",
-    "drop_msg": "¿Estás seguro de que deseas eliminar stash@{{index}}?"
+    "drop_msg": "¿Estás seguro de que deseas eliminar stash@{{index}}?",
+    "apply": "Aplicar",
+    "apply_title": "¿Aplicar stash?",
+    "apply_msg": "¿Aplicar el stash {index} a tu copia de trabajo? Se mantendrá en la lista.",
+    "pop_title": "¿Aplicar y quitar stash?",
+    "pop_msg": "¿Aplicar el stash {index} y quitarlo de la lista?"
   },
   "workspace": {
     "add": "Añadir Workspace",
@@ -161,7 +171,12 @@
     "open_in_external": "Abrir en {tool}",
     "finish_merge_session": "Finalizar",
     "all_conflicts_done": "Todos los conflictos resueltos.",
-    "no_blame_available": "Blame no disponible."
+    "no_blame_available": "Blame no disponible.",
+    "stashed_file": "Archivo guardado en stash",
+    "saved_patch": "Patch guardado",
+    "assumed_unchanged": "Marcado como assume-unchanged",
+    "no_history": "Sin historial para este archivo.",
+    "no_files_changed": "Ningún archivo modificado"
   },
   "branch_menu": {
     "merge_into_current": "Fusionar en {branch}",
@@ -233,7 +248,13 @@
       "generate": "Generar título y descripción"
     },
     "date_format_relative": "Relativo",
-    "ai_cli_no_key": "Usa el login del CLI local — no requiere API key."
+    "ai_cli_no_key": "Usa el login del CLI local — no requiere API key.",
+    "appearance": "Apariencia",
+    "merge_editor": "Editor de fusión",
+    "merge_layout": "Diseño",
+    "merge_layout_columns": "Columnas (estilo JetBrains)",
+    "merge_layout_stacked": "Apilado (clásico)",
+    "merge_layout_hint": "Cómo se organizan los paneles entrante, resultado y actual en el editor de fusión."
   },
   "time": {
     "just_now": "Recién",
@@ -440,7 +461,12 @@
     "no_integrations_connected": "No hay integraciones externas conectadas.",
     "connect_in_settings": "Conecta una en Ajustes",
     "branch": "Rama",
-    "configure_ai_hint": "Ajustes > Integraciones > Configurar IA"
+    "configure_ai_hint": "Ajustes > Integraciones > Configurar IA",
+    "branch_label": "Rama",
+    "local_changes_label": "Cambios locales",
+    "stash_reapply": "Stash y reaplicar",
+    "discard": "Descartar",
+    "checkout_branch": "Cambiar de rama"
   },
   "view": {
     "github_pull_request": "Pull Request de GitHub",
@@ -511,6 +537,121 @@
   },
   "diff": {
     "word_wrap": "Ajuste de línea",
-    "blame": "Blame"
+    "blame": "Blame",
+    "connectors": "Conectores"
+  },
+  "stats": {
+    "title": "Estadísticas",
+    "depth": "Período",
+    "compute": "Calcular",
+    "computing": "Calculando estadísticas…",
+    "empty": "No hay historial de commits para analizar.",
+    "no_repo": "Abre un repositorio para ver las estadísticas.",
+    "all_history": "Todo el historial",
+    "n_months": "{n} meses",
+    "commits": "Commits",
+    "contributors": "Colaboradores",
+    "branches": "Ramas",
+    "tags": "Etiquetas",
+    "size": "Tamaño",
+    "churn": "Cambios",
+    "contribution_share": "Participación en Contribuciones",
+    "summary": "Resumen",
+    "developer": "Desarrollador",
+    "lines": "Líneas",
+    "lines_lc": "líneas",
+    "avg": "Prom./Commit",
+    "monthly_contributions": "Contribuciones Mensuales",
+    "commit_activity": "Actividad de Commits",
+    "by_weekday": "Commits por Día",
+    "by_hour": "Actividad por Hora",
+    "other": "Otros",
+    "weekday": {
+      "sun": "Dom",
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mié",
+      "thu": "Jue",
+      "fri": "Vie",
+      "sat": "Sáb"
+    },
+    "reset_zoom": "Restablecer zoom"
+  },
+  "appearance": {
+    "mode": "Modo base",
+    "mode_system": "Sistema",
+    "mode_light": "Claro",
+    "mode_dark": "Oscuro",
+    "themes": "Temas",
+    "dark_themes": "Oscuros",
+    "light_themes": "Claros",
+    "import": "Importar",
+    "export": "Exportar",
+    "imported": "Tema importado",
+    "import_failed": "Archivo de tema inválido",
+    "exported": "JSON del tema copiado",
+    "duplicate": "Duplicar",
+    "reset": "Restablecer",
+    "builtin_note": "Los temas integrados son de solo lectura. Editar un color creará una copia editable.",
+    "name": "Nombre del tema",
+    "colors": "Colores",
+    "typography": "Tipografía",
+    "ui_font": "Fuente de la UI",
+    "ui_font_size": "Tamaño de fuente de la UI",
+    "editor_font": "Fuente del editor",
+    "editor_font_size": "Tamaño de fuente del editor",
+    "editor_line_height": "Altura de línea del editor",
+    "radius": "Redondeo",
+    "preview": "Vista previa",
+    "group": {
+      "backgrounds": "Fondos",
+      "borders": "Bordes",
+      "text": "Texto",
+      "accent": "Acento",
+      "git": "Git"
+    },
+    "color": {
+      "bg": "Fondo",
+      "bgElevated": "Elevado",
+      "bgOverlay": "Superposición",
+      "surfaceHover": "Hover",
+      "border": "Borde",
+      "borderStrong": "Borde fuerte",
+      "text": "Texto",
+      "textMuted": "Texto tenue",
+      "accent": "Acento",
+      "accentHover": "Acento hover",
+      "accentFg": "Texto del acento",
+      "added": "Añadido",
+      "removed": "Eliminado",
+      "modified": "Modificado",
+      "textStrong": "Texto fuerte"
+    },
+    "mode_hint": "Sistema, Claro y Oscuro usan los temas predeterminados de GitBox.",
+    "custom_themes": "Temas",
+    "duplicate_current": "Duplicar actual",
+    "identity": "Detalles del tema",
+    "version": "Versión",
+    "author": "Autor",
+    "author_email": "Email del autor",
+    "description": "Descripción",
+    "by": "por {author}",
+    "search": "Buscar temas…",
+    "all": "Todos",
+    "no_match": "Ningún tema coincide con la búsqueda.",
+    "repository": "Repositorio de temas",
+    "refresh": "Actualizar",
+    "loading": "Cargando…",
+    "install": "Instalar",
+    "installing": "Instalando…",
+    "update": "Actualizar",
+    "installed_ok": "{name} instalado",
+    "install_failed": "No se pudo instalar el tema",
+    "repo_offline": "No se pudo acceder al repositorio de temas. Tus temas predeterminados e instalados siguen funcionando sin conexión, o importa un archivo de tema.",
+    "import_local": "Importar archivo de tema",
+    "repo_offline_cached": "Sin conexión — mostrando la lista guardada. No se pueden buscar temas nuevos.",
+    "active": "Activo",
+    "customize_hint": "Para personalizar un tema, expórtalo, edita el JSON e impórtalo de nuevo.",
+    "publish_theme": "Publicar un tema"
   }
 }

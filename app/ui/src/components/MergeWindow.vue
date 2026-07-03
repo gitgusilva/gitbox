@@ -148,25 +148,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex flex-col bg-white dark:bg-[#1E1E1E] text-neutral-800 dark:text-neutral-200 overflow-hidden">
+  <div class="h-screen w-screen flex flex-col bg-app text-content overflow-hidden">
     <!-- Title bar (draggable) -->
     <div
-      class="h-9 shrink-0 flex items-center justify-between px-3 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 select-none"
+      class="h-9 shrink-0 flex items-center justify-between px-3 bg-surface border-b border-line select-none"
       style="-webkit-app-region: drag;"
     >
-      <div class="flex items-center gap-2 min-w-0 text-[11px] font-bold uppercase tracking-widest text-neutral-700 dark:text-neutral-300">
-        <Icon icon="lucide:git-merge" class="text-amber-400 text-sm" />
+      <div class="flex items-center gap-2 min-w-0 text-[11px] font-bold uppercase tracking-widest text-content">
+        <Icon icon="lucide:git-merge" class="text-amber-500 text-sm" />
         <span class="truncate">{{ t('changes.merging') }}: {{ fileName }}</span>
       </div>
 
       <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
-        <button @click="minimizeWindow" class="w-9 h-7 center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-700/60 hover:text-neutral-900 dark:hover:text-white rounded transition-colors">
+        <button @click="minimizeWindow" class="w-9 h-7 center text-content-muted hover:bg-surface-hover hover:text-content-strong rounded transition-colors">
           <Icon icon="lucide:minus" class="text-sm" />
         </button>
-        <button @click="maximizeWindow" class="w-9 h-7 center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-700/60 hover:text-neutral-900 dark:hover:text-white rounded transition-colors">
+        <button @click="maximizeWindow" class="w-9 h-7 center text-content-muted hover:bg-surface-hover hover:text-content-strong rounded transition-colors">
           <Icon icon="lucide:square" class="text-[11px]" />
         </button>
-        <button @click="closeWindow" class="w-9 h-7 center text-neutral-600 dark:text-neutral-400 hover:bg-red-600 hover:text-neutral-900 dark:hover:text-white rounded transition-colors">
+        <button @click="closeWindow" class="w-9 h-7 center text-content-muted hover:bg-red-600 hover:text-white rounded transition-colors">
           <Icon icon="lucide:x" class="text-sm" />
         </button>
       </div>
@@ -194,8 +194,8 @@ onMounted(() => {
             :class="[
               'h-stack items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-xl',
               mergeState.canCompleteMerge && !isSaving
-                ? 'bg-blue-700/80 hover:bg-blue-600 border border-blue-400/40 text-blue-100'
-                : 'bg-neutral-200/70 dark:bg-neutral-800/70 border border-neutral-300 dark:border-neutral-700 text-neutral-500 cursor-not-allowed',
+                ? 'bg-accent hover:bg-accent-hover border border-accent/40 text-accent-fg'
+                : 'bg-surface border border-line-strong text-content-muted cursor-not-allowed',
             ]"
           >
             <Icon :icon="isSaving ? 'lucide:loader-2' : 'lucide:check'" :class="isSaving ? 'animate-spin' : ''" />
@@ -204,12 +204,12 @@ onMounted(() => {
         </div>
       </template>
 
-      <div v-else-if="loaded && loadError" class="flex-1 center v-stack text-neutral-500 text-center p-8">
+      <div v-else-if="loaded && loadError" class="flex-1 center v-stack text-content-muted text-center p-8">
         <Icon icon="lucide:alert-triangle" class="text-4xl mb-3 opacity-30" />
         <div class="text-xs max-w-md break-words">{{ loadError }}</div>
       </div>
 
-      <div v-else class="flex-1 center text-neutral-600">
+      <div v-else class="flex-1 center text-content-muted">
         <Icon icon="lucide:loader-2" class="text-2xl animate-spin" />
       </div>
     </div>
@@ -217,32 +217,32 @@ onMounted(() => {
     <!-- After resolving a file: continue with the next conflict, open it in the
          external merge tool, or finish. -->
     <div v-if="showNextPrompt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div class="w-[460px] max-w-[92vw] bg-white dark:bg-[#252526] border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl overflow-hidden">
+      <div class="w-[460px] max-w-[92vw] bg-surface border border-line rounded-xl shadow-2xl overflow-hidden">
         <div class="p-5 v-stack gap-3">
           <div class="flex items-center gap-2 text-emerald-500">
             <Icon icon="lucide:check-circle-2" class="text-lg" />
             <span class="text-sm font-bold">{{ t('changes.merge_resolved_title') }}</span>
           </div>
-          <p class="text-xs text-neutral-600 dark:text-neutral-400 break-words">{{ t('changes.merge_resolved_msg', { file: justResolvedFile }) }}</p>
+          <p class="text-xs text-content-muted break-words">{{ t('changes.merge_resolved_msg', { file: justResolvedFile }) }}</p>
 
-          <div class="border-t border-neutral-200 dark:border-neutral-800 pt-3 v-stack gap-1.5">
-            <p class="text-xs font-medium text-neutral-800 dark:text-neutral-200">{{ t('changes.next_conflict_prompt') }}</p>
-            <p class="text-[11px] text-blue-500 font-mono truncate" :title="nextFile">{{ t('changes.next_file', { file: nextFile }) }}</p>
+          <div class="border-t border-line pt-3 v-stack gap-1.5">
+            <p class="text-xs font-medium text-content">{{ t('changes.next_conflict_prompt') }}</p>
+            <p class="text-[11px] text-accent font-mono truncate" :title="nextFile">{{ t('changes.next_file', { file: nextFile }) }}</p>
             <p class="text-[10px] text-amber-500">{{ t('changes.remaining_conflicts_count', { count: remainingConflicts.length }) }}</p>
           </div>
         </div>
-        <div class="flex items-center justify-end gap-2 px-5 py-3 bg-neutral-50 dark:bg-[#1e1e1e] border-t border-neutral-200 dark:border-neutral-800">
+        <div class="flex items-center justify-end gap-2 px-5 py-3 bg-app border-t border-line">
           <button @click="finishMergeSession"
-                  class="px-3 py-1.5 rounded text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
+                  class="px-3 py-1.5 rounded text-xs font-bold text-content hover:bg-surface-hover transition-colors">
             {{ t('changes.finish_merge_session') }}
           </button>
           <button v-if="mergeTool" @click="openNextInExternal"
-                  class="px-3 py-1.5 rounded text-xs font-bold text-neutral-700 dark:text-neutral-200 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors flex items-center gap-1.5">
+                  class="px-3 py-1.5 rounded text-xs font-bold text-content border border-line-strong hover:bg-surface-hover transition-colors flex items-center gap-1.5">
             <Icon icon="lucide:external-link" class="text-xs" />
             {{ t('changes.open_in_external', { tool: mergeTool.label }) }}
           </button>
           <button @click="continueWithNext"
-                  class="px-4 py-1.5 rounded text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1.5">
+                  class="px-4 py-1.5 rounded text-xs font-bold bg-accent hover:bg-accent-hover text-accent-fg transition-colors flex items-center gap-1.5">
             <Icon icon="lucide:arrow-right" class="text-xs" />
             {{ t('changes.continue_here') }}
           </button>

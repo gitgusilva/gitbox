@@ -22,6 +22,8 @@ const Push = require('../Commands/Push');
 const GitFlow = require('../Commands/GitFlow');
 const Archive = require('../Commands/Archive');
 const Patch = require('../Commands/Patch');
+const Statistics = require('../Commands/Statistics');
+const FileActions = require('../Commands/FileActions');
 
 module.exports = function (addon) {
     // Instanciar classes de comandos como serviços/Singletons
@@ -47,6 +49,8 @@ module.exports = function (addon) {
     const gitFlowCmd = new GitFlow(addon);
     const archiveCmd = new Archive(addon);
     const patchCmd = new Patch(addon);
+    const statisticsCmd = new Statistics(addon);
+    const fileActionsCmd = new FileActions(addon);
 
     ipcMain.handle('gitbox:status', async (_, repoPath) => statusCmd.get(repoPath));
     ipcMain.handle('gitbox:branches', async (_, repoPath) => branchCmd.getBranches(repoPath));
@@ -71,6 +75,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:stashes', async (_, repoPath) => stashCmd.getStashes(repoPath));
     ipcMain.handle('gitbox:stashSave', async (_, repoPath, message) => stashCmd.save(repoPath, message));
     ipcMain.handle('gitbox:stashChanges', async (_, repoPath, stashId) => stashCmd.changes(repoPath, stashId));
+    ipcMain.handle('gitbox:stashApply', async (_, repoPath, stashId) => stashCmd.apply(repoPath, stashId));
     ipcMain.handle('gitbox:stashPop', async (_, repoPath, stashId) => stashCmd.pop(repoPath, stashId));
     ipcMain.handle('gitbox:stashDrop', async (_, repoPath, stashId) => stashCmd.drop(repoPath, stashId));
 
@@ -134,4 +139,18 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:mergeContinue', async (_, repoPath, message) => mergeCmd.complete(repoPath, message));
     ipcMain.handle('gitbox:mergeAbort', async (_, repoPath) => mergeCmd.abort(repoPath));
     ipcMain.handle('gitbox:repoState', async (_, repoPath) => mergeCmd.state(repoPath));
+
+    // Statistics
+    ipcMain.handle('gitbox:statistics', async (_, repoPath, sinceMonths) => statisticsCmd.compute(repoPath, sinceMonths));
+
+    // Per-file actions (context menu)
+    ipcMain.handle('gitbox:openPath', async (_, fullPath) => fileActionsCmd.openPath(fullPath));
+    ipcMain.handle('gitbox:revealInFolder', async (_, fullPath) => fileActionsCmd.revealInFolder(fullPath));
+    ipcMain.handle('gitbox:assumeUnchanged', async (_, repoPath, filePath, assume) => fileActionsCmd.assumeUnchanged(repoPath, filePath, assume));
+    ipcMain.handle('gitbox:stashFile', async (_, repoPath, filePath, message) => fileActionsCmd.stashFile(repoPath, filePath, message));
+    ipcMain.handle('gitbox:savePatch', async (_, repoPath, filePath, staged) => fileActionsCmd.savePatch(repoPath, filePath, staged));
+    ipcMain.handle('gitbox:fileHistory', async (_, repoPath, filePath, maxCount) => fileActionsCmd.fileHistory(repoPath, filePath, maxCount));
+    ipcMain.handle('gitbox:saveTextFile', async (_, defaultName, content) => fileActionsCmd.saveTextFile(defaultName, content));
+    ipcMain.handle('gitbox:openTextFile', async () => fileActionsCmd.openTextFile());
+    ipcMain.handle('gitbox:fetchText', async (_, url) => fileActionsCmd.fetchText(url));
 };

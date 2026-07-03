@@ -10,7 +10,7 @@ import {
   updateWorkspace,
   isChangelogVisible
 } from '../services/workspaceService';
-import { repoPath, loadRepoData, isLoadingData } from '../services/gitService';
+import { repoPath, loadRepoData, isLoadingData, activeTab } from '../services/gitService';
 import { ref, watch, onMounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
@@ -198,6 +198,12 @@ function openTabMenu(e: MouseEvent, wsId: string) {
     };
 }
 
+// Open Settings directly on a given section; the plain "Settings" click uses 'general'.
+function openSettings(section: string) {
+    settingsActiveSection.value = section;
+    isSettingsOpen.value = true;
+}
+
 function openMainMenu(e: MouseEvent) {
     contextMenu.value = {
         x: e.clientX,
@@ -218,10 +224,24 @@ function openMainMenu(e: MouseEvent) {
             { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', action: () => {} },
             { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', action: () => {} },
             { separator: true },
-            { label: t('settings.preferences') + '...', shortcut: 'Ctrl+,', action: () => {
-                settingsActiveSection.value = 'preferences';
-                isSettingsOpen.value = true;
-            }},
+            { label: t('common.panels'), icon: 'lucide:panels-top-left', subItems: [
+                { label: t('common.output_log'), icon: 'lucide:terminal', action: () => { activeTab.value = 'output_log'; } },
+                { label: t('stats.title'), icon: 'lucide:chart-pie', action: () => { activeTab.value = 'statistics'; } },
+            ] },
+            { separator: true },
+            {
+                label: t('settings.title'),
+                icon: 'lucide:settings',
+                shortcut: 'Ctrl+,',
+                action: () => openSettings('general'),
+                subItems: [
+                    { label: t('settings.general'), icon: 'lucide:settings', action: () => openSettings('general') },
+                    { label: t('settings.appearance'), icon: 'lucide:palette', action: () => openSettings('appearance') },
+                    { label: t('settings.preferences'), icon: 'lucide:sliders', action: () => openSettings('preferences') },
+                    { label: t('settings.git'), icon: 'lucide:git-branch', action: () => openSettings('git') },
+                    { label: t('settings.integrations'), icon: 'lucide:link', action: () => openSettings('integrations') },
+                ],
+            },
             { separator: true },
             { label: t('common.quit') || 'Quit', shortcut: 'Ctrl+Q', action: () => handleClose() }
         ]
@@ -294,15 +314,15 @@ watch(activeWorkspaceId, async (val) => {
 </script>
 
 <template>
-  <div class="flex-shrink-0 h-10 bg-neutral-100 dark:bg-[#18181A] border-b border-light-border dark:border-[#2D2D2D] flex items-center shadow-sm select-none" style="-webkit-app-region: drag;">
+  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none" style="-webkit-app-region: drag;">
     
     <!-- Left actions -->
     <div class="flex items-center px-4 gap-3 relative z-10" style="-webkit-app-region: no-drag;">
-       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="openMainMenu">
+       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="openMainMenu">
            <Icon icon="lucide:menu" />
        </div>
        <!-- Removed the folder from here entirely? Or leave it? User only complained about + button -> let's leave it as is. -->
-       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
+       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
            <Icon icon="lucide:folder" />
        </div>
     </div>
@@ -316,7 +336,7 @@ watch(activeWorkspaceId, async (val) => {
                      @click="activeWorkspaceId = 'changelog'"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 min-w-[120px] px-3 flex items-center justify-between gap-2 rounded-t-md mx-[1px] cursor-pointer group transition-colors relative"
-                     :class="activeWorkspaceId === 'changelog' ? 'bg-neutral-100 dark:bg-[#2D2D2D] text-neutral-900 dark:text-white' : 'bg-white dark:bg-[#1E1E1E] text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
+                     :class="activeWorkspaceId === 'changelog' ? 'bg-surface text-content-strong' : 'bg-app text-content-muted hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                         <Icon icon="lucide:megaphone" class="w-3.5 h-3.5 text-blue-500" />
                         <span class="truncate text-xs font-medium">{{ t('common.whats_new') }}</span>
@@ -336,7 +356,7 @@ watch(activeWorkspaceId, async (val) => {
                      @dragend="onDragEnd"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 max-w-[200px] min-w-[120px] px-3 flex items-center justify-between rounded-t-md mx-[1px] cursor-pointer group transition-colors relative border-b-2 border-transparent"
-                     :class="activeWorkspaceId === ws.id ? 'bg-neutral-100 dark:bg-[#2D2D2D] text-neutral-900 dark:text-white border-blue-500' : 'bg-white dark:bg-[#1E1E1E] text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
+                     :class="activeWorkspaceId === ws.id ? 'bg-surface text-content-strong border-blue-500' : 'bg-app text-content-muted hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
                      
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                          <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: ws.color }"></div>
@@ -350,7 +370,7 @@ watch(activeWorkspaceId, async (val) => {
 
                 <!-- Inline + button -->
                 <Tooltip v-if="!isOverflowing" :text="t('ui.add_workspace')" position="bottom">
-                  <div class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded-t-md text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors" @click="handleAddWorkspaceFlow" style="-webkit-app-region: no-drag;">
+                  <div class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded-t-md text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors" @click="handleAddWorkspaceFlow" style="-webkit-app-region: no-drag;">
                       <Icon icon="lucide:plus" class="w-4 h-4" />
                   </div>
                 </Tooltip>
@@ -358,19 +378,19 @@ watch(activeWorkspaceId, async (val) => {
         </SimpleBar>
 
         <!-- Right Controls (Arrows +) -->
-        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-neutral-100 dark:bg-[#18181A] z-20" style="-webkit-app-region: no-drag;">
+        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-surface z-20" style="-webkit-app-region: no-drag;">
              <Tooltip :text="t('ui.scroll_left')" position="bottom">
-               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(-200)">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(-200)">
                    <Icon icon="lucide:chevron-left" class="w-4 h-4" />
                </div>
              </Tooltip>
              <Tooltip :text="t('ui.scroll_right')" position="bottom">
-               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(200)">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(200)">
                    <Icon icon="lucide:chevron-right" class="w-4 h-4" />
                </div>
              </Tooltip>
              <Tooltip :text="t('ui.add_workspace')" position="bottom" class="ml-0.5">
-               <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
+               <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
                    <Icon icon="lucide:plus" class="w-4 h-4" />
                </div>
              </Tooltip>
@@ -379,13 +399,13 @@ watch(activeWorkspaceId, async (val) => {
 
     <!-- Right Window Controls -->
     <div class="flex h-full" style="-webkit-app-region: no-drag;">
-        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMinimize">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMinimize">
             <Icon icon="lucide:minus" class="w-4 h-4" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMaximize">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMaximize">
             <Icon icon="lucide:square" class="w-3.5 h-3.5" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
             <Icon icon="lucide:x" class="w-4 h-4" />
         </div>
     </div>
@@ -394,18 +414,18 @@ watch(activeWorkspaceId, async (val) => {
     <template v-if="isColorPickerOpen">
         <!-- Click-away backdrop -->
         <div class="fixed inset-0 z-40" style="-webkit-app-region: no-drag;" @click="isColorPickerOpen = false; editingWorkspaceId = null"></div>
-        <div class="fixed w-48 p-3 bg-neutral-200 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-md shadow-xl z-50"
+        <div class="fixed w-48 p-3 bg-neutral-200 dark:bg-neutral-800 border border-line-strong rounded-md shadow-xl z-50"
              :style="{ top: '40px', left: colorPickerX + 'px' }" style="-webkit-app-region: no-drag;">
             <div class="flex flex-wrap gap-2">
                 <div v-for="c in colors" :key="c" @click="selectColor(c)"
                      class="w-6 h-6 rounded cursor-pointer hover:scale-110 transition-transform border border-white/10"
                      :style="{ backgroundColor: c }"></div>
             </div>
-            <div class="mt-3 pt-3 border-t border-neutral-300 dark:border-neutral-700 flex items-center gap-2">
+            <div class="mt-3 pt-3 border-t border-line-strong flex items-center gap-2">
                 <label class="relative w-7 h-7 rounded overflow-hidden border border-neutral-400 dark:border-neutral-600 cursor-pointer shrink-0" :style="{ backgroundColor: customColor }">
                     <input type="color" v-model="customColor" class="absolute inset-0 opacity-0 cursor-pointer" />
                 </label>
-                <span class="text-[11px] font-mono text-neutral-600 dark:text-neutral-400 flex-1 truncate">{{ customColor }}</span>
+                <span class="text-[11px] font-mono text-content-muted flex-1 truncate">{{ customColor }}</span>
                 <button @click="selectColor(customColor)"
                         class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors">
                     {{ t('common.apply') || 'Apply' }}

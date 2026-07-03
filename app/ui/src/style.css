@@ -16,9 +16,9 @@ textarea,
   user-select: text;
   -webkit-user-select: text;
 }
-/* Neutralize the blue selection highlight where selection still happens */
+/* Selection follows the theme accent. */
 ::selection {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgb(var(--gb-accent) / 0.25);
 }
 
 @layer components {
@@ -58,12 +58,71 @@ textarea,
   background: radial-gradient(circle at 5% 5%, #111827 0%, #0b1220 55%, #05070d 100%);
 }
 
+/*
+ * Design-token fallbacks. themeService overrides these inline on :root at
+ * runtime (for custom themes / live editing); these values prevent a flash
+ * before the theme is applied and mirror the built-in GitBox Dark / Light.
+ */
+:root, .dark {
+  --gb-bg: 30 30 30;
+  --gb-bg-elevated: 37 37 38;
+  --gb-bg-overlay: 45 45 45;
+  --gb-surface-hover: 42 42 43;
+  --gb-border: 45 45 45;
+  --gb-border-strong: 58 58 58;
+  --gb-text-strong: 242 242 242;
+  --gb-text: 204 204 204;
+  --gb-text-muted: 138 138 138;
+  --gb-accent: 37 99 235;
+  --gb-accent-hover: 59 130 246;
+  --gb-accent-fg: 255 255 255;
+  --gb-added: 34 197 94;
+  --gb-removed: 239 68 68;
+  --gb-modified: 87 176 255;
+
+  --gb-font-ui: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --gb-ui-font-size: 13px;
+  --gb-font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  --gb-editor-font: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  --gb-editor-font-size: 13px;
+  --gb-editor-line-height: 0;
+  --gb-radius: 6px;
+}
+
+.light {
+  --gb-bg: 255 255 255;
+  --gb-bg-elevated: 246 248 250;
+  --gb-bg-overlay: 255 255 255;
+  --gb-surface-hover: 238 241 244;
+  --gb-border: 208 215 222;
+  --gb-border-strong: 175 184 193;
+  --gb-text-strong: 31 35 40;
+  --gb-text: 36 41 47;
+  --gb-text-muted: 101 109 118;
+  --gb-accent: 9 105 218;
+  --gb-accent-hover: 33 120 224;
+  --gb-accent-fg: 255 255 255;
+  --gb-added: 26 127 55;
+  --gb-removed: 207 34 46;
+  --gb-modified: 9 105 218;
+}
+
 body {
   @apply m-0 min-h-screen bg-transparent text-neutral-200;
 }
 
 #app {
   @apply min-h-screen;
+  font-family: var(--gb-font-ui);
+  font-size: var(--gb-ui-font-size);
+  /* Native controls (range, checkbox, radio, progress) follow the theme accent. */
+  accent-color: rgb(var(--gb-accent));
+}
+
+/* Focus outlines are disabled for now; a dedicated accessibility pass is planned. */
+#app :focus,
+#app :focus-visible {
+  outline: none;
 }
 
 /* Custom Scrollbar - Minimal */

@@ -7,6 +7,7 @@ import { getLanguage, getMonacoTheme, monacoOptions, initMonaco } from '../../se
 import { getItem, setItem } from '../../services/storageService';
 import ImageDiffViewer from './ImageDiffViewer.vue';
 import MarkdownDiffViewer from './MarkdownDiffViewer.vue';
+import RibbonDiffViewer from './RibbonDiffViewer.vue';
 import IconButton from './IconButton.vue';
 import Tooltip from './Tooltip.vue';
 import Resizer from './Resizer.vue';
@@ -37,8 +38,12 @@ const emit = defineEmits<{
 }>();
 
 const container = ref<HTMLElement | null>(null);
-const isHunkView = ref(getItem('gitbox_diff_hunk_view') === 'true');
+// Hidden/collapsed unchanged regions are disabled — the diff always shows full context.
+const isHunkView = ref(false);
 const renderSideBySide = ref(props.inline ? false : (getItem('gitbox_diff_render_mode') !== 'inline'));
+// JetBrains-style connector ribbons for the side-by-side diff (custom viewer).
+const useRibbons = ref(getItem('gitbox_diff_ribbons') !== 'false');
+const ribbonRef = ref<InstanceType<typeof RibbonDiffViewer> | null>(null);
 const viewType = ref<'diff' | 'file'>('diff');
 const isWordWrap = ref(false);
 const ignoreWhitespace = ref(false);
@@ -125,6 +130,12 @@ function updateVisibleBlame() {
     }
 }
 
+// Scrolling over the blame gutter scrolls the editor (blame follows via sync).
+function onBlameWheel(e: WheelEvent) {
+    if (!fileEditor) return;
+    fileEditor.setScrollTop(fileEditor.getScrollTop() + e.deltaY);
+}
+
 const isImage = computed(() => {
     return props.filename && /\.(png|jpe?g|gif|webp|ico|svg)$/i.test(props.filename);
 });
@@ -139,6 +150,19 @@ const isNewOrUntracked = computed(() => {
 
 const viewMode = ref<'visual' | 'code'>(isImage.value ? 'visual' : 'code');
 
+// The custom ribbon viewer replaces Monaco's diff editor only for the
+// side-by-side, text-diff, code-view case; every other case keeps Monaco.
+// Side-by-side text diffs always use the two-editor custom viewer (no Monaco
+// diff-editor middle gutter/arrows). The connectors toggle only controls whether
+// the ribbon gutter is shown. Inline mode keeps Monaco's unified diff editor.
+const isCustomDiff = computed(() =>
+    viewType.value === 'diff'
+    && renderSideBySide.value
+    && viewMode.value === 'code'
+    && !isImage.value
+    && !isMarkdown.value,
+);
+
 const monaco = ref<any>(null);
 let editor: any; // DiffEditor
 let fileEditor: any; // Standard Editor for File View
@@ -146,7 +170,8 @@ let originalModel: any;
 let modifiedModel: any;
 
 async function setupEditor() {
-  if (!container.value || viewMode.value !== 'code') return;
+  // The ribbon viewer owns its own Monaco editors; don't create the built-in one.
+  if (!container.value || viewMode.value !== 'code' || isCustomDiff.value) return;
   monaco.value = await initMonaco();
   
   const language = getLanguage(props.filename);
@@ -163,7 +188,7 @@ async function setupEditor() {
         diffWordWrap: isWordWrap.value ? 'on' : 'off',
         wordWrap: isWordWrap.value ? 'on' : 'off',
         ignoreTrimWhitespace: ignoreWhitespace.value,
-        hideUnchangedRegions: { enabled: isHunkView.value },
+        hideUnchangedRegions: { enabled: false },
       });
 
       editor.setModel({ original: originalModel, modified: modifiedModel });
@@ -203,6 +228,7 @@ function destroyEditor() {
 }
 
 function prevChange() {
+    if (isCustomDiff.value) { ribbonRef.value?.goToChange('previous'); return; }
     if (editor && viewType.value === 'diff') {
         if (typeof editor.goToDiff === 'function') {
             editor.goToDiff('previous');
@@ -213,6 +239,7 @@ function prevChange() {
 }
 
 function nextChange() {
+    if (isCustomDiff.value) { ribbonRef.value?.goToChange('next'); return; }
     if (editor && viewType.value === 'diff') {
         if (typeof editor.goToDiff === 'function') {
             editor.goToDiff('next');
@@ -290,22 +317,28 @@ watch(isResizing, (val) => {
   }
 });
 
-watch(isHunkView, (val) => {
-  setItem('gitbox_diff_hunk_view', val ? 'true' : 'false');
+watch(renderSideBySide, (val) => {
+  setItem('gitbox_diff_render_mode', val ? 'split' : 'inline');
   if (editor && editor.updateOptions) {
-    editor.updateOptions({ 
-        hideUnchangedRegions: { enabled: val }
+    editor.updateOptions({
+        renderSideBySide: val
     });
   }
 });
 
-watch(renderSideBySide, (val) => {
-  setItem('gitbox_diff_render_mode', val ? 'split' : 'inline');
-  if (editor && editor.updateOptions) {
-    editor.updateOptions({ 
-        renderSideBySide: val
-    });
+// Switch between Monaco's diff editor and the custom ribbon viewer. Only one of
+// them is alive at a time; tear the other down cleanly when the mode flips.
+watch(isCustomDiff, async (custom) => {
+  if (custom) {
+    destroyEditor();
+  } else {
+    await nextTick();
+    if (viewMode.value === 'code') setupEditor();
   }
+});
+
+watch(useRibbons, (val) => {
+  setItem('gitbox_diff_ribbons', val ? 'true' : 'false');
 });
 
 watch(currentTheme, (val) => {
@@ -337,8 +370,8 @@ function onToolbarWheel(e: WheelEvent) {
 </script>
 
 <template>
-  <div :class="cn('flex-1 v-stack min-h-0 min-w-0 bg-white dark:bg-[#1E1E1E] h-full', props.class)">
-    <div class="shrink-0 bg-neutral-100 dark:bg-[#252526] border-b border-neutral-200 dark:border-neutral-800 px-3 h-10 h-stack justify-between gap-2 z-10 select-none overflow-hidden">
+  <div :class="cn('flex-1 v-stack min-h-0 min-w-0 bg-app h-full', props.class)">
+    <div class="shrink-0 bg-surface border-b border-line px-3 h-10 h-stack justify-between gap-2 z-10 select-none overflow-hidden">
       <!-- Left: File Ident & Extra Actions -->
       <div class="h-stack gap-3 min-w-0 flex-1 pr-2">
         <div class="min-w-0 overflow-hidden flex items-center gap-2"
@@ -349,7 +382,7 @@ function onToolbarWheel(e: WheelEvent) {
           </span>
         </div>
         
-        <div class="h-stack gap-1 border-l border-neutral-300 dark:border-neutral-700 ml-2 pl-3 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9" v-if="isImage || isMarkdown">
+        <div class="h-stack gap-1 border-l border-line-strong ml-2 pl-3 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9" v-if="isImage || isMarkdown">
             <IconButton direction="row" 
                          :showLabel="false"
                          :icon="viewMode === 'visual' ? 'lucide:code' : (isMarkdown ? 'lucide:file-text' : 'lucide:image')" 
@@ -361,7 +394,7 @@ function onToolbarWheel(e: WheelEvent) {
       <!-- Right: Centralized Controls -->
       <div class="h-stack gap-2 min-w-0 shrink overflow-x-auto [&::-webkit-scrollbar]:hidden" @wheel="onToolbarWheel">
         <!-- Group 1: Formatting & Diff Options (Word Wrap, Whitespace, Split, Hunks) -->
-        <div v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)" class="h-stack items-center gap-1 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9 shrink-0">
+        <div v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)" class="h-stack items-center gap-1 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9 shrink-0">
             <IconButton direction="row"
                          :showLabel="false"
                          icon="lucide:wrap-text"
@@ -383,13 +416,6 @@ function onToolbarWheel(e: WheelEvent) {
 
                 <IconButton direction="row"
                             :showLabel="false"
-                            icon="lucide:layers"
-                            :label="t('diff.show_hunks_only')"
-                            :active="isHunkView"
-                            @click="isHunkView = !isHunkView" />
-
-                <IconButton direction="row"
-                            :showLabel="false"
                             icon="lucide:columns"
                             :label="t('diff.side_by_side')"
                             :active="renderSideBySide"
@@ -401,11 +427,21 @@ function onToolbarWheel(e: WheelEvent) {
                             :label="t('diff.inline_view')"
                             :active="!renderSideBySide"
                             @click="renderSideBySide = false" />
+
+                <template v-if="viewType === 'diff' && renderSideBySide">
+                    <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+                    <IconButton direction="row"
+                                :showLabel="false"
+                                icon="lucide:spline"
+                                :label="t('diff.connectors')"
+                                :active="useRibbons"
+                                @click="useRibbons = !useRibbons" />
+                </template>
             </template>
         </div>
 
         <!-- Group 2: Blame -->
-        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-neutral-200 dark:border-neutral-800 h-9 shrink-0">
+        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9 shrink-0">
             <IconButton direction="row"
                          :showLabel="true"
                          icon="lucide:git-commit-vertical"
@@ -415,7 +451,7 @@ function onToolbarWheel(e: WheelEvent) {
         </div>
 
         <!-- Group 3: Main View Mode Toggle -->
-        <div class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-neutral-200 dark:border-neutral-800 p-1 ml-1 h-9 gap-1 shrink-0">
+        <div class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-line p-1 ml-1 h-9 gap-1 shrink-0">
            <IconButton direction="row"
                         :showLabel="true"
                         icon="lucide:file-text"
@@ -431,7 +467,7 @@ function onToolbarWheel(e: WheelEvent) {
         </div>
 
         <!-- Group 4: Navigation (Diff only) -->
-        <div v-if="viewType === 'diff' && viewMode === 'code'" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-neutral-200 dark:border-neutral-800 p-1 h-9 shrink-0">
+        <div v-if="viewType === 'diff' && viewMode === 'code'" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-line p-1 h-9 shrink-0">
            <IconButton direction="row"
                         :showLabel="false"
                         icon="lucide:chevron-up"
@@ -449,9 +485,9 @@ function onToolbarWheel(e: WheelEvent) {
     </div>
     
     <div v-show="viewMode === 'code'" class="flex-1 flex min-h-0 min-w-0 overflow-hidden relative">
-        <div v-if="isBlameVisible && viewType === 'file'" class="shrink-0 bg-white dark:bg-[#1E1E1E] border-r border-neutral-200 dark:border-neutral-800 overflow-hidden relative select-none z-10 v-stack" :style="{ width: blameWidth + 'px' }">
-            <div v-if="isBlameLoading" class="absolute inset-0 center bg-white/80 dark:bg-[#1e1e1e]/80 z-20">
-                <Icon icon="lucide:loader-2" class="animate-spin text-neutral-500 text-xl" />
+        <div v-if="isBlameVisible && viewType === 'file'" @wheel.prevent="onBlameWheel" class="shrink-0 bg-app border-r border-line overflow-hidden relative select-none z-10 v-stack" :style="{ width: blameWidth + 'px' }">
+            <div v-if="isBlameLoading" class="absolute inset-0 center bg-app/80 z-20">
+                <Icon icon="lucide:loader-2" class="animate-spin text-content-muted text-xl" />
             </div>
             
             <div v-if="blameError" class="p-4 text-xs text-red-400 text-center flex-1 overflow-auto opacity-70">
@@ -460,28 +496,37 @@ function onToolbarWheel(e: WheelEvent) {
             <div v-else class="absolute left-0 right-0 top-0 transition-none will-change-transform" :style="{ transform: `translateY(-${blameScrollTop}px)` }">
                 <div v-for="vb in visibleBlame" :key="vb.line" class="absolute left-0 w-full h-stack px-1 group border-t border-transparent overflow-hidden" :style="{ top: vb.top + 'px', height: vb.height + 'px' }">
                     <template v-if="vb.blame && vb.isNewCommit">
-                        <div class="h-full w-full h-stack items-center border-t border-neutral-200/50 dark:border-neutral-800/50 -mt-[1px] px-1 group-hover:bg-neutral-200/50 dark:group-hover:bg-[#2A2D31]/50 transition-colors">
+                        <div class="h-full w-full flex items-center gap-2 border-t border-line -mt-[1px] px-1 group-hover:bg-surface-hover transition-colors overflow-hidden">
                           <Tooltip :text="`Commit: ${vb.blame.commit}\nAuthor: ${vb.blame.author} <${vb.blame.email || 'N/A'}>\nDate: ${new Date(Number(vb.blame.time)*1000).toLocaleString()}\n\n${vb.blame.summary}`" position="right">
-                            <div class="relative shrink-0 mr-3 center">
-                              <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-[#252526] shadow-sm cursor-help hover:ring-1 hover:ring-blue-500/50 transition-all" />
+                            <div class="relative shrink-0 center">
+                              <img :src="gravatarUrl(vb.blame.email)" class="w-4 h-4 rounded-sm border border-line-strong bg-surface shadow-sm cursor-help hover:ring-1 hover:ring-accent/50 transition-all" />
                             </div>
                           </Tooltip>
-                          <Tooltip :text="vb.blame.summary" position="right" class="flex-1 mr-2 min-w-0">
-                            <span class="truncate text-[11px] font-mono text-neutral-600/80 dark:text-neutral-400/80 group-hover:text-neutral-700 dark:group-hover:text-neutral-300 transition-colors cursor-default">{{ vb.blame.summary }}</span>
+                          <Tooltip :text="vb.blame.summary" position="right" class="flex-1 min-w-0 overflow-hidden">
+                            <span class="block w-full truncate text-[11px] font-mono text-content-muted group-hover:text-content transition-colors cursor-default">{{ vb.blame.summary }}</span>
                           </Tooltip>
-                          <Tooltip :text="new Date(Number(vb.blame.time)*1000).toLocaleString()" position="right">
-                            <span class="truncate text-[10.5px] font-mono font-medium opacity-50 shrink-0 group-hover:opacity-80 transition-opacity">{{ new Date(Number(vb.blame.time)*1000).toLocaleDateString('en-GB') }}</span>
+                          <Tooltip :text="new Date(Number(vb.blame.time)*1000).toLocaleString()" position="right" class="shrink-0">
+                            <span class="text-[10.5px] font-mono font-medium opacity-50 group-hover:opacity-80 transition-opacity whitespace-nowrap tabular-nums">{{ new Date(Number(vb.blame.time)*1000).toLocaleDateString('en-GB') }}</span>
                           </Tooltip>
                         </div>
                     </template>
-                    <div v-else-if="vb.blame && !vb.isNewCommit" class="w-[2px] h-full bg-neutral-200/30 dark:bg-neutral-800/30 ml-[7px] group-hover:bg-blue-500/50 transition-colors"></div>
+                    <div v-else-if="vb.blame && !vb.isNewCommit" class="w-[2px] h-full bg-line ml-[7px] group-hover:bg-accent/60 transition-colors"></div>
                 </div>
             </div>
         </div>
         
         <Resizer v-if="isBlameVisible && viewType === 'file'" :target="layoutRefs.blameWidth" :options="{ min: 100, max: 800, clampToContainer: true, reserve: 240 }" @resize="handleBlameResize" />
 
-        <div ref="container" class="flex-1 min-w-0"></div>
+        <RibbonDiffViewer
+            v-if="isCustomDiff"
+            ref="ribbonRef"
+            :original="original"
+            :modified="modified"
+            :filename="filename"
+            :ignore-whitespace="ignoreWhitespace"
+            :connectors="useRibbons"
+            :word-wrap="isWordWrap" />
+        <div v-show="!isCustomDiff" ref="container" class="flex-1 min-w-0"></div>
     </div>
     
     <ImageDiffViewer v-if="viewMode === 'visual' && isImage" 

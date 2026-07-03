@@ -61,7 +61,57 @@ export interface GraphNode {
     isMerge?: boolean;
 }
 
-export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr' | 'output_log';
+export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr' | 'output_log' | 'statistics';
+
+export interface StatAuthor {
+    name: string;
+    email: string;
+    commits: number;
+    added: number;
+    deleted: number;
+    lines: number;
+    avgLinesPerCommit: number;
+}
+
+export interface StatMonth {
+    month: string; // 'YYYY-MM'
+    total: number; // churn (added + deleted)
+    commits: number;
+    byAuthor: Record<string, number>;
+}
+
+export interface FileHistoryEntry {
+    id: string;
+    author: string;
+    email: string;
+    timestamp: number;
+    summary: string;
+}
+
+export interface BlameLine {
+    line: number;
+    commit: string;
+    author: string;
+    email: string;
+    time: number | string;
+    summary: string;
+}
+
+export interface GitStatistics {
+    totalCommits: number;
+    branchCount: number;
+    remoteBranchCount: number;
+    tagCount: number;
+    sizeBytes: number;
+    objectCount: number;
+    sinceMonths: number;
+    authors: StatAuthor[];
+    monthly: StatMonth[];
+    weekday: number[]; // length 7, index 0 = Sunday
+    hourly: number[];  // length 24
+    totalAdded: number;
+    totalDeleted: number;
+}
 
 export type RepoState = 'clean' | 'merge' | 'rebase' | 'revert' | 'cherrypick' | 'bisect' | 'apply_mailbox';
 
@@ -110,6 +160,7 @@ export interface GitboxAPI {
     getFileDiff: (repoPath: string, filePath: string) => Promise<string>;
     stashChanges: (repoPath: string, stashId: string) => Promise<GitStatusEntry[]>;
     stashSave: (repoPath: string, message?: string) => Promise<boolean>;
+    stashApply: (repoPath: string, stashId?: string) => Promise<boolean>;
     stashPop: (repoPath: string, stashId?: string) => Promise<boolean>;
     stashDrop: (repoPath: string, stashId?: string) => Promise<boolean>;
     diffStashFile: (repoPath: string, stashId: string, filePath: string) => Promise<FileDiff>;
@@ -118,10 +169,23 @@ export interface GitboxAPI {
     openMergeWindow: (repoPath: string, filePath: string) => Promise<boolean>;
     notifyMergeResolved: () => void;
     onMergeResolved: (callback: () => void) => (() => void);
+    broadcastTheme?: (theme: unknown) => void;
+    onThemeChanged?: (callback: (theme: unknown) => void) => (() => void);
     mergeBranch: (repoPath: string, branchName: string, noFastForward?: boolean) => Promise<MergeResult>;
     mergeContinue: (repoPath: string, message?: string) => Promise<string>;
     mergeAbort: (repoPath: string) => Promise<boolean>;
     repoState: (repoPath: string) => Promise<RepoState>;
+    statistics: (repoPath: string, sinceMonths?: number) => Promise<GitStatistics>;
+    openPath: (fullPath: string) => Promise<boolean>;
+    revealInFolder: (fullPath: string) => Promise<boolean>;
+    assumeUnchanged: (repoPath: string, filePath: string, assume: boolean) => Promise<boolean>;
+    stashFile: (repoPath: string, filePath: string, message?: string) => Promise<boolean>;
+    savePatch: (repoPath: string, filePath: string, staged?: boolean) => Promise<{ saved: boolean; path?: string }>;
+    fileHistory: (repoPath: string, filePath: string, maxCount?: number) => Promise<FileHistoryEntry[]>;
+    saveTextFile: (defaultName: string, content: string) => Promise<{ saved: boolean; path?: string }>;
+    openTextFile: () => Promise<{ content: string; path: string } | null>;
+    fetchText: (url: string) => Promise<string>;
+    getFileBlame: (repoPath: string, filePath: string, rev?: string) => Promise<BlameLine[]>;
     commitFiles: (repoPath: string, commitId: string) => Promise<GitStatusEntry[]>;
     diffCommitFile: (repoPath: string, commitId: string, filePath: string) => Promise<FileDiff>;
     commitDiff: (repoPath: string, commitId: string) => Promise<string>;

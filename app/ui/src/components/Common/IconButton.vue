@@ -59,11 +59,11 @@ function handleClick(e: MouseEvent) {
                !hideLabel && direction === 'col' ? 'v-stack gap-0.5 py-1 px-2.5 rounded min-w-[50px]' : '',
                !hideLabel && direction === 'row' ? 'h-stack gap-1.5 px-2.5 py-1 rounded text-[10px] uppercase font-bold tracking-tighter' : '',
                hideLabel ? 'center p-1.5 rounded w-8 h-8' : '',
-               (isGhost || isSidebar) && !active ? 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white dark:hover:bg-neutral-800 hover:bg-neutral-200' : '',
-               variant === 'default' && !active ? 'text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800' : '',
-               isPrimary && !active ? 'bg-blue-600 text-white hover:bg-blue-500' : '',
-               active ? 'bg-blue-600/20 text-blue-400' : '',
-               isSidebar && active ? 'text-blue-400 dark:bg-neutral-800/80' : ''
+               (isGhost || isSidebar) && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
+               variant === 'default' && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
+               isPrimary && !active ? 'bg-accent text-accent-fg hover:bg-accent-hover' : '',
+               active ? 'bg-accent/20 text-accent' : '',
+               isSidebar && active ? 'text-accent bg-surface-hover' : ''
             )">
       <Icon :icon="currentIcon" 
             :class="cn(

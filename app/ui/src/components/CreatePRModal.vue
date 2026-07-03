@@ -289,14 +289,14 @@ function openIntegrationsSettings() {
             <div class="p-8 space-y-6">
                 <div v-if="connectedProviders.length === 0" class="text-center py-8 space-y-4">
                     <Icon icon="lucide:link-2-off" class="text-4xl text-neutral-700 mx-auto" />
-                    <p class="text-sm text-neutral-600 dark:text-neutral-400">{{ t('modal.no_integrations_connected') }}</p>
+                    <p class="text-sm text-content-muted">{{ t('modal.no_integrations_connected') }}</p>
 
                     <button @click="openIntegrationsSettings" class="text-xs text-blue-500 hover:underline">{{ t('modal.connect_in_settings') }}</button>
                 </div>
             
             <template v-else>
                 <!-- Selected Provider Info -->
-                <div class="flex justify-center mb-4 border-b border-neutral-200 dark:border-neutral-800 pb-6">
+                <div class="flex justify-center mb-4 border-b border-line pb-6">
                     <div v-if="selectedProviderId" class="flex flex-col items-center gap-2 group transition-all opacity-100 scale-105">
                         <div class="w-12 h-12 rounded-xl flex items-center justify-center text-3xl shadow-xl transition-all" 
                             :style="{ 
@@ -307,7 +307,7 @@ function openIntegrationsSettings() {
                             <Icon :icon="connectedProviders.find(p => p.id === selectedProviderId)?.icon || 'lucide:git-pull-request'" />
                         </div>
 
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
                             {{ connectedProviders.find(p => p.id === selectedProviderId)?.name || 'Provider' }}
                         </span>
 
@@ -348,7 +348,7 @@ function openIntegrationsSettings() {
                             <Icon icon="lucide:alert-triangle" /> {{ t('settings.create_pr.merge_conflict') }}
                         </div>
 
-                        <div class="bg-black/20 p-2 rounded max-h-32 flex flex-col gap-1 overflow-y-auto w-full text-xs text-neutral-600 dark:text-neutral-400 font-mono">
+                        <div class="bg-black/20 p-2 rounded max-h-32 flex flex-col gap-1 overflow-y-auto w-full text-xs text-content-muted font-mono">
                             <span v-for="file in conflictingFiles" :key="file">{{ file }}</span>
                             <span v-if="conflictingFiles.length === 0">{{ t('settings.create_pr.hidden_conflicts') }}</span>
                         </div>
@@ -371,18 +371,18 @@ function openIntegrationsSettings() {
                                 </Tooltip>
                             </div>
 
-                            <input v-model="title" type="text" :placeholder="t('settings.create_pr.title_placeholder')" class="w-full bg-neutral-100 dark:bg-[#2a2a2d] border border-neutral-300 dark:border-neutral-700/50 rounded-lg px-4 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-all shadow-inner" />
+                            <input v-model="title" type="text" :placeholder="t('settings.create_pr.title_placeholder')" class="w-full bg-surface border border-line-strong/50 rounded-lg px-4 py-2 text-xs text-content-strong outline-none focus:border-accent transition-all shadow-inner" />
                         </div>
 
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.description') }}</label>
-                            <textarea v-model="description" :placeholder="t('settings.create_pr.desc_placeholder')" rows="8" class="w-full bg-neutral-100 dark:bg-[#2a2a2d] border border-neutral-300 dark:border-neutral-700/50 rounded-lg px-4 py-3 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-all resize-none shadow-inner"></textarea>
+                            <textarea v-model="description" :placeholder="t('settings.create_pr.desc_placeholder')" rows="8" class="w-full bg-surface border border-line-strong/50 rounded-lg px-4 py-3 text-xs text-content-strong outline-none focus:border-accent transition-all resize-none shadow-inner"></textarea>
                         </div>
                     </div>
                 </div>
 
                 <!-- Metadata Multi-selects Below Description -->
-                <div class="grid grid-cols-3 gap-4 border-t border-neutral-200 dark:border-neutral-800 pt-6">
+                <div class="grid grid-cols-3 gap-4 border-t border-line pt-6">
                     <!-- Reviewers -->
                     <div class="space-y-2">
                         <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
@@ -414,20 +414,20 @@ function openIntegrationsSettings() {
         </div>
 
         <template #footer>
-            <footer v-if="connectedProviders.length > 0" class="h-16 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-6 bg-neutral-100 dark:bg-[#252526] gap-3">
+            <footer v-if="connectedProviders.length > 0" class="h-16 border-t border-line flex items-center justify-between px-6 bg-surface gap-3">
                 <div class="flex items-center shrink-0">
                     <!-- Draft Checkbox moved here -->
                     <label class="flex items-center gap-2 cursor-pointer group">
-                        <div class="w-4 h-4 rounded border border-neutral-300 dark:border-neutral-700 flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-blue-600 border-blue-600' : 'bg-transparent'">
+                        <div class="w-4 h-4 rounded border border-line-strong flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-blue-600 border-blue-600' : 'bg-transparent'">
                             <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-white" />
                         </div>
                         <input type="checkbox" v-model="isDraft" class="hidden" />
-                        <span class="text-[11px] font-medium text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
+                        <span class="text-[11px] font-medium text-content-muted group-hover:text-neutral-800 dark:group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
                     </label>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-white/5 transition-all">
+                    <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-content-muted hover:text-neutral-900 dark:hover:text-white hover:bg-white/5 transition-all">
                         {{ t('common.cancel') }}
                     </button>
                     <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch || fromBranch === toBranch" :title="fromBranch === toBranch ? t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.' : ''" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">

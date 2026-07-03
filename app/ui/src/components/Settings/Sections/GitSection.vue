@@ -40,11 +40,11 @@ async function handleSaveGitConfig() {
   <div class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
     <div>
       <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.user_name') }}</label>
-      <input v-model="draftName" type="text" placeholder="e.g. John Doe" class="w-full bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 rounded px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-colors shadow-sm" />
+      <input v-model="draftName" type="text" placeholder="e.g. John Doe" class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm" />
     </div>
     <div>
       <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.user_email') }}</label>
-      <input v-model="draftEmail" type="text" placeholder="e.g. john@example.com" class="w-full bg-neutral-100 dark:bg-[#252526] border border-neutral-200 dark:border-neutral-800 rounded px-3 py-2 text-xs text-neutral-900 dark:text-white outline-none focus:border-blue-500 transition-colors shadow-sm" />
+      <input v-model="draftEmail" type="text" placeholder="e.g. john@example.com" class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm" />
     </div>
     <div class="flex items-center gap-3 pt-2">
         <button @click="handleSaveGitConfig" :disabled="isSavingGit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-bold transition-colors shadow-md flex items-center gap-2">

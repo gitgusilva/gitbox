@@ -14,7 +14,7 @@ const emit = defineEmits(['toggleGroup', 'selectLog', 'checkout', 'menu', 'toggl
 
 <template>
   <div class="py-1 flex items-center gap-1.5 cursor-pointer text-xs group/item pr-2 h-7"
-       :class="[!node.isGroup && node.data?.is_head ? 'font-bold text-neutral-900 dark:text-white' : 'text-neutral-600 dark:text-neutral-400', selectedLogRef === node.name ? 'bg-neutral-200 dark:bg-neutral-800' : 'hover:bg-black/5 dark:hover:bg-white/5']"
+       :class="[!node.isGroup && node.data?.is_head ? 'font-bold text-content-strong' : 'text-content-muted', selectedLogRef === node.name ? 'bg-neutral-200 dark:bg-neutral-800' : 'hover:bg-black/5 dark:hover:bg-white/5']"
        :style="{ paddingLeft: `${(node.level + 1) * 12 + 10}px` }"
        @click="node.isGroup ? emit('toggleGroup', node.fullPath) : emit('selectLog', node.fullPath)"
        @dblclick="!node.isGroup ? emit('checkout', node.fullPath) : null"
