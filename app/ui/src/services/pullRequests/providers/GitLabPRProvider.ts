@@ -34,6 +34,12 @@ export class GitLabPRProvider extends BasePRProvider {
         }));
     }
 
+    async submitReview(_repo: string, _prNumber: number, _event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', _body?: string): Promise<boolean> {
+        // GitLab uses a different approval model (approve/unapprove endpoints, no
+        // "request changes" review event). Not wired up yet.
+        throw new Error('review_not_supported');
+    }
+
     async closePR(repo: string, prNumber: number): Promise<boolean> {
         return this.updatePR(repo, prNumber, { state_event: 'close' });
     }

@@ -22,7 +22,11 @@ import {
   stashes,
   loadRepoData,
   currentBranchName,
-  repoState
+  repoState,
+  branches,
+  log,
+  selectedCommits,
+  activeTab
 } from '../../services/gitService';
 import { 
   layoutRefs
@@ -32,6 +36,7 @@ import MergeEditor from '../../components/Common/MergeEditor.vue';
 import FileTree from '../../components/Common/FileTree.vue';
 import Resizer from '../../components/Common/Resizer.vue';
 import Tooltip from '../../components/Common/Tooltip.vue';
+import Button from '../../components/Common/Button.vue';
 import { generateCommitMessage, explainChanges, isAIConfigured, aiConfigVersion } from '../../services/ai';
 import { getItem, setItem } from '../../services/storageService';
 import { contextMenu, requestConfirm } from '../../services/modalService';
@@ -48,7 +53,7 @@ const stagedViewMode = ref(getItem('gitbox_staged_view_mode') || 'tree');
 
 // Resizable commit panel (drag its top edge up for more room). Wrapped in an
 // object so the template hands the Resizer the ref itself (not its unwrapped value).
-const commitPanelHeight = ref(Number(getItem('gitbox_commit_panel_height')) || 180);
+const commitPanelHeight = ref(Number(getItem('gitbox_commit_panel_height')) || 220);
 const commitRefs = { commitPanelHeight };
 watch(commitPanelHeight, (h) => setItem('gitbox_commit_panel_height', String(Math.round(h))));
 
@@ -335,6 +340,38 @@ async function resolveSelection() {
   if (side) await resolveConflictSide(side);
 }
 
+// Delete/add conflicts (anything but UU/AA) can't be merged "both" — there's no
+// content on one side. Make the two cards mutually exclusive so the user picks a
+// single side (keep vs. delete) instead of an invalid "both".
+function toggleIncoming() {
+  selIncoming.value = !selIncoming.value;
+  if (selIncoming.value && !isContentConflict.value) selCurrent.value = false;
+}
+function toggleCurrent() {
+  selCurrent.value = !selCurrent.value;
+  if (selCurrent.value && !isContentConflict.value) selIncoming.value = false;
+}
+
+// Tip commits behind each side of the conflict (HEAD and the incoming branch),
+// so the panel can link to the commit that introduced each side's changes.
+const currentSha = computed(() => branches.value.find(b => b.is_head)?.target || '');
+const incomingSha = computed(() => {
+  const name = incomingBranch.value;
+  if (!name) return '';
+  const short = name.split('/').pop();
+  return branches.value.find(b => b.name === name)?.target
+      || branches.value.find(b => b.name.split('/').pop() === short)?.target
+      || '';
+});
+
+/** Jump to the History tab and focus the given commit. */
+function openCommitInHistory(sha: string) {
+  if (!sha) return;
+  activeTab.value = 'history';
+  const commit = log.value.find((c: any) => c.id === sha || c.id.startsWith(sha) || sha.startsWith(c.id));
+  if (commit) selectedCommits.value = [commit];
+}
+
 // NOTE: the watcher that drives loadConflictType is registered AFTER
 // `allChangedFiles` is declared (below), because watch() evaluates its source
 // once at setup and isSelectedFileConflicted reads allChangedFiles.
@@ -441,6 +478,8 @@ async function handleDblClick(path: string) {
 }
 
 const statusContainerRef = ref<HTMLElement | null>(null);
+const rightPanelRef = ref<HTMLElement | null>(null);
+let rightPanelObs: ResizeObserver | null = null;
 
 onMounted(() => {
   nextTick(loadDiff);
@@ -451,6 +490,22 @@ onMounted(() => {
       layoutRefs.unstagedHeight.value = Math.floor(h / 2);
     }
   }
+
+  // Keep the commit panel from ever growing past the container and covering the
+  // diff (window/zoom resize): clamp so the diff area always keeps a usable min.
+  if (rightPanelRef.value && typeof ResizeObserver !== 'undefined') {
+    rightPanelObs = new ResizeObserver(() => {
+      const el = rightPanelRef.value;
+      if (!el) return;
+      const maxH = Math.max(200, el.clientHeight - 200);
+      if (commitPanelHeight.value > maxH) commitPanelHeight.value = maxH;
+    });
+    rightPanelObs.observe(rightPanelRef.value);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (rightPanelObs) { rightPanelObs.disconnect(); rightPanelObs = null; }
 });
 
 /** List of all files that have changes. */
@@ -636,7 +691,7 @@ async function handleExplainChanges() {
          </div>
          <div :class="cn('h-stack items-center gap-1 shrink-0')">
            <Tooltip :text="t('changes.include_untracked')">
-             <button @click="toggleUntracked" :class="cn('w-6 h-6 center transition-colors', includeUntracked ? 'text-blue-400' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white')">
+             <button @click="toggleUntracked" :class="cn('w-6 h-6 center transition-colors', includeUntracked ? 'text-accent' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white')">
                <Icon :icon="includeUntracked ? 'lucide:eye' : 'lucide:eye-off'" class="text-xs" />
              </button>
            </Tooltip>
@@ -646,7 +701,7 @@ async function handleExplainChanges() {
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.stage_selected')">
-             <button @click="moveSelected(true)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-blue-400 disabled:opacity-30 transition-colors')">
+             <button @click="moveSelected(true)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-accent disabled:opacity-30 transition-colors')">
                <Icon icon="lucide:chevron-down" class="text-sm" />
              </button>
            </Tooltip>
@@ -683,7 +738,7 @@ async function handleExplainChanges() {
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.unstage_selected')">
-             <button @click="moveSelected(false)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-blue-400 disabled:opacity-30 transition-colors')">
+             <button @click="moveSelected(false)" :disabled="selectedFiles.length === 0" :class="cn('w-6 h-6 center hover:text-accent disabled:opacity-30 transition-colors')">
                <Icon icon="lucide:chevron-up" class="text-sm" />
              </button>
            </Tooltip>
@@ -702,8 +757,8 @@ async function handleExplainChanges() {
     </div>
 
     <!-- Editor / Diff Viewer -->
-    <div :class="cn('flex-1 v-stack bg-app relative min-w-0')">
-      <div :class="cn('flex-1 v-stack min-h-0 relative min-w-0')">
+    <div ref="rightPanelRef" :class="cn('flex-1 v-stack bg-app relative min-w-0')">
+      <div :class="cn('flex-1 v-stack min-h-0 overflow-hidden relative min-w-0')">
         <template v-if="selectedFile">
             <template v-if="selectedSubmodule">
                <div :class="cn('flex-1 v-stack overflow-hidden min-h-0 relative')">
@@ -729,51 +784,64 @@ async function handleExplainChanges() {
                   </div>
                 </div>
 
-                <!-- two selectable side cards + center merge -->
-                <div class="flex items-center gap-4">
-                  <!-- Incoming (remote) -->
-                  <button type="button" @click="selIncoming = !selIncoming"
-                          :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selIncoming ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
-                    <span v-if="selIncoming" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
-                    <div class="text-[13px] font-bold text-added">{{ t('changes.incoming') }} <span class="text-content-muted font-normal">({{ t('changes.remote') }})</span></div>
-                    <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
-                      <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
-                      <span class="font-mono truncate">{{ incomingBranch || t('changes.incoming_changes') }}</span>
-                    </div>
-                    <div class="text-[10px] text-content-muted mt-1 uppercase tracking-wide">{{ t(`changes.status_${incomingStatusKey}`) }}</div>
-                  </button>
+                <!-- side cards, Y-connector, and the merge button as one vertical flow -->
+                <div class="flex flex-col items-center">
+                  <div class="flex justify-between w-[464px]">
+                    <!-- Incoming (remote) -->
+                    <button type="button" @click="toggleIncoming"
+                            :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selIncoming ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
+                      <span v-if="selIncoming" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
+                      <div class="text-[13px] font-bold text-added">{{ t('changes.incoming') }} <span class="text-content-muted font-normal">({{ t('changes.remote') }})</span></div>
+                      <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
+                        <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
+                        <span class="font-mono truncate">{{ incomingBranch || t('changes.incoming_changes') }}</span>
+                      </div>
+                      <div class="h-stack items-center justify-between gap-2 mt-1">
+                        <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${incomingStatusKey}`) }}</span>
+                        <span v-if="incomingSha" role="button" tabindex="0" @click.stop="openCommitInHistory(incomingSha)"
+                              :title="t('changes.view_in_history')"
+                              class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
+                          <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ incomingSha.substring(0,7) }}
+                        </span>
+                      </div>
+                    </button>
 
-                  <div class="flex flex-col items-center text-content-muted">
-                    <Icon icon="lucide:git-merge" class="text-lg" />
+                    <!-- Current (local) -->
+                    <button type="button" @click="toggleCurrent"
+                            :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selCurrent ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
+                      <span v-if="selCurrent" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
+                      <div class="text-[13px] font-bold text-modified">{{ t('changes.current') }} <span class="text-content-muted font-normal">({{ t('changes.local') }})</span></div>
+                      <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
+                        <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
+                        <span class="font-mono truncate">{{ currentBranchName || '—' }}</span>
+                      </div>
+                      <div class="h-stack items-center justify-between gap-2 mt-1">
+                        <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${currentStatusKey}`) }}</span>
+                        <span v-if="currentSha" role="button" tabindex="0" @click.stop="openCommitInHistory(currentSha)"
+                              :title="t('changes.view_in_history')"
+                              class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
+                          <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ currentSha.substring(0,7) }}
+                        </span>
+                      </div>
+                    </button>
                   </div>
 
-                  <!-- Current (local) -->
-                  <button type="button" @click="selCurrent = !selCurrent"
-                          :class="cn('relative w-52 text-left rounded-lg border p-4 transition-all', selCurrent ? 'border-accent ring-1 ring-accent/40 bg-surface' : 'border-line hover:border-line-strong')">
-                    <span v-if="selCurrent" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-accent text-accent-fg center shadow"><Icon icon="lucide:check" class="w-3 h-3" /></span>
-                    <div class="text-[13px] font-bold text-modified">{{ t('changes.current') }} <span class="text-content-muted font-normal">({{ t('changes.local') }})</span></div>
-                    <div class="h-stack items-center gap-1.5 mt-2 text-[11px] text-content">
-                      <Icon icon="lucide:git-branch" class="w-3.5 h-3.5 text-content-muted shrink-0" />
-                      <span class="font-mono truncate">{{ currentBranchName || '—' }}</span>
-                    </div>
-                    <div class="text-[10px] text-content-muted mt-1 uppercase tracking-wide">{{ t(`changes.status_${currentStatusKey}`) }}</div>
-                  </button>
-                </div>
+                  <!-- Y-connector: a path from each card meets at center and drops to the
+                       merge button. Selected side = accent, deselected = muted gray. -->
+                  <svg class="w-[464px] h-12 shrink-0" viewBox="0 0 464 48" fill="none" preserveAspectRatio="none">
+                    <path :stroke="selIncoming ? 'rgb(var(--gb-accent))' : 'rgb(var(--gb-text-muted) / 0.4)'"
+                          stroke-width="2" stroke-linecap="round" d="M104 0 C 104 26, 232 12, 232 30" />
+                    <path :stroke="selCurrent ? 'rgb(var(--gb-accent))' : 'rgb(var(--gb-text-muted) / 0.4)'"
+                          stroke-width="2" stroke-linecap="round" d="M360 0 C 360 26, 232 12, 232 30" />
+                    <path :stroke="(selIncoming || selCurrent) ? 'rgb(var(--gb-accent))' : 'rgb(var(--gb-text-muted) / 0.4)'"
+                          stroke-width="2" stroke-linecap="round" d="M232 30 L 232 48" />
+                  </svg>
 
-                <!-- actions -->
-                <div class="flex flex-wrap items-center justify-center gap-2">
+                  <!-- single merge button (manual merge lives in the merge-in-progress banner) -->
                   <button @click="resolveSelection" :disabled="!canResolve"
-                          class="px-5 py-2 rounded text-[11px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed h-stack items-center gap-1.5">
-                    <Icon :icon="isResolvingConflict ? 'lucide:loader-2' : 'lucide:check'" :class="isResolvingConflict ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
-                    {{ selectedSide === 'both' ? t('changes.use_both') : t('changes.resolve') }}
-                  </button>
-                  <button v-if="isContentConflict" @click="openMergeWindow(selectedFile)"
-                          class="px-4 py-2 rounded text-[11px] font-bold uppercase tracking-wider border border-line-strong text-content hover:bg-surface-hover transition-colors h-stack items-center gap-1.5">
-                    <Icon icon="lucide:git-merge" class="w-3.5 h-3.5" /> {{ t('changes.merge_manually') }}
-                  </button>
-                  <button @click="openExternalMergeTool(selectedFile)"
-                          class="px-4 py-2 rounded text-[11px] font-bold uppercase tracking-wider border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover transition-colors">
-                    {{ t('changes.open_external_mergetool') }}
+                          class="px-6 py-2 rounded text-[11px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed h-stack items-center gap-1.5">
+                    <Icon :icon="isResolvingConflict ? 'lucide:loader-2' : 'lucide:git-merge'" :class="isResolvingConflict ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
+                    {{ selectedSide === 'both' ? t('changes.use_both') : t('changes.merge') }}
                   </button>
                 </div>
               </div>
@@ -821,7 +889,7 @@ async function handleExplainChanges() {
             :class="cn('p-3 border-t border-line bg-surface v-stack gap-2 shrink-0 relative')"
             :style="{ height: commitPanelHeight + 'px' }">
           <Resizer vertical :target="commitRefs.commitPanelHeight"
-                   :options="{ axis: 'y', invert: true, min: 150, max: 700, clampToContainer: true, reserve: 160 }"
+                   :options="{ axis: 'y', invert: true, min: 200, max: 700, clampToContainer: true, reserve: 160 }"
                    class="absolute top-0 left-0 right-0 h-1.5 -translate-y-1/2 z-40" />
           <!-- Toolbar: label + AI generate -->
           <div class="flex items-center justify-between h-5">
@@ -831,8 +899,8 @@ async function handleExplainChanges() {
                       :disabled="isGeneratingCommit || stagedFiles.length === 0"
                       :class="cn(
                         'h-7 w-7 flex items-center justify-center rounded transition-all',
-                        'bg-blue-600 hover:bg-blue-500 text-white shadow-sm',
-                        'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600'
+                        'bg-accent hover:bg-accent-hover text-accent-fg shadow-sm',
+                        'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent'
                       )">
                 <Icon :icon="isGeneratingCommit ? 'lucide:loader-2' : 'lucide:sparkles'" :class="cn('text-sm', isGeneratingCommit ? 'animate-spin' : '')" />
               </button>
@@ -859,14 +927,12 @@ async function handleExplainChanges() {
                       'w-full flex-1 min-h-0 bg-surface border border-line-strong p-3 text-xs text-content outline-none resize-none focus:border-accent rounded transition-all placeholder:text-content-muted leading-relaxed'
                     )"
                     :placeholder="t('changes.commit_desc_placeholder')"></textarea>
-         <button @click="commitAll"
-                 :class="cn(
-                   'bg-blue-600 hover:bg-blue-500 text-white py-2 text-xs font-bold rounded transition-all disabled:opacity-30 disabled:grayscale shadow-lg shadow-blue-900/20 active:scale-[0.98] center h-stack gap-2 uppercase tracking-widest'
-                 )"
-                 :disabled="!commitSubject.trim() || stagedFiles.length === 0">
-           <Icon icon="lucide:git-commit" />
-           <span>{{ t('changes.commit') }}</span>
-         </button>
+         <Button variant="primary" block icon="lucide:git-commit"
+                 class="py-2 uppercase tracking-widest font-bold shadow-lg shadow-accent/20"
+                 :disabled="!commitSubject.trim() || stagedFiles.length === 0"
+                 @click="commitAll">
+           {{ t('changes.commit') }}
+         </Button>
        </div>
     </div>
     </div>

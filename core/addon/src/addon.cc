@@ -709,6 +709,53 @@ Napi::Value CheckoutBranch(const Napi::CallbackInfo &info) {
   return Napi::Boolean::New(env, true);
 }
 
+// ---------------------------------------------------------------------------
+// Native network auth (HTTPS). GitBox must not require the git CLI, so remote
+// operations run through libgit2 with our own credential callback. The token
+// (a GitHub/GitLab/Bitbucket PAT) is passed in from JS; TLS trust comes from a
+// bundled CA file installed via SetTlsCertFile at startup.
+// ---------------------------------------------------------------------------
+struct CredPayload {
+  std::string username;
+  std::string token;
+  int tried;
+};
+
+int CredentialsCb(git_credential **out, const char * /*url*/,
+                  const char *username_from_url, unsigned int allowed_types,
+                  void *payload) {
+  CredPayload *p = static_cast<CredPayload *>(payload);
+  // Give up after a few attempts so a bad token fails instead of looping.
+  if (p->tried++ > 3)
+    return GIT_EUSER;
+  if (allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) {
+    const char *user = !p->username.empty()
+                           ? p->username.c_str()
+                           : (username_from_url ? username_from_url : "oauth2");
+    return git_credential_userpass_plaintext_new(out, user, p->token.c_str());
+  }
+  if (allowed_types & GIT_CREDENTIAL_DEFAULT)
+    return git_credential_default_new(out);
+  return GIT_PASSTHROUGH;
+}
+
+// Read an optional token argument at `index` and, when present, wire our
+// credential callback into a remote_callbacks struct. `cred` must outlive the
+// synchronous fetch/push call that uses these callbacks.
+void ApplyAuth(const Napi::CallbackInfo &info, size_t index,
+               git_remote_callbacks *cbs, CredPayload *cred) {
+  std::string token;
+  if (info.Length() > index && info[index].IsString())
+    token = info[index].As<Napi::String>().Utf8Value();
+  cred->username = "oauth2";
+  cred->token = token;
+  cred->tried = 0;
+  if (!token.empty()) {
+    cbs->credentials = CredentialsCb;
+    cbs->payload = cred;
+  }
+}
+
 Napi::Value Fetch(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   auto repoValue = EnsureRepo(info);
@@ -733,6 +780,8 @@ Napi::Value Fetch(const Napi::CallbackInfo &info) {
   }
 
   git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
+  CredPayload cred;
+  ApplyAuth(info, 2, &opts.callbacks, &cred);
   if (git_remote_fetch(remote, nullptr, &opts, nullptr) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
@@ -774,6 +823,8 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
     return ThrowGitError(env, "failed to find remote"), env.Null();
   }
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+  CredPayload cred;
+  ApplyAuth(info, 2, &fetchOpts.callbacks, &cred);
   if (git_remote_fetch(remote, nullptr, &fetchOpts, nullptr) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
@@ -1014,25 +1065,120 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
            env.Null();
   }
 
+  // Optional args: [2]=token, [3]=targetBranch, [4]=force, [5]=pushTags,
+  // [6]=setUpstream. Target defaults to the current branch name.
+  std::string target = branch;
+  if (info.Length() > 3 && info[3].IsString() &&
+      !info[3].As<Napi::String>().Utf8Value().empty()) {
+    target = info[3].As<Napi::String>().Utf8Value();
+  }
+  bool force = info.Length() > 4 && info[4].IsBoolean() &&
+               info[4].As<Napi::Boolean>().Value();
+  bool pushTags = info.Length() > 5 && info[5].IsBoolean() &&
+                  info[5].As<Napi::Boolean>().Value();
+  bool setUpstream = info.Length() > 6 && info[6].IsBoolean() &&
+                     info[6].As<Napi::Boolean>().Value();
+
   git_remote *remote = nullptr;
   if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
     git_repository_free(repo);
     return ThrowGitError(env, "failed to find remote"), env.Null();
   }
 
-  std::string spec = "refs/heads/" + branch + ":refs/heads/" + branch;
-  char *rawSpec = const_cast<char *>(spec.c_str());
-  git_strarray refspecs{&rawSpec, 1};
+  // Build refspecs. A leading '+' forces the update (moves the ref even when
+  // it isn't a fast-forward), matching `git push --force`.
+  std::string lead = force ? "+" : "";
+  std::string branchSpec =
+      lead + "refs/heads/" + branch + ":refs/heads/" + target;
+  std::string tagSpec = lead + "refs/tags/*:refs/tags/*";
+  std::vector<char *> specs;
+  specs.push_back(const_cast<char *>(branchSpec.c_str()));
+  if (pushTags)
+    specs.push_back(const_cast<char *>(tagSpec.c_str()));
+  git_strarray refspecs{specs.data(), specs.size()};
+
   git_push_options opts = GIT_PUSH_OPTIONS_INIT;
+  CredPayload cred;
+  ApplyAuth(info, 2, &opts.callbacks, &cred);
   if (git_remote_push(remote, &refspecs, &opts) != 0) {
     git_remote_free(remote);
     git_repository_free(repo);
     return ThrowGitError(env, "push failed"), env.Null();
   }
-
   git_remote_free(remote);
+
+  // Set the upstream tracking ref so future pull/push know the target.
+  if (setUpstream) {
+    git_reference *localRef = nullptr;
+    if (git_branch_lookup(&localRef, repo, branch.c_str(), GIT_BRANCH_LOCAL) ==
+        0) {
+      std::string upstream = remoteName + "/" + target;
+      git_branch_set_upstream(localRef, upstream.c_str());
+      git_reference_free(localRef);
+    }
+  }
+
   git_repository_free(repo);
   return Napi::Boolean::New(env, true);
+}
+
+// Native clone over HTTPS. args: [0]=url, [1]=localPath, [2]=token?
+Napi::Value Clone(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!EnsureStringArg(info, 0, "url") || !EnsureStringArg(info, 1, "localPath"))
+    return env.Null();
+  std::string url = info[0].As<Napi::String>().Utf8Value();
+  std::string localPath = info[1].As<Napi::String>().Utf8Value();
+
+  git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
+  CredPayload cred;
+  ApplyAuth(info, 2, &opts.fetch_opts.callbacks, &cred);
+
+  git_repository *repo = nullptr;
+  if (git_clone(&repo, url.c_str(), localPath.c_str(), &opts) != 0) {
+    return ThrowGitError(env, "clone failed"), env.Null();
+  }
+  git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
+// Resolve a remote's configured URL natively (used to pick the auth token),
+// so we never shell out to `git remote get-url`. args: [0]=repoPath, [1]=name.
+Napi::Value RemoteUrl(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  std::string remoteName = "origin";
+  if (info.Length() > 1 && info[1].IsString())
+    remoteName = info[1].As<Napi::String>().Utf8Value();
+
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  if (!OpenRepoOrThrow(env, path, &repo))
+    return env.Null();
+
+  git_remote *remote = nullptr;
+  if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
+    git_repository_free(repo);
+    return Napi::String::New(env, "");
+  }
+  const char *url = git_remote_url(remote);
+  Napi::Value out = Napi::String::New(env, url ? url : "");
+  git_remote_free(remote);
+  git_repository_free(repo);
+  return out;
+}
+
+// Point libgit2's TLS trust at a bundled CA file (mbedTLS has no system CA).
+Napi::Value SetTlsCertFile(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!EnsureStringArg(info, 0, "caFile"))
+    return env.Null();
+  std::string caFile = info[0].As<Napi::String>().Utf8Value();
+  int rc = git_libgit2_opts(GIT_OPT_SET_SSL_CERT_LOCATIONS, caFile.c_str(),
+                            (const char *)nullptr);
+  return Napi::Boolean::New(env, rc == 0);
 }
 
 Napi::Value DiffFile(const Napi::CallbackInfo &info) {
@@ -1946,6 +2092,169 @@ Napi::Value MergeAbort(const Napi::CallbackInfo &info) {
   return Napi::Boolean::New(env, true);
 }
 
+// Initialize a new repository natively. args: [0]=path, [1]=defaultBranch?
+Napi::Value InitRepo(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!EnsureStringArg(info, 0, "path"))
+    return env.Null();
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  std::string head;
+  if (info.Length() > 1 && info[1].IsString())
+    head = info[1].As<Napi::String>().Utf8Value();
+
+  git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+  opts.flags = GIT_REPOSITORY_INIT_MKPATH;
+  if (!head.empty())
+    opts.initial_head = head.c_str();
+
+  git_repository *repo = nullptr;
+  if (git_repository_init_ext(&repo, path.c_str(), &opts) != 0)
+    return ThrowGitError(env, "init failed"), env.Null();
+  git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
+// Two-letter porcelain code for a conflict, derived from which index stages
+// exist: 1=ancestor, 2=ours, 3=theirs.
+static const char *ConflictCode(bool a, bool o, bool t) {
+  if (!a && o && t) return "AA";  // both added
+  if (a && o && t) return "UU";   // both modified
+  if (!a && o && !t) return "AU"; // added by us
+  if (!a && !o && t) return "UA"; // added by them
+  if (a && o && !t) return "UD";  // deleted by them
+  if (a && !o && t) return "DU";  // deleted by us
+  return "DD";                    // both deleted
+}
+
+// List conflicted paths with their porcelain code, from the index (no git CLI).
+Napi::Value ConflictedFiles(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  if (!OpenRepoOrThrow(env, path, &repo))
+    return env.Null();
+
+  git_index *idx = nullptr;
+  if (git_repository_index(&idx, repo) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to read index"), env.Null();
+  }
+
+  Napi::Array arr = Napi::Array::New(env);
+  git_index_conflict_iterator *it = nullptr;
+  if (git_index_conflict_iterator_new(&it, idx) == 0) {
+    const git_index_entry *anc, *our, *their;
+    uint32_t i = 0;
+    while (git_index_conflict_next(&anc, &our, &their, it) == 0) {
+      const char *p = our ? our->path : (their ? their->path : (anc ? anc->path : ""));
+      Napi::Object obj = Napi::Object::New(env);
+      obj.Set("path", Napi::String::New(env, p ? p : ""));
+      obj.Set("code", Napi::String::New(env, ConflictCode(anc, our, their)));
+      arr.Set(i++, obj);
+    }
+    git_index_conflict_iterator_free(it);
+  }
+  git_index_free(idx);
+  git_repository_free(repo);
+  return arr;
+}
+
+// Resolve one conflicted file by taking a whole side. args:
+// [0]=repoPath, [1]=filePath, [2]=side ('ours'|'theirs'|'both').
+Napi::Value ResolveConflict(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "filePath") || !EnsureStringArg(info, 2, "side"))
+    return env.Null();
+  std::string repoPath = repoValue.As<Napi::String>().Utf8Value();
+  std::string filePath = info[1].As<Napi::String>().Utf8Value();
+  std::string side = info[2].As<Napi::String>().Utf8Value();
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, repoPath, &repo))
+    return env.Null();
+  const char *wd = git_repository_workdir(repo);
+  if (!wd) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "bare repo has no working tree"), env.Null();
+  }
+  std::string full = std::string(wd) + filePath;
+
+  git_index *idx = nullptr;
+  if (git_repository_index(&idx, repo) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to read index"), env.Null();
+  }
+
+  const git_index_entry *anc = nullptr, *our = nullptr, *their = nullptr;
+  if (git_index_conflict_get(&anc, &our, &their, idx, filePath.c_str()) != 0) {
+    git_index_free(idx);
+    git_repository_free(repo);
+    return ThrowGitError(env, "not a conflicted path"), env.Null();
+  }
+
+  auto blobText = [&](const git_index_entry *e, std::string &out) -> bool {
+    git_blob *b = nullptr;
+    if (git_blob_lookup(&b, repo, &e->id) != 0)
+      return false;
+    out.assign(static_cast<const char *>(git_blob_rawcontent(b)),
+               static_cast<size_t>(git_blob_rawsize(b)));
+    git_blob_free(b);
+    return true;
+  };
+  auto writeFile = [&](const std::string &content) {
+    std::ofstream f(full, std::ios::binary | std::ios::trunc);
+    f.write(content.data(), static_cast<std::streamsize>(content.size()));
+  };
+
+  bool ok = true;
+  const git_index_entry *pick =
+      (side == "ours") ? our : (side == "theirs") ? their : nullptr;
+
+  if (side == "both") {
+    std::string a, b, merged;
+    if (our && blobText(our, a)) {
+      while (!a.empty() && a.back() == '\n')
+        a.pop_back();
+      merged += a;
+    }
+    if (their && blobText(their, b)) {
+      if (!merged.empty())
+        merged += "\n";
+      merged += b;
+    }
+    merged += "\n";
+    writeFile(merged);
+    ok = git_index_add_bypath(idx, filePath.c_str()) == 0;
+  } else if (pick) {
+    std::string content;
+    if (!blobText(pick, content)) {
+      ok = false;
+    } else {
+      writeFile(content);
+      ok = git_index_add_bypath(idx, filePath.c_str()) == 0;
+    }
+  } else {
+    // Chosen side deleted the file: remove it and stage the deletion.
+    std::remove(full.c_str());
+    git_index_conflict_remove(idx, filePath.c_str());
+    ok = git_index_remove_bypath(idx, filePath.c_str()) == 0 || true;
+  }
+
+  if (ok)
+    ok = git_index_write(idx) == 0;
+  git_index_free(idx);
+  git_repository_free(repo);
+  if (!ok)
+    return ThrowGitError(env, "resolve failed"), env.Null();
+  return Napi::Boolean::New(env, true);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   git_libgit2_init();
   exports.Set("getConfig", Napi::Function::New(env, GetConfig));
@@ -1967,6 +2276,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("fetch", Napi::Function::New(env, Fetch));
   exports.Set("pull", Napi::Function::New(env, Pull));
   exports.Set("push", Napi::Function::New(env, Push));
+  exports.Set("clone", Napi::Function::New(env, Clone));
+  exports.Set("remoteUrl", Napi::Function::New(env, RemoteUrl));
+  exports.Set("setTlsCertFile", Napi::Function::New(env, SetTlsCertFile));
+  exports.Set("initRepo", Napi::Function::New(env, InitRepo));
+  exports.Set("conflictedFiles", Napi::Function::New(env, ConflictedFiles));
+  exports.Set("resolveConflict", Napi::Function::New(env, ResolveConflict));
   exports.Set("mergeBranch", Napi::Function::New(env, MergeBranch));
   exports.Set("mergeContinue", Napi::Function::New(env, MergeContinue));
   exports.Set("mergeAbort", Napi::Function::New(env, MergeAbort));

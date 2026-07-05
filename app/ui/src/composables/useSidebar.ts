@@ -12,7 +12,7 @@ import {
     deleteBranch,
     repoPath
 } from '../services/gitService';
-import { pullRequests, loadPullRequests, createPullRequest } from '../services/pullRequestService';
+import { pullRequests, loadPullRequests, createPullRequest, hasActivePRProvider } from '../services/pullRequestService';
 import { buildTree, flattenTree } from '../utils/tree';
 import { contextMenu, requestConfirm } from '../services/modalService';
 import { getItem, setItem } from '../services/storageService';
@@ -110,10 +110,14 @@ export function useSidebar(branchFilter: Ref<string>) {
             items.push(...filteredTags.value.map(t => ({ type: 'tag', id: typeof t === 'string' ? t : t.name, data: t })));
         }
 
-        // PRs
-        items.push({ type: 'header', id: 'pull_requests', label: t('common.prs'), count: filteredPRs.value.length, collapsed: sectionsCollapsed.value.pull_requests });
-        if (!sectionsCollapsed.value.pull_requests) {
-            items.push(...filteredPRs.value.map(pr => ({ type: 'pr', id: pr.id, data: pr })));
+        // PRs — only when the repo's remote maps to a supported provider the user
+        // is connected to (GitHub / GitLab / Bitbucket). Otherwise the section is
+        // hidden entirely instead of showing an empty "Pull Requests (0)".
+        if (hasActivePRProvider.value) {
+            items.push({ type: 'header', id: 'pull_requests', label: t('common.prs'), count: filteredPRs.value.length, collapsed: sectionsCollapsed.value.pull_requests });
+            if (!sectionsCollapsed.value.pull_requests) {
+                items.push(...filteredPRs.value.map(pr => ({ type: 'pr', id: pr.id, data: pr })));
+            }
         }
 
         // Submodules

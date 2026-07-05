@@ -62,4 +62,23 @@ async function resolveRemoteUrl(repoPath, remoteName) {
     }
 }
 
-module.exports = { getTokenForUrl, getAuthUrl, resolveRemoteUrl };
+/**
+ * Resolve the stored auth token for a repo's remote WITHOUT shelling out to
+ * git — the native addon reports the remote URL, which selects the token.
+ * @param {object} addon native addon (must expose remoteUrl)
+ * @param {string} repoPath
+ * @param {string} remoteName
+ * @returns {string} token or '' when none is configured
+ */
+function getTokenForRemote(addon, repoPath, remoteName) {
+    try {
+        const url = addon && typeof addon.remoteUrl === 'function'
+            ? addon.remoteUrl(repoPath, remoteName || 'origin')
+            : '';
+        return getTokenForUrl(url || '') || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+module.exports = { getTokenForUrl, getAuthUrl, resolveRemoteUrl, getTokenForRemote };

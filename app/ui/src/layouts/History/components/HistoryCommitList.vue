@@ -65,8 +65,17 @@ function scrollToTop() {
 defineExpose({
   scrollToTop,
   scrollToCommit: (id: string) => {
-    const el = document.getElementById('commit-' + id);
-    if (el) el.scrollIntoView({ block: 'nearest' });
+    // The list is virtualized, so the target row often isn't in the DOM yet —
+    // compute its offset from the index instead of querying the element, and
+    // center it in the viewport.
+    const idx = props.log.findIndex(c => c.id === id);
+    const container = scrollContainer.value;
+    if (idx < 0 || !container) return;
+    const targetTop = idx * ROW_HEIGHT;
+    const viewH = container.clientHeight;
+    if (targetTop < container.scrollTop || targetTop + ROW_HEIGHT > container.scrollTop + viewH) {
+      container.scrollTo({ top: Math.max(0, targetTop - viewH / 2 + ROW_HEIGHT / 2) });
+    }
   }
 });
 </script>
@@ -80,7 +89,7 @@ defineExpose({
        <div class="py-2 flex items-center justify-center gap-2 min-w-0 overflow-hidden"
             @mouseenter="startMarquee($event, '.hdr-title')" @mouseleave="stopMarquee($event, '.hdr-title')">
          <span class="truncate hdr-title">{{ t('history.subject') }}</span>
-         <span v-if="selectedLogRef" class="shrink-0 text-blue-400 font-mono text-[9px] bg-blue-900/30 px-1 rounded truncate normal-case tracking-normal border border-blue-500/30">
+         <span v-if="selectedLogRef" class="shrink-0 text-accent font-mono text-[9px] bg-accent/15 px-1 rounded truncate normal-case tracking-normal border border-accent/30">
            {{ selectedLogRef }}
            <button @click.stop="emit('clearRef')" class="pl-1 hover:text-white">✕</button>
          </span>
@@ -134,7 +143,7 @@ defineExpose({
             class="grid px-3 items-center text-[11px] relative group"
             :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }"
             :class="selectedIdSet.has(c.id)
-              ? 'bg-blue-100 dark:bg-[#143B66] text-content-strong shadow-inner'
+              ? 'bg-accent/20 text-content-strong shadow-inner'
               : 'hover:bg-neutral-200 dark:hover:bg-neutral-800/50 text-content'"
             @click="emit('select', c, $event)"
             @contextmenu.prevent="emit('contextMenu', $event, c)"
@@ -177,7 +186,7 @@ defineExpose({
             <!-- Author column -->
             <div class="flex items-center gap-2 min-w-0 pl-2 pr-1 h-full w-full relative z-0"
                  :class="selectedIdSet.has(c.id)
-                   ? 'text-blue-700 dark:text-blue-200 bg-blue-100 dark:bg-[#143B66]'
+                   ? 'text-content-strong bg-accent/20'
                    : (graphOutput.get(c.id)?.dotLane === 0
                      ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-content-muted group-hover:text-black dark:group-hover:text-neutral-200'
                      : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400 dark:text-neutral-600')">
@@ -191,7 +200,7 @@ defineExpose({
             <!-- Date column -->
             <div class="flex items-center min-w-0 pl-2 h-full w-full relative z-0"
                  :class="selectedIdSet.has(c.id)
-                   ? 'text-blue-500/80 dark:text-blue-300/50 bg-blue-100 dark:bg-[#143B66]'
+                   ? 'text-content-muted bg-accent/20'
                    : (graphOutput.get(c.id)?.dotLane === 0
                      ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-500 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
                      : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400/70 dark:text-neutral-600')">
@@ -209,7 +218,7 @@ defineExpose({
       <button
         v-show="showScrollToTop"
         @click="scrollToTop"
-        class="absolute bottom-4 right-4 bg-surface border border-line shadow-lg text-content-muted hover:text-blue-500 dark:hover:text-blue-400 p-2 rounded-full transition-all z-20 hover:scale-105 active:scale-95 outline-none flex items-center justify-center w-10 h-10"
+        class="absolute bottom-4 right-4 bg-surface border border-line shadow-lg text-content-muted hover:text-accent p-2 rounded-full transition-all z-20 hover:scale-105 active:scale-95 outline-none flex items-center justify-center w-10 h-10"
       >
         <Icon icon="lucide:arrow-up-to-line" class="text-xl" />
       </button>

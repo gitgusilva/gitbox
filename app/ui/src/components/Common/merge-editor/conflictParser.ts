@@ -80,7 +80,11 @@ export function parseConflicts(content: string, options: ParseConflictOptions): 
 
     incomingLines.push(...incomingPadded);
     currentLines.push(...currentPadded);
-    resultLines.push('');
+    // Pad the result to the same block height so all three models stay
+    // line-aligned. The accept logic replaces startLine..endLine in the result,
+    // and the ribbon connectors assume the same line numbers on every side — a
+    // single blank line here desyncs both (distorted béziers, clobbered content).
+    for (let k = 0; k < blockHeight; k += 1) resultLines.push('');
 
     parsed.push({
       index: parsed.length,
@@ -91,6 +95,9 @@ export function parseConflicts(content: string, options: ParseConflictOptions): 
       incoming: incomingChunk.join('\n'),
       base: baseChunk.join('\n'),
       current: currentChunk.join('\n'),
+      incomingLen: incomingChunk.length,
+      currentLen: currentChunk.length,
+      baseLen: baseChunk.length,
     });
   }
 

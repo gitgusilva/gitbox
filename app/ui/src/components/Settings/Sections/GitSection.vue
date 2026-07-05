@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { showToast } from '../../../services/toastService';
+import Button from '../../Common/Button.vue';
 
 const { t } = useI18n();
 
@@ -47,10 +48,9 @@ async function handleSaveGitConfig() {
       <input v-model="draftEmail" type="text" placeholder="e.g. john@example.com" class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm" />
     </div>
     <div class="flex items-center gap-3 pt-2">
-        <button @click="handleSaveGitConfig" :disabled="isSavingGit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-bold transition-colors shadow-md flex items-center gap-2">
-            <Icon v-if="isSavingGit" icon="lucide:loader-2" class="animate-spin" />
+        <Button variant="primary" :loading="isSavingGit" @click="handleSaveGitConfig">
             {{ isSavingGit ? t('common.loading') : 'Save Configuration' }}
-        </button>
+        </Button>
         <div v-if="saveSuccess" class="text-green-400 flex items-center gap-1.5 text-xs font-medium animate-in fade-in duration-300">
             <Icon icon="lucide:check-circle-2" class="w-4 h-4" />
             {{ t('settings.git_config_saved') || 'Saved to global git config (~/.gitconfig)' }}

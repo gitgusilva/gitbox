@@ -19,7 +19,7 @@ const emit = defineEmits(['select', 'toggleFilter']);
     <span class="truncate flex-1 font-mono text-[11px]">{{ item.id }}</span>
     <Icon :icon="selectedLogRef === item.id ? 'lucide:eye' : 'lucide:eye-off'" 
           class="text-neutral-500 hover:text-white flex-shrink-0" 
-          :class="selectedLogRef === item.id ? 'opacity-100 text-blue-400' : 'opacity-0 group-hover/tag:opacity-50'" 
+          :class="selectedLogRef === item.id ? 'opacity-100 text-accent' : 'opacity-0 group-hover/tag:opacity-50'" 
           @click.stop="emit('toggleFilter', $event, item.id)" />
   </div>
 </template>

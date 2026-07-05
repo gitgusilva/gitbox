@@ -2,12 +2,12 @@
 import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
-import { activePullRequest } from '../services/modalService';
+import { activePullRequest, requestInput } from '../services/modalService';
 import { activeTab } from '../services/gitService';
-import { 
-    closePullRequest, 
-    updatePullRequest, 
-    fetchPullRequestComments, 
+import {
+    closePullRequest,
+    updatePullRequest,
+    fetchPullRequestComments,
     addPullRequestComment,
     fetchPullRequestMetadata,
     updatePullRequestReviewers,
@@ -15,12 +15,14 @@ import {
     currentUserLogin,
     loadPullRequests,
     fetchPullRequestDetails,
-    convertPullRequestToDraft
+    convertPullRequestToDraft,
+    submitPullRequestReview
 } from '../services/pullRequestService';
 import { showToast } from '../services/toastService';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import MultiSelect from './Common/MultiSelect.vue';
+import Button from './Common/Button.vue';
 import Tooltip from './Common/Tooltip.vue';
 import { formatFullDate, formatDate } from '../utils/formatters';
 import { generalSettings } from '../services/settingsService';
@@ -30,13 +32,49 @@ const isClosing = ref(false);
 const isReopening = ref(false);
 const isConvertingDraft = ref(false);
 
-const isReviewer = computed(() => {
-    if (!pr.value || !currentUserLogin.value) return false;
-    const login = currentUserLogin.value;
-    const isAssignee = pr.value.assignees?.some((a: any) => a.login === login);
-    const isRequested = pr.value.requestedReviewers?.some((a: any) => a.login === login);
-    return isAssignee || isRequested;
-});
+// Viewer is the PR author — GitHub forbids approving/reviewing your own PR, and
+// only the author (or a maintainer, which we can't detect yet) edits/closes it.
+const isAuthor = computed(() =>
+    !!pr.value && !!currentUserLogin.value && pr.value.user?.login === currentUserLogin.value
+);
+
+// Anyone who isn't the author can submit a review (approve / request changes),
+// mirroring GitHub's rule.
+const canReview = computed(() => !!pr.value && !!currentUserLogin.value && !isAuthor.value);
+
+const isReviewing = ref(false);
+
+async function handleReview(event: 'APPROVE' | 'REQUEST_CHANGES', body?: string) {
+    if (!pr.value || isReviewing.value) return;
+    isReviewing.value = true;
+    try {
+        await submitPullRequestReview(pr.value, event, body);
+        showToast(
+            t('pr_view.review') || 'Review',
+            event === 'APPROVE' ? (t('pr_view.approved') || 'Approved') : (t('pr_view.changes_requested') || 'Changes requested'),
+            event === 'APPROVE' ? 'success' : 'info'
+        );
+    } catch (e: any) {
+        showToast(t('history_detail.toast_error') || 'Error', e?.message || 'Review failed', 'error');
+    } finally {
+        isReviewing.value = false;
+    }
+}
+
+function handleApprove() {
+    handleReview('APPROVE');
+}
+
+function handleRequestChanges() {
+    requestInput(
+        t('pr_view.request_changes') || 'Request changes',
+        t('pr_view.request_changes_msg') || 'Describe the changes you want.',
+        t('pr_view.request_changes_placeholder') || 'Your review comment…',
+        '',
+        t('pr_view.request_changes') || 'Request changes',
+        (body: string) => handleReview('REQUEST_CHANGES', body)
+    );
+}
 
 const isEditingTitle = ref(false);
 const editableTitle = ref('');
@@ -280,11 +318,8 @@ async function handleConvertToDraft() {
              <template v-else>
                 <div class="flex items-center gap-2 w-full my-1">
                     <input v-model="editableTitle" @keyup.enter="saveTitle" :disabled="isSavingTitle" class="flex-1 bg-black/50 border border-neutral-300/80 dark:border-neutral-700/80 rounded px-3 py-1.5 text-content-strong text-xl focus:border-accent outline-none w-full shadow-inner" />
-                    <button @click="saveTitle" :disabled="isSavingTitle" class="bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1.5 text-sm font-medium transition-colors flex items-center gap-2">
-                       <Icon v-if="isSavingTitle" icon="lucide:loader-2" class="animate-spin" />
-                       {{ t('common.save') }}
-                    </button>
-                    <button @click="isEditingTitle = false; editableTitle = pr.title" class="text-content-muted hover:text-neutral-900 dark:hover:text-white px-3 py-1.5 rounded text-sm transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800 shrink-0">{{ t('common.cancel') }}</button>
+                    <Button variant="primary" :loading="isSavingTitle" @click="saveTitle">{{ t('common.save') }}</Button>
+                    <Button variant="ghost" @click="isEditingTitle = false; editableTitle = pr.title">{{ t('common.cancel') }}</Button>
                 </div>
              </template>
            </h1>
@@ -298,7 +333,7 @@ async function handleConvertToDraft() {
                   <img :src="pr.user?.avatar_url" class="w-5 h-5 rounded-full" />
                 </Tooltip>
                 <span class="font-bold text-content">{{ pr.user?.login }}</span>
-                <span>{{ t('view.wants_to_merge') }} <span class="bg-blue-900/30 text-blue-400 px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.sourceBranch }}</span> {{ t('view.into') }} <span class="bg-blue-900/30 text-blue-400 px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.targetBranch }}</span></span>
+                <span>{{ t('view.wants_to_merge') }} <span class="bg-accent/15 text-accent px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.sourceBranch }}</span> {{ t('view.into') }} <span class="bg-accent/15 text-accent px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.targetBranch }}</span></span>
              </div>
            </div>
         </div>
@@ -315,7 +350,7 @@ async function handleConvertToDraft() {
                    <button v-if="!isEditingDescription" @click="isEditingDescription = true" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white opacity-0 group-hover/desc:opacity-100 transition-opacity"><Icon icon="lucide:edit-2" /></button>
                 </div>
                 <!-- Markdown Content -->
-                <div v-if="!isEditingDescription" class="bg-app text-content prose prose-invert prose-sm max-w-none prose-a:text-blue-400 hover:prose-a:text-blue-300 prose-a:underline prose-a:underline-offset-2 p-4 rounded-lg border border-line" @click="handleMarkdownClick">
+                <div v-if="!isEditingDescription" class="bg-app text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2 p-4 rounded-lg border border-line" @click="handleMarkdownClick">
                    <div v-if="pr.body" v-html="renderMd(pr.body)"></div>
                    <div v-else class="text-neutral-500 italic">{{ $t('pr_view.no_description') || 'No description provided.' }}</div>
                    <!-- Main Reactions -->
@@ -334,11 +369,8 @@ async function handleConvertToDraft() {
                 <div v-else class="flex flex-col gap-2">
                     <textarea v-model="editableDescription" :disabled="isSavingDescription" class="w-full min-h-[150px] bg-black/50 border border-line-strong rounded-lg p-3 text-sm text-content focus:border-accent outline-none resize-y font-mono shadow-inner"></textarea>
                     <div class="flex items-center justify-end gap-2 mt-1">
-                        <button @click="isEditingDescription = false; editableDescription = pr.body || ''" class="text-content-muted hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded transition-colors px-3 py-1.5 text-xs font-medium">{{ $t('common.cancel') }}</button>
-                        <button @click="saveDescription" :disabled="isSavingDescription" class="bg-blue-600 hover:bg-blue-500 text-white rounded px-4 py-1.5 text-xs font-medium flex items-center gap-2 transition-colors">
-                            <Icon v-if="isSavingDescription" icon="lucide:loader-2" class="animate-spin" />
-                            {{ $t('pr_view.save') || 'Save' }}
-                        </button>
+                        <Button variant="ghost" @click="isEditingDescription = false; editableDescription = pr.body || ''">{{ $t('common.cancel') }}</Button>
+                        <Button variant="primary" :loading="isSavingDescription" @click="saveDescription">{{ $t('pr_view.save') || 'Save' }}</Button>
                     </div>
                 </div>
              </div>
@@ -347,7 +379,7 @@ async function handleConvertToDraft() {
              <div class="flex flex-col gap-4 mt-6">
                 <div class="flex items-center justify-between text-xs font-medium text-content">
                    {{ $t('pr_view.comments') || 'Comments' }}
-                   <button @click="loadComments" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white" :class="{'animate-spin text-blue-500': isLoadingComments}"><Icon icon="lucide:refresh-cw" /></button>
+                   <button @click="loadComments" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white" :class="{'animate-spin text-accent': isLoadingComments}"><Icon icon="lucide:refresh-cw" /></button>
                 </div>
                 
                 <div v-if="comments.length === 0 && !isLoadingComments" class="text-xs text-neutral-600 italic">{{ $t('pr_view.no_comments') || 'No comments yet.' }}</div>
@@ -371,7 +403,7 @@ async function handleConvertToDraft() {
                                <button @click="openExternal(comment.url)" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"><Icon icon="lucide:external-link" /></button>
                              </Tooltip>
                          </div>
-                         <div class="p-4 text-sm text-content prose prose-invert prose-sm max-w-none prose-a:text-blue-400 hover:prose-a:text-blue-300 prose-a:underline prose-a:underline-offset-2" v-html="renderMd(comment.body)" @click="handleMarkdownClick">
+                         <div class="p-4 text-sm text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2" v-html="renderMd(comment.body)" @click="handleMarkdownClick">
                          </div>
                          <!-- Reactions -->
                           <div v-if="comment.reactions && comment.reactions.total_count > 0" class="px-4 pb-3 flex flex-wrap gap-2">
@@ -390,13 +422,10 @@ async function handleConvertToDraft() {
 
                 <!-- Add Comment Input Box -->
                 <div class="flex gap-3 mt-4 relative z-10 w-full">
-                  <div class="flex-1 bg-surface border border-line-strong focus-within:border-blue-500 rounded-lg overflow-hidden transition-colors flex flex-col shadow-inner">
+                  <div class="flex-1 bg-surface border border-line-strong focus-within:border-accent rounded-lg overflow-hidden transition-colors flex flex-col shadow-inner">
                      <textarea v-model="newComment" :disabled="isSubmittingComment" class="w-full bg-transparent border-none outline-none resize-none min-h-[80px] p-3 text-sm text-content placeholder:text-neutral-600 disabled:opacity-50" :placeholder="$t('pr_view.add_comment') || 'Add a comment...'"></textarea>
                      <div class="bg-surface/60 border-t border-neutral-200/50 dark:border-neutral-800/50 p-2 flex justify-end gap-2">
-                        <button @click="submitComment" :disabled="isSubmittingComment || !newComment.trim()" class="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded font-medium text-xs transition-all disabled:opacity-50 disabled:grayscale flex items-center gap-2">
-                            <Icon v-if="isSubmittingComment" icon="lucide:loader-2" class="animate-spin" />
-                            {{ $t('pr_view.comment') || 'Comment' }}
-                        </button>
+                        <Button variant="success" :loading="isSubmittingComment" :disabled="!newComment.trim()" @click="submitComment">{{ $t('pr_view.comment') || 'Comment' }}</Button>
                      </div>
                   </div>
                 </div>
@@ -413,23 +442,24 @@ async function handleConvertToDraft() {
                      {{ $t('pr_view.files_changed', { count: pr.changed_files || 0 }) || (pr.changed_files || 0) + ' files changed' }}
                      <span v-if="pr.changed_files === undefined" class="text-neutral-600">{{ $t('pr_view.not_fetched') || '(Not fetched)' }}</span>
                  </div>
-                 <button :disabled="pr.state === 'closed' || !isReviewer" class="w-full bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 border border-blue-500/50 py-1.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed group/btn relative">
-                    {{ $t('pr_view.review_suggest') || 'Review Code and Suggest Changes' }}
-                 </button>
-                 <button :disabled="pr.state === 'closed' || !isReviewer" class="w-full bg-green-900/30 hover:bg-green-800/50 text-green-400 border border-green-500/50 py-1.5 rounded text-sm transition-colors mt-1 disabled:opacity-50 disabled:cursor-not-allowed group/btn relative">
-                    {{ $t('pr_view.submit_review') || 'Submit a Review' }}
-                 </button>
-                 
-                 <button v-if="pr.state !== 'closed'" @click="handleClosePR" :disabled="isClosing" class="w-full bg-red-900/30 hover:bg-red-800/50 text-red-400 border border-red-500/50 py-1.5 rounded text-sm transition-colors mt-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <Icon v-if="isClosing" icon="lucide:loader-2" class="animate-spin text-sm" />
-                    <Icon v-else icon="lucide:x-circle" class="text-sm" />
-                    <span>{{ $t('pr_view.close_pr') || 'Close Pull Request' }}</span>
-                 </button>
-                 <button v-else @click="handleReopenPR" :disabled="isReopening" class="w-full bg-blue-900/30 hover:bg-blue-800/50 text-blue-400 border border-blue-500/50 py-1.5 rounded text-sm transition-colors mt-1 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <Icon v-if="isReopening" icon="lucide:loader-2" class="animate-spin text-sm" />
-                    <Icon v-else icon="lucide:rotate-ccw" class="text-sm" />
-                    <span>{{ $t('pr_view.reopen_pr') || 'Reopen Pull Request' }}</span>
-                 </button>
+                 <!-- Review actions: only a non-author (reviewer) can approve / request
+                      changes — GitHub forbids reviewing your own PR. -->
+                 <template v-if="canReview && pr.state !== 'closed'">
+                   <Button variant="success" block icon="lucide:check" :loading="isReviewing" @click="handleApprove">
+                     {{ $t('pr_view.approve') || 'Approve' }}
+                   </Button>
+                   <Button variant="danger" block icon="lucide:file-diff" :disabled="isReviewing" @click="handleRequestChanges">
+                     {{ $t('pr_view.request_changes') || 'Request changes' }}
+                   </Button>
+                 </template>
+
+                 <!-- Close / reopen: the PR author manages their own PR. -->
+                 <Button v-if="isAuthor && pr.state !== 'closed'" variant="danger" block icon="lucide:x-circle" :loading="isClosing" @click="handleClosePR">
+                   {{ $t('pr_view.close_pr') || 'Close Pull Request' }}
+                 </Button>
+                 <Button v-else-if="isAuthor && pr.state === 'closed'" variant="secondary" block icon="lucide:rotate-ccw" :loading="isReopening" @click="handleReopenPR">
+                   {{ $t('pr_view.reopen_pr') || 'Reopen Pull Request' }}
+                 </Button>
               </div>
               
                <div class="flex flex-col gap-4">

@@ -19,6 +19,8 @@ const Config = require('../Commands/Config');
 const Fetch = require('../Commands/Fetch');
 const Pull = require('../Commands/Pull');
 const Push = require('../Commands/Push');
+const Clone = require('../Commands/Clone');
+const Init = require('../Commands/Init');
 const GitFlow = require('../Commands/GitFlow');
 const Archive = require('../Commands/Archive');
 const Patch = require('../Commands/Patch');
@@ -46,6 +48,8 @@ module.exports = function (addon) {
     const fetchCmd = new Fetch(addon);
     const pullCmd = new Pull(addon);
     const pushCmd = new Push(addon);
+    const cloneCmd = new Clone(addon);
+    const initCmd = new Init(addon);
     const gitFlowCmd = new GitFlow(addon);
     const archiveCmd = new Archive(addon);
     const patchCmd = new Patch(addon);
@@ -120,6 +124,8 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:fetch', async (_, repoPath, remoteName) => fetchCmd.execute(repoPath, remoteName));
     ipcMain.handle('gitbox:pull', async (_, repoPath, remoteName) => pullCmd.execute(repoPath, remoteName));
     ipcMain.handle('gitbox:push', async (_, repoPath, remoteName, branchName, setUpstream, force, pushTags) => pushCmd.execute(repoPath, remoteName, branchName, setUpstream, force, pushTags));
+    ipcMain.handle('gitbox:clone', async (_, url, targetDir) => cloneCmd.execute(url, targetDir));
+    ipcMain.handle('gitbox:init', async (_, targetDir, name, defaultBranch) => initCmd.execute(targetDir, name, defaultBranch));
 
     // GitFlow
     ipcMain.handle('gitbox:gitFlowInit', async (_, repoPath) => gitFlowCmd.init(repoPath));

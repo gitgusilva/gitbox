@@ -149,7 +149,7 @@ function getStatusColor(status: string) {
                <div class="flex-1 flex flex-wrap gap-2">
                   <button v-for="p in commit.parents" :key="p.id" 
                           @click="emit('navigate', p)"
-                          class="text-blue-400 font-mono hover:text-blue-300 transition-colors border-b border-blue-900 border-dashed text-[10px]">
+                          class="text-accent font-mono hover:text-accent-hover transition-colors border-b border-accent/40 border-dashed text-[10px]">
                     {{ p.id.substring(0, 8) }}
                   </button>
                </div>
@@ -161,7 +161,7 @@ function getStatusColor(status: string) {
                   <span v-for="ref in commitRefs" :key="ref.name" 
                         class="h-stack gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border"
                         :class="[
-                          ref.type === 'branch' ? 'bg-blue-900/20 text-blue-400 border-blue-500/30' : 
+                          ref.type === 'branch' ? 'bg-accent/15 text-accent border-accent/30' :
                           ref.type === 'remote' ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' :
                           'bg-yellow-900/20 text-yellow-500 border-yellow-500/30'
                         ]">
@@ -209,7 +209,7 @@ function getStatusColor(status: string) {
                <Icon :icon="getStatusIcon(item.data.status)"
                      :class="getStatusColor(item.data.status)"
                      class="text-[14px] shrink-0" />
-               <span class="text-[11px] text-content-muted truncate group-hover:text-blue-400 transition-colors">{{ item.data.path }}</span>
+               <span class="text-[11px] text-content-muted truncate group-hover:text-accent transition-colors">{{ item.data.path }}</span>
             </div>
         </VirtualScroll>
 

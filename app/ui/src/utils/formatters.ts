@@ -3,7 +3,7 @@ import { generalSettings } from '../services/settingsService';
 
 export function renderMessageLinks(message: string) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    let html = message.replace(urlRegex, '<a href="#" data-url="$1" class="text-blue-400 hover:text-blue-300 underline underline-offset-2">$1</a>');
+    let html = message.replace(urlRegex, '<a href="#" data-url="$1" class="text-accent hover:text-accent-hover underline underline-offset-2">$1</a>');
 
     // Bold conventional commit prefixes
     const prefixRegex = /^((?:feat|fix|docs|refactor|test|chore|build|ci|perf|style|revert)(?:\([^\)]+\))?!?:)/i;

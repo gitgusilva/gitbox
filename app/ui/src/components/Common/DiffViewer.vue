@@ -347,8 +347,23 @@ watch(currentTheme, (val) => {
   }
 });
 
-onMounted(setupEditor);
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(async () => {
+  await setupEditor();
+  // monacoOptions has automaticLayout:false, so Monaco never notices when its
+  // container changes size (commit-panel resize, app zoom, window resize),
+  // leaving a stale canvas / empty gap. Observe the container and relayout.
+  if (container.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      if (editor) editor.layout();
+      if (fileEditor) fileEditor.layout();
+    });
+    resizeObserver.observe(container.value);
+  }
+});
 onBeforeUnmount(() => {
+  if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
   destroyEditor();
 });
 
@@ -382,13 +397,6 @@ function onToolbarWheel(e: WheelEvent) {
           </span>
         </div>
         
-        <div class="h-stack gap-1 border-l border-line-strong ml-2 pl-3 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9" v-if="isImage || isMarkdown">
-            <IconButton direction="row" 
-                         :showLabel="false"
-                         :icon="viewMode === 'visual' ? 'lucide:code' : (isMarkdown ? 'lucide:file-text' : 'lucide:image')" 
-                         :label="t('diff.toggle_view_mode')"
-                         @click="viewMode = viewMode === 'visual' ? 'code' : 'visual'" />
-        </div>
       </div>
 
       <!-- Right: Centralized Controls -->
@@ -428,22 +436,13 @@ function onToolbarWheel(e: WheelEvent) {
                             :active="!renderSideBySide"
                             @click="renderSideBySide = false" />
 
-                <template v-if="viewType === 'diff' && renderSideBySide">
-                    <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
-                    <IconButton direction="row"
-                                :showLabel="false"
-                                icon="lucide:spline"
-                                :label="t('diff.connectors')"
-                                :active="useRibbons"
-                                @click="useRibbons = !useRibbons" />
-                </template>
             </template>
         </div>
 
         <!-- Group 2: Blame -->
         <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9 shrink-0">
             <IconButton direction="row"
-                         :showLabel="true"
+                         :showLabel="displayLabels"
                          icon="lucide:git-commit-vertical"
                          :label="t('diff.blame')"
                          :active="isBlameVisible"
@@ -453,14 +452,14 @@ function onToolbarWheel(e: WheelEvent) {
         <!-- Group 3: Main View Mode Toggle -->
         <div class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-line p-1 ml-1 h-9 gap-1 shrink-0">
            <IconButton direction="row"
-                        :showLabel="true"
+                        :showLabel="displayLabels"
                         icon="lucide:file-text"
                         :label="t('diff.file_view')"
                         :active="viewType === 'file'"
                         @click="viewType = 'file'" />
            <IconButton direction="row"
-                        :showLabel="true"
-                        icon="lucide:git-diff"
+                        :showLabel="displayLabels"
+                        icon="lucide:file-diff"
                         :label="t('diff.diff_view')"
                         :active="viewType === 'diff'"
                         @click="viewType = 'diff'" />

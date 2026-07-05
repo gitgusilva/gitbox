@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('gitbox', {
   fetch: (repoPath, remoteName = 'origin') => ipcRenderer.invoke('gitbox:fetch', repoPath, remoteName),
   pull: (repoPath, remoteName) => ipcRenderer.invoke('gitbox:pull', repoPath, remoteName),
   push: (repoPath, remoteName, branchName, setUpstream, force, pushTags) => ipcRenderer.invoke('gitbox:push', repoPath, remoteName, branchName, setUpstream, force, pushTags),
+  clone: (url, targetDir) => ipcRenderer.invoke('gitbox:clone', url, targetDir),
+  init: (targetDir, name, defaultBranch) => ipcRenderer.invoke('gitbox:init', targetDir, name, defaultBranch),
   checkoutBranch: (repoPath, branchName) => ipcRenderer.invoke('gitbox:checkoutBranch', repoPath, branchName),
   checkMerge: (repoPath, toBranch, fromBranch) => ipcRenderer.invoke('gitbox:checkMerge', repoPath, toBranch, fromBranch),
   openMergeTool: (repoPath, filePath, toolName) => ipcRenderer.invoke('gitbox:openMergeTool', repoPath, filePath, toolName),

@@ -154,7 +154,7 @@ const openBranchMenu = (e: MouseEvent) => {
       
       <div class="flex items-center gap-1 ml-auto" style="-webkit-app-region: no-drag;">
         <Tooltip :text="t('ui.toggle_terminal_focus')">
-          <button @click="toggleTerminal" :class="isTerminalOpen ? 'text-blue-500 bg-blue-500/10' : 'text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600'" class="p-1.5 rounded transition-colors">
+          <button @click="toggleTerminal" :class="isTerminalOpen ? 'text-accent bg-accent/10' : 'text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600'" class="p-1.5 rounded transition-colors">
             <Icon icon="lucide:terminal-square" class="text-base" />
           </button>
         </Tooltip>

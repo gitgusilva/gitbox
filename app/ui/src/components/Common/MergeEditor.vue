@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useTheme } from '../../services/themeService';
 import { getLanguage, getMonacoTheme, monacoOptions, initMonaco } from '../../services/monacoService';
 import Tooltip from './Tooltip.vue';
+import Button from './Button.vue';
 import { parseConflicts } from './merge-editor/conflictParser';
 import type { ConflictBlock, ConflictState } from './merge-editor/types';
 import { createResultInfoWidget } from './merge-editor/widgetFactory';
@@ -100,8 +101,8 @@ function applyOnlyConflicts() {
   }
 }
 
-watch(isWordWrap, applyWordWrap);
-watch(onlyConflicts, applyOnlyConflicts);
+watch(isWordWrap, () => { applyWordWrap(); scheduleConnectorsUpdate(); });
+watch(onlyConflicts, () => { applyOnlyConflicts(); scheduleConnectorsUpdate(); });
 
 // --- Blame (HEAD version, shown next to the result editor) ---
 const showBlame = ref(getItem('gitbox_merge_blame') === 'true');
@@ -168,6 +169,62 @@ function updateVisibleBlame() {
   visibleBlame.value = visible;
 }
 
+// Custom right-side line-number gutter for the Current pane. Monaco can't render
+// line numbers on the right, so we turn off its native gutter and mirror the
+// numbers on the inner edge (next to the bezier), synced to scroll like blame.
+type GLine = { line: number; top: number; height: number; last: boolean };
+const currentGutterLines = ref<GLine[]>([]);
+const resultGutterLines = ref<GLine[]>([]);
+const incomingGutterLines = ref<GLine[]>([]);
+const currentGutterScrollTop = ref(0);
+const gutterLineHeight = ref(18);
+const currentActiveLine = ref(0);
+const resultActiveLine = ref(0);
+const incomingActiveLine = ref(0);
+
+/** Visible line rows for one editor's number gutter. Each pane computes from its
+ *  OWN editor: with word-wrap the same line can render at a different height per
+ *  side, so sharing one editor's positions would drift the numbers/backgrounds. */
+function computeGutterLines(ed: any): GLine[] {
+  if (!ed) return [];
+  const model = ed.getModel();
+  const lineCount = model ? model.getLineCount() : 0;
+  if (!lineCount) return [];
+  const ranges = ed.getVisibleRanges();
+  const first = ranges && ranges.length ? ranges[0].startLineNumber : 1;
+  const last = ranges && ranges.length ? ranges[ranges.length - 1].endLineNumber : lineCount;
+  const start = Math.max(1, first - 5);
+  const end = Math.min(lineCount, last + 5); // bound to the real last line
+
+  // The gap between two lines can include a conflict view-zone/widget, so it is
+  // NOT the line height. Use the smallest gap as the true line height and pin
+  // each number to the content top; otherwise a number above a zone gets
+  // vertically centered in the inflated gap and misaligns.
+  let lh = 0;
+  for (let i = start; i <= end; i++) {
+    const h = ed.getTopForLineNumber(i + 1) - ed.getTopForLineNumber(i);
+    if (h > 0 && (lh === 0 || h < lh)) lh = h;
+  }
+  if (lh <= 0) lh = 18;
+  gutterLineHeight.value = lh;
+
+  const out: GLine[] = [];
+  for (let i = start; i <= end; i++) {
+    const top = ed.getTopForLineNumber(i);
+    const gap = ed.getTopForLineNumber(i + 1) - top;
+    if (gap <= 0 && i !== lineCount) continue; // collapsed by "only conflicts"
+    out.push({ line: i, top, height: gap > 0 ? gap : lh, last: i === lineCount });
+  }
+  return out;
+}
+
+function updateCurrentGutter() {
+  if (currentEditor) currentGutterScrollTop.value = currentEditor.getScrollTop();
+  currentGutterLines.value = computeGutterLines(currentEditor);
+  resultGutterLines.value = computeGutterLines(resultEditor);
+  incomingGutterLines.value = computeGutterLines(incomingEditor);
+}
+
 watch(showBlame, loadBlame);
 
 const monaco = ref<any>(null);
@@ -208,8 +265,15 @@ const selectedConflictIndex = ref(0);
 const totalConflicts = computed(() => conflicts.value.length);
 const remainingConflicts = computed(() => Math.max(0, totalConflicts.value - resolvedConflicts.value.size));
 const selectedConflict = computed(() => conflicts.value[selectedConflictIndex.value] ?? null);
-const incomingRefLabel = computed(() => selectedConflict.value?.incomingLabel ?? '-');
-const currentRefLabel = computed(() => selectedConflict.value?.currentLabel ?? '-');
+// Git conflict markers label the local side just "HEAD"; show the branch it
+// points at as "branchName (HEAD)" once we've resolved it.
+const headBranch = ref('');
+function formatRefLabel(label?: string) {
+  const l = label ?? '-';
+  return l === 'HEAD' && headBranch.value ? `${headBranch.value} (HEAD)` : l;
+}
+const incomingRefLabel = computed(() => formatRefLabel(selectedConflict.value?.incomingLabel));
+const currentRefLabel = computed(() => formatRefLabel(selectedConflict.value?.currentLabel));
 const conflictStates = ref<Record<number, ConflictState>>({});
 
 const {
@@ -253,7 +317,7 @@ const gridStyle = computed(() => {
     return {
       gridTemplateColumns: `${l} ${STACK_GUTTER}px 1fr`,
       gridTemplateRows: `${t} 6px 1fr`,
-      gridTemplateAreas: '"inc gm cur" "rz rz rz" "res res res"',
+      gridTemplateAreas: '"cur gm inc" "rz rz rz" "res res res"',
     };
   }
   const c = currentWidth.value > 0 ? `${currentWidth.value}px` : '1fr';
@@ -300,33 +364,103 @@ function ribbonPath(w: number, lTop: number, lBot: number, rTop: number, rBot: n
     + ` L ${w} ${rBot.toFixed(1)} C ${m} ${rBot.toFixed(1)}, ${m} ${lBot.toFixed(1)}, 0 ${lBot.toFixed(1)} Z`;
 }
 
-function computeRibbons(leftEd: any, rightEd: any, w: number): Ribbon[] {
+/** Content lines the result holds for a conflict, based on how it was resolved. */
+function resultLen(c: any): number {
+  const state = conflictStates.value[c.index] ?? 'none';
+  if (state === 'incoming') return c.incomingLen;
+  if (state === 'current') return c.currentLen;
+  if (state === 'both') return c.currentLen + c.incomingLen;
+  if (state === 'base') return c.baseLen;
+  return 0; // unresolved / manual → collapse to a point on the result side
+}
+
+/** Conflict background rectangles for a number gutter: one filled block per
+ *  conflict spanning exactly that side's content (startLine..startLine+len),
+ *  positioned in the scrolled container. One rect per conflict (instead of a
+ *  strip per line) covers word-wrap and skips the view-zone gaps, and it stays
+ *  locked to the bezier because it recomputes from getTopForLineNumber. */
+function gutterBgRects(side: 'current' | 'incoming' | 'result') {
+  // currentGutterScrollTop drives re-eval on scroll/layout; positions are
+  // content-absolute (the container transform applies the scroll offset).
+  void currentGutterScrollTop.value;
+  const ed = side === 'current' ? currentEditor : side === 'incoming' ? incomingEditor : resultEditor;
+  if (!ed) return [] as { top: number; height: number; color: string }[];
+  const color = side === 'current' ? 'rgb(var(--gb-modified) / 0.16)'
+    : side === 'incoming' ? 'rgb(var(--gb-added) / 0.16)'
+      : 'rgb(var(--gb-accent) / 0.1)';
+  const out: { top: number; height: number; color: string }[] = [];
+  for (const c of conflicts.value) {
+    const len = side === 'current' ? c.currentLen : side === 'incoming' ? c.incomingLen : Math.max(resultLen(c), 1);
+    if (len <= 0) continue;
+    const top = ed.getTopForLineNumber(c.startLine);
+    const height = ed.getTopForLineNumber(c.startLine + len) - top;
+    if (height > 0) out.push({ top, height, color });
+  }
+  return out;
+}
+
+function computeRibbons(
+  leftEd: any, rightEd: any, w: number, sideColor: ConflictState,
+  leftLen: (c: any) => number, rightLen: (c: any) => number,
+  resultSide: 'left' | 'right',
+): Ribbon[] {
   if (!leftEd || !rightEd || conflicts.value.length === 0) return [];
   const viewH = rightEd.getLayoutInfo().height;
   const H = CONNECTOR_HEADER_H;
   const out: Ribbon[] = [];
   for (const c of conflicts.value) {
+    // Each side spans only its REAL content (startLine .. startLine+len), not the
+    // padded block height — so the ribbon is a trapezoid reflecting the actual
+    // sizes (e.g. current 3 lines ↔ incoming 10 lines) instead of a fat rectangle.
     const lTop = leftEd.getTopForLineNumber(c.startLine) - leftEd.getScrollTop() + H;
-    const lBot = leftEd.getTopForLineNumber(c.endLine + 1) - leftEd.getScrollTop() + H;
+    const lBot = leftEd.getTopForLineNumber(c.startLine + Math.max(0, leftLen(c))) - leftEd.getScrollTop() + H;
     const rTop = rightEd.getTopForLineNumber(c.startLine) - rightEd.getScrollTop() + H;
-    const rBot = rightEd.getTopForLineNumber(c.endLine + 1) - rightEd.getScrollTop() + H;
+    const rBot = rightEd.getTopForLineNumber(c.startLine + Math.max(0, rightLen(c))) - rightEd.getScrollTop() + H;
     if (Math.max(lBot, rBot) < H - 8 || Math.min(lTop, rTop) > H + viewH + 8) continue;
     const state = conflictStates.value[c.index] ?? 'none';
-    out.push({ index: c.index, d: ribbonPath(w, lTop, lBot, rTop, rBot), fill: connectorColor(state), stroke: connectorStroke(state), arrowY: (rTop + rBot) / 2 });
+    // While unresolved, color the ribbon by the SIDE this gutter represents so it
+    // matches the Monaco block colors (incoming=added, current=modified). Once
+    // resolved, reflect the chosen resolution state.
+    const colorState = state === 'none' ? sideColor : state;
+    out.push({
+      index: c.index,
+      d: ribbonPath(w, lTop, lBot, rTop, rBot),
+      fill: connectorColor(colorState),
+      stroke: connectorStroke(colorState),
+      // Anchor the accept/ignore buttons on the RESULT connection line (where the
+      // bezier meets the result editor), not the trapezoid centroid.
+      arrowY: resultSide === 'right' ? (rTop + rBot) / 2 : (lTop + lBot) / 2,
+    });
   }
   return out;
 }
 
 function updateConnectors() {
   if (mergeLayout.value === 'stacked') {
-    midRibbons.value = computeRibbons(incomingEditor, currentEditor, STACK_GUTTER);
+    // Stacked layout: incoming & current sit side-by-side with the result below,
+    // so a connector ribbon between them just adds noise — omit the béziers.
+    midRibbons.value = [];
     leftRibbons.value = [];
     rightRibbons.value = [];
   } else {
-    leftRibbons.value = computeRibbons(currentEditor, resultEditor, GUTTER_W);
-    rightRibbons.value = computeRibbons(resultEditor, incomingEditor, GUTTER_W);
+    // Result side spans at least one line so the connector meets a full line
+    // height (and the accept/ignore buttons fit centered on it), even unresolved.
+    leftRibbons.value = computeRibbons(currentEditor, resultEditor, GUTTER_W, 'current', c => c.currentLen, c => Math.max(resultLen(c), 1), 'right');
+    rightRibbons.value = computeRibbons(resultEditor, incomingEditor, GUTTER_W, 'incoming', c => Math.max(resultLen(c), 1), c => c.incomingLen, 'left');
     midRibbons.value = [];
   }
+  // Keep the number-gutter backgrounds locked to the béziers on every scroll/layout.
+  updateCurrentGutter();
+}
+
+function scheduleConnectorsUpdate() {
+  // wordWrap / hidden-area (only-conflicts) changes relayout the editors a frame
+  // or two later; recompute once positions settle so ribbons don't stay stale.
+  nextTick(() => {
+    updateConnectors();
+    updateCurrentGutter();
+    requestAnimationFrame(() => { updateConnectors(); updateCurrentGutter(); });
+  });
 }
 
 watch([conflicts, conflictStates], () => nextTick(updateConnectors), { deep: true });
@@ -480,37 +614,38 @@ function buildDecorations() {
   if (!monaco.value || !incomingEditor || !currentEditor || !resultEditor) return;
 
   const sendable = lineByLine.value ? ' merge-sendable' : '';
-  const newIncoming = conflicts.value.map((conflict) => ({
-    range: new monaco.value.Range(conflict.startLine, 1, conflict.endLine, 1),
-    options: {
-      isWholeLine: true,
-      className: 'merge-editor-block merge-editor-block-incoming' + sendable,
-      minimap: { color: '#6cab4f66', position: monaco.value.editor.MinimapPosition.Inline },
-      overviewRuler: { color: '#6cab4f99', position: monaco.value.editor.OverviewRulerLane.Full },
-    },
-  }));
 
-  const newCurrent = conflicts.value.map((conflict) => ({
-    range: new monaco.value.Range(conflict.startLine, 1, conflict.endLine, 1),
-    options: {
-      isWholeLine: true,
-      className: 'merge-editor-block merge-editor-block-current' + sendable,
-      minimap: { color: '#57b0ff66', position: monaco.value.editor.MinimapPosition.Inline },
-      overviewRuler: { color: '#57b0ff99', position: monaco.value.editor.OverviewRulerLane.Full },
-    },
-  }));
+  // Highlight only each side's REAL content (startLine .. startLine+len-1), not the
+  // padding that aligns the models — so the blue/green blocks match the trapezoid
+  // bezier and don't bleed onto the blank padding lines.
+  const dec = (c: any, len: number, className: string, mini: string, ruler: string) => {
+    if (len <= 0) return null;
+    return {
+      range: new monaco.value.Range(c.startLine, 1, c.startLine + len - 1, 1),
+      options: {
+        isWholeLine: true,
+        className,
+        minimap: { color: mini, position: monaco.value.editor.MinimapPosition.Inline },
+        overviewRuler: { color: ruler, position: monaco.value.editor.OverviewRulerLane.Full },
+      },
+    };
+  };
 
-  const newResult = conflicts.value.map((conflict, index) => ({
-    range: new monaco.value.Range(conflict.startLine, 1, conflict.endLine, 1),
-    options: {
-      isWholeLine: true,
-      className: index === selectedConflictIndex.value
-        ? 'merge-editor-block merge-editor-block-selected'
-        : 'merge-editor-block merge-editor-block-result',
-      minimap: { color: index === selectedConflictIndex.value ? '#f59e0b99' : '#f59e0b66', position: monaco.value.editor.MinimapPosition.Inline },
-      overviewRuler: { color: index === selectedConflictIndex.value ? '#f59e0bcc' : '#f59e0b88', position: monaco.value.editor.OverviewRulerLane.Full },
-    },
-  }));
+  const newIncoming = conflicts.value
+    .map((c) => dec(c, c.incomingLen, 'merge-editor-block merge-editor-block-incoming' + sendable, '#6cab4f66', '#6cab4f99'))
+    .filter(Boolean);
+  const newCurrent = conflicts.value
+    .map((c) => dec(c, c.currentLen, 'merge-editor-block merge-editor-block-current' + sendable, '#57b0ff66', '#57b0ff99'))
+    .filter(Boolean);
+  const newResult = conflicts.value
+    .map((c, index) => dec(
+      c,
+      Math.max(resultLen(c), 1), // keep a marker line even when nothing is accepted yet
+      index === selectedConflictIndex.value ? 'merge-editor-block merge-editor-block-selected' : 'merge-editor-block merge-editor-block-result',
+      index === selectedConflictIndex.value ? '#f59e0b99' : '#f59e0b66',
+      index === selectedConflictIndex.value ? '#f59e0bcc' : '#f59e0b88',
+    ))
+    .filter(Boolean);
 
   incomingDecorations = incomingEditor.deltaDecorations(incomingDecorations, newIncoming);
   currentDecorations = currentEditor.deltaDecorations(currentDecorations, newCurrent);
@@ -552,6 +687,7 @@ function renderConflictWidgets() {
     editor: resultEditor,
     conflict,
     state: conflictStates.value[conflict.index] || 'none',
+    t,
     onResetBase: (index) => applyConflictAt(index, 'base'),
   })).filter(Boolean);
 }
@@ -651,6 +787,12 @@ function resetResultEditor() {
   closeCompare();
   buildDecorations();
   renderConflictWidgets();
+  // setValue wipes the view state (hidden areas, etc.), so re-apply the active
+  // toolbar toggles — only-conflicts, word-wrap and blame — instead of losing them.
+  applyWordWrap();
+  applyOnlyConflicts();
+  if (showBlame.value) updateVisibleBlame();
+  scheduleConnectorsUpdate();
 }
 
 function moveConflict(direction: 'next' | 'prev') {
@@ -714,10 +856,24 @@ async function setupEditors() {
     { incomingEditor, currentEditor, resultEditor },
     { incomingModel, currentModel, baseModel, resultModel },
   );
+  // All three panes render line numbers via our own custom gutters, so drop
+  // Monaco's native gutter/glyph margin everywhere.
+  const noGutter = { lineNumbers: 'off', glyphMargin: false, lineDecorationsWidth: 0, folding: false } as const;
+  currentEditor.updateOptions(noGutter);
+  resultEditor.updateOptions(noGutter);
+  incomingEditor.updateOptions(noGutter);
   editorSubscriptions = setupScrollSync({ incomingEditor, currentEditor, resultEditor });
   editorSubscriptions.push(
-    resultEditor.onDidScrollChange(() => updateVisibleBlame()),
-    resultEditor.onDidLayoutChange(() => updateVisibleBlame()),
+    // Any pane's scroll/layout must recompute the béziers AND all gutters, since
+    // each pane wraps independently — updateConnectors() also refreshes the
+    // gutters, so wiring every editor to it keeps everything locked together.
+    resultEditor.onDidScrollChange(() => { updateVisibleBlame(); updateConnectors(); }),
+    resultEditor.onDidLayoutChange(() => { updateVisibleBlame(); updateConnectors(); }),
+    currentEditor.onDidScrollChange(() => updateConnectors()),
+    currentEditor.onDidLayoutChange(() => updateConnectors()),
+    currentEditor.onDidChangeCursorPosition((e: any) => { currentActiveLine.value = e.position.lineNumber; }),
+    resultEditor.onDidChangeCursorPosition((e: any) => { resultActiveLine.value = e.position.lineNumber; }),
+    incomingEditor.onDidChangeCursorPosition((e: any) => { incomingActiveLine.value = e.position.lineNumber; }),
     incomingEditor.onDidScrollChange(() => updateConnectors()),
     incomingEditor.onDidLayoutChange(() => updateConnectors()),
     // Line-by-line: when the toggle is on, click a conflict line to send it.
@@ -725,6 +881,7 @@ async function setupEditors() {
     currentEditor.onMouseDown((e: any) => onSideLineClick(currentEditor, currentModel, 'current', e)),
   );
   nextTick(updateConnectors);
+  nextTick(updateCurrentGutter);
 
   resultModel.onDidChangeContent((event: any) => {
     isDirty.value = resultModel.getValue() !== lastSavedValue.value;
@@ -769,6 +926,11 @@ function handleSave() {
 function handleCompleteMerge() {
   if (!resultModel) return;
   emit('complete', resultModel.getValue());
+}
+
+/** Switch the merge editor between the 3-column and stacked layouts. */
+function toggleMergeLayout() {
+  generalSettings.value.mergeLayout = mergeLayout.value === 'columns' ? 'stacked' : 'columns';
 }
 
 function emitEditorState() {
@@ -818,15 +980,24 @@ watch(mergeLayout, async () => {
   updateConnectors();
 });
 
-onMounted(() => {
+onMounted(async () => {
   setupEditors();
   window.addEventListener('mousemove', onSplitDrag);
   window.addEventListener('mouseup', stopSplitDrag);
+
+  // Resolve the checked-out branch so the "HEAD" side shows "branch (HEAD)".
+  if (props.repoPath && (window as any).gitbox?.branches) {
+    try {
+      const bs = await (window as any).gitbox.branches(props.repoPath);
+      headBranch.value = bs?.find((b: any) => b.is_head)?.name || '';
+    } catch { /* ignore */ }
+  }
 
   resizeObserver = new ResizeObserver(() => {
     clampSplitters();
     relayoutEditors();
     updateConnectors();
+    updateCurrentGutter();
   });
 
   if (workspaceContainer.value) resizeObserver.observe(workspaceContainer.value);
@@ -843,7 +1014,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex-1 min-h-0 flex flex-col bg-app merge-editor-root">
-    <div class="shrink-0 bg-surface border-b border-line px-3 py-2 flex items-center justify-between gap-3">
+    <div class="shrink-0 bg-surface border-b border-line px-3 py-2 flex items-center justify-between gap-3 relative">
+      <span v-if="remainingConflicts > 0"
+            class="absolute left-1/2 -translate-x-1/2 text-[10px] text-amber-500 tabular-nums whitespace-nowrap pointer-events-none">
+        {{ remainingConflicts }} {{ t('changes.conflicts_remaining') }}
+      </span>
       <div class="min-w-0 flex items-center gap-1">
             <Tooltip :text="t('diff.word_wrap')">
               <button
@@ -886,17 +1061,12 @@ onBeforeUnmount(() => {
                 <Icon icon="lucide:git-commit-vertical" class="text-xs" />
               </button>
             </Tooltip>
-            <Tooltip :text="t('changes.line_by_line')">
+            <Tooltip :text="t('changes.toggle_merge_layout')">
               <button
-                @click="lineByLine = !lineByLine"
-                :class="[
-                  'w-7 h-7 center rounded border transition-colors',
-                  lineByLine
-                    ? 'bg-accent/20 border-accent/40 text-accent'
-                    : 'border-line-strong text-content-muted hover:text-content-strong'
-                ]"
+                @click="toggleMergeLayout"
+                class="w-7 h-7 center rounded border border-line-strong text-content-muted hover:text-content-strong transition-colors"
               >
-                <Icon icon="lucide:list-plus" class="text-xs" />
+                <Icon :icon="mergeLayout === 'columns' ? 'lucide:rows-3' : 'lucide:columns-3'" class="text-xs" />
               </button>
             </Tooltip>
             <span
@@ -926,14 +1096,10 @@ onBeforeUnmount(() => {
           {{ totalConflicts > 0 ? `${selectedConflictIndex + 1}/${totalConflicts}` : '0/0' }}
         </span>
 
-        <Tooltip :text="t('common.save')">
-          <button
-            @click="handleSave"
-            class="px-3 py-1 rounded bg-accent hover:bg-accent-hover transition-colors flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-tighter text-accent-fg"
-          >
-            <Icon icon="lucide:save" class="text-xs" />
-            <span>{{ t('common.save') }}</span>
-          </button>
+        <Tooltip :text="t('changes.complete_merge')">
+          <Button variant="primary" size="sm" icon="lucide:check" :disabled="remainingConflicts > 0" @click="handleCompleteMerge">
+            {{ t('changes.complete_merge') }}
+          </Button>
         </Tooltip>
       </div>
     </div>
@@ -946,9 +1112,9 @@ onBeforeUnmount(() => {
       <!-- CURRENT (ours / local) -->
       <section class="min-h-0 flex flex-col min-w-0" style="grid-area: cur">
         <header class="h-8 px-3 text-[11px] text-content-muted flex items-center justify-between border-b border-line bg-surface">
-          <div class="h-stack items-center gap-2 min-w-0">
-            <span>{{ t('changes.current') }}</span>
-            <span class="text-content-muted truncate max-w-[40%]">{{ currentRefLabel }}</span>
+          <div class="h-stack items-center gap-2 min-w-0 flex-1">
+            <span class="shrink-0">{{ t('changes.current') }}</span>
+            <span class="text-content-muted truncate min-w-0" :title="currentRefLabel">{{ currentRefLabel }}</span>
           </div>
           <div class="h-stack items-center gap-1 shrink-0">
             <Tooltip :text="t('changes.accept_all_current')">
@@ -957,30 +1123,47 @@ onBeforeUnmount(() => {
                 <Icon icon="lucide:check-check" class="text-xs" />
               </button>
             </Tooltip>
-            <Tooltip :text="t('changes.compare_with_base')">
-              <button @click="openCompareWithBase('current')"
-                      class="w-6 h-6 center rounded border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover">
-                <Icon icon="lucide:git-compare" class="text-xs" />
-              </button>
-            </Tooltip>
           </div>
         </header>
-        <div ref="currentContainer" class="flex-1 min-h-0" />
+        <!-- Columns view: gutter on the inner (right) edge + scrollbar mirrored to
+             the left. Stacked view: standard orientation (gutter left, scrollbar
+             right). Either way the numbers are our custom right/left gutter. -->
+        <div class="flex-1 min-h-0 flex" :class="mergeLayout === 'stacked' ? 'flex-row-reverse' : ''">
+          <div ref="currentContainer" class="flex-1 min-h-0 min-w-0" />
+          <!-- Custom line-number gutter (Monaco can't render numbers on the right). -->
+          <div class="shrink-0 relative overflow-hidden select-none bg-surface border-x border-line" style="width: 3.2rem;">
+            <div class="absolute inset-x-0 top-0 will-change-transform" :style="{ transform: `translateY(-${currentGutterScrollTop}px)` }">
+              <div v-for="(rect, ri) in gutterBgRects('current')" :key="'bg'+ri" class="absolute inset-x-0" :style="{ top: rect.top + 'px', height: rect.height + 'px', background: rect.color }" />
+              <div v-for="g in currentGutterLines" :key="g.line"
+                   class="absolute inset-x-0 text-center font-mono tabular-nums transition-colors"
+                   :class="[g.line === currentActiveLine ? 'text-content-strong' : 'text-content-muted', g.last ? 'opacity-40' : '']"
+                   :style="{ top: g.top + 'px', height: gutterLineHeight + 'px', lineHeight: gutterLineHeight + 'px', fontSize: '12px' }">
+                {{ g.line }}
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- LEFT gutter (columns): bands + accept current -> result -->
-      <div v-if="mergeLayout === 'columns'" style="grid-area: gl" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
+      <div v-if="mergeLayout === 'columns'" style="grid-area: gl" class="relative h-full z-20 bg-app overflow-hidden cursor-col-resize"
            @mousedown="startSplitDrag('current', $event)">
         <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <path v-for="r in leftRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
+          <path v-for="r in leftRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill }" />
         </svg>
-        <button v-for="r in leftRibbons" :key="'a'+r.index"
-                @mousedown.stop @click="applyConflictAt(r.index, 'current')"
-                :title="t('changes.accept_all_current')"
-                class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
-                :style="{ top: (r.arrowY - 10) + 'px' }">
-          <Icon icon="lucide:chevron-right" class="text-xs" />
-        </button>
+        <!-- Accept (→ result) + ignore (X), JetBrains-style, centered on the change. -->
+        <div v-for="r in leftRibbons" :key="'a'+r.index"
+             class="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5"
+             :style="{ top: (r.arrowY - 9) + 'px' }">
+          <button @mousedown.stop @click="applyConflictAt(r.index, 'base')" :title="t('changes.ignore')"
+                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+            <Icon icon="lucide:x" class="text-[10px]" />
+          </button>
+          <button @mousedown.stop @click="applyConflictAt(r.index, 'current')" :title="t('changes.accept_all_current')"
+                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
+            <Icon icon="lucide:chevrons-right" class="text-[10px]" />
+          </button>
+        </div>
       </div>
 
       <!-- MIDDLE gutter (stacked): ribbons between incoming & current, + resize -->
@@ -988,7 +1171,7 @@ onBeforeUnmount(() => {
            :class="hasConnectors ? 'bg-app border-x border-line' : 'bg-transparent hover:bg-accent/40'"
            @mousedown="startSplitDrag('horizontal', $event)">
         <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <path v-for="r in midRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
+          <path v-for="r in midRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill }" />
         </svg>
       </div>
 
@@ -1010,7 +1193,6 @@ onBeforeUnmount(() => {
                     class="px-2 py-0.5 text-[9px] rounded border border-line-strong text-content hover:bg-surface-hover">
               {{ t('changes.back_to_editor') }}
             </button>
-            <span class="text-content-muted">{{ remainingConflicts }} {{ t('changes.conflicts_remaining') }}</span>
             <button @click="resetResultEditor" class="w-6 h-6 center rounded border border-line-strong bg-surface text-content hover:text-content-strong" :title="t('changes.reset_result')">
               <Icon icon="lucide:rotate-ccw" class="text-xs" />
             </button>
@@ -1040,32 +1222,50 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+          <!-- Custom line-number gutter (left) -->
+          <div class="shrink-0 relative overflow-hidden select-none bg-surface border-x border-line" style="width: 3.2rem;">
+            <div class="absolute inset-x-0 top-0 will-change-transform" :style="{ transform: `translateY(-${currentGutterScrollTop}px)` }">
+              <div v-for="(rect, ri) in gutterBgRects('result')" :key="'bg'+ri" class="absolute inset-x-0" :style="{ top: rect.top + 'px', height: rect.height + 'px', background: rect.color }" />
+              <div v-for="g in resultGutterLines" :key="g.line"
+                   class="absolute inset-x-0 text-center font-mono tabular-nums transition-colors"
+                   :class="[g.line === resultActiveLine ? 'text-content-strong' : 'text-content-muted', g.last ? 'opacity-40' : '']"
+                   :style="{ top: g.top + 'px', height: gutterLineHeight + 'px', lineHeight: gutterLineHeight + 'px', fontSize: '12px' }">
+                {{ g.line }}
+              </div>
+            </div>
+          </div>
           <div ref="resultContainer" class="flex-1 min-h-0 min-w-0" />
         </div>
         <div v-show="isComparingWithBase" ref="compareContainer" class="flex-1 min-h-0" />
       </section>
 
       <!-- RIGHT gutter (columns): ribbons + accept incoming -> result -->
-      <div v-if="mergeLayout === 'columns'" style="grid-area: gr" class="relative h-full z-20 bg-app border-x border-line cursor-col-resize"
+      <div v-if="mergeLayout === 'columns'" style="grid-area: gr" class="relative h-full z-20 bg-app overflow-hidden cursor-col-resize"
            @mousedown="startSplitDrag('incoming', $event)">
         <svg class="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
-          <path v-for="r in rightRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill, stroke: r.stroke }" stroke-width="1" />
+          <path v-for="r in rightRibbons" :key="r.index" :d="r.d" :style="{ fill: r.fill }" />
         </svg>
-        <button v-for="r in rightRibbons" :key="'a'+r.index"
-                @mousedown.stop @click="applyConflictAt(r.index, 'incoming')"
-                :title="t('changes.accept_all_incoming')"
-                class="absolute left-1/2 -translate-x-1/2 w-5 h-5 center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors"
-                :style="{ top: (r.arrowY - 10) + 'px' }">
-          <Icon icon="lucide:chevron-left" class="text-xs" />
-        </button>
+        <!-- Accept (← result) + ignore (X), JetBrains-style, centered on the change. -->
+        <div v-for="r in rightRibbons" :key="'a'+r.index"
+             class="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5"
+             :style="{ top: (r.arrowY - 9) + 'px' }">
+          <button @mousedown.stop @click="applyConflictAt(r.index, 'incoming')" :title="t('changes.accept_all_incoming')"
+                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
+            <Icon icon="lucide:chevrons-left" class="text-[10px]" />
+          </button>
+          <button @mousedown.stop @click="applyConflictAt(r.index, 'base')" :title="t('changes.ignore')"
+                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+            <Icon icon="lucide:x" class="text-[10px]" />
+          </button>
+        </div>
       </div>
 
       <!-- INCOMING (theirs / remote) -->
       <section class="min-h-0 flex flex-col min-w-0" style="grid-area: inc">
         <header class="h-8 px-3 text-[11px] text-content-muted flex items-center justify-between border-b border-line bg-surface">
-          <div class="h-stack items-center gap-2 min-w-0">
-            <span>{{ t('changes.incoming') }}</span>
-            <span class="text-content-muted truncate max-w-[40%]">{{ incomingRefLabel }}</span>
+          <div class="h-stack items-center gap-2 min-w-0 flex-1">
+            <span class="shrink-0">{{ t('changes.incoming') }}</span>
+            <span class="text-content-muted truncate min-w-0" :title="incomingRefLabel">{{ incomingRefLabel }}</span>
           </div>
           <div class="h-stack items-center gap-1 shrink-0">
             <Tooltip :text="t('changes.accept_all_incoming')">
@@ -1074,43 +1274,46 @@ onBeforeUnmount(() => {
                 <Icon icon="lucide:check-check" class="text-xs" />
               </button>
             </Tooltip>
-            <Tooltip :text="t('changes.compare_with_base')">
-              <button @click="openCompareWithBase('incoming')"
-                      class="w-6 h-6 center rounded border border-line-strong text-content-muted hover:text-content hover:bg-surface-hover">
-                <Icon icon="lucide:git-compare" class="text-xs" />
-              </button>
-            </Tooltip>
           </div>
         </header>
-        <div ref="incomingContainer" class="flex-1 min-h-0" />
+        <div class="flex-1 min-h-0 flex">
+          <!-- Custom line-number gutter (left, inner edge next to the bezier) -->
+          <div class="shrink-0 relative overflow-hidden select-none bg-surface border-x border-line" style="width: 3.2rem;">
+            <div class="absolute inset-x-0 top-0 will-change-transform" :style="{ transform: `translateY(-${currentGutterScrollTop}px)` }">
+              <div v-for="(rect, ri) in gutterBgRects('incoming')" :key="'bg'+ri" class="absolute inset-x-0" :style="{ top: rect.top + 'px', height: rect.height + 'px', background: rect.color }" />
+              <div v-for="g in incomingGutterLines" :key="g.line"
+                   class="absolute inset-x-0 text-center font-mono tabular-nums transition-colors"
+                   :class="[g.line === incomingActiveLine ? 'text-content-strong' : 'text-content-muted', g.last ? 'opacity-40' : '']"
+                   :style="{ top: g.top + 'px', height: gutterLineHeight + 'px', lineHeight: gutterLineHeight + 'px', fontSize: '12px' }">
+                {{ g.line }}
+              </div>
+            </div>
+          </div>
+          <div ref="incomingContainer" class="flex-1 min-h-0 min-w-0" />
+        </div>
       </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-:deep(.merge-editor-block) {
-  border-left: 2px solid transparent;
-}
-
+/* Colors are theme tokens so the Monaco blocks and the SVG béziers stay in sync
+   and can be recolored from the theme editor (added / modified / removed).
+   Background only — no left border line. */
 :deep(.merge-editor-block-incoming) {
-  background: rgba(110, 191, 81, 0.16);
-  border-left-color: rgba(110, 191, 81, 0.95);
+  background: rgb(var(--gb-added) / 0.16);
 }
 
 :deep(.merge-editor-block-current) {
-  background: rgba(87, 176, 255, 0.16);
-  border-left-color: rgba(87, 176, 255, 0.95);
+  background: rgb(var(--gb-modified) / 0.16);
 }
 
 :deep(.merge-editor-block-result) {
-  background: rgba(245, 158, 11, 0.09);
-  border-left-color: rgba(245, 158, 11, 0.65);
+  background: rgb(var(--gb-accent) / 0.1);
 }
 
 :deep(.merge-editor-block-selected) {
-  background: rgba(245, 158, 11, 0.2);
-  border-left-color: rgba(245, 158, 11, 1);
+  background: rgb(var(--gb-accent) / 0.2);
 }
 
 /* Line-by-line mode: conflict lines are clickable (send to result); once sent,
@@ -1215,6 +1418,8 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
 }
 
 :deep(.merge-result-status) {
@@ -1225,5 +1430,6 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   line-height: 1;
   padding: 3px 6px;
+  white-space: nowrap;
 }
 </style>

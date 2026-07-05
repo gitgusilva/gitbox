@@ -3,7 +3,10 @@
     {
       "target_name": "gitbox_addon",
       "sources": ["src/addon.cc"],
-      "include_dirs": ["<!@(node -p \"require('node-addon-api').include\")"],
+      "include_dirs": [
+        "<!@(node -p \"require('node-addon-api').include\")",
+        "<(module_root_dir)/vendor/libgit2/install/include"
+      ],
       "dependencies": ["<!(node -p \"require('node-addon-api').gyp\")"],
       "cflags!": ["-fno-exceptions"],
       "cflags_cc": ["-std=c++17"],
@@ -19,7 +22,21 @@
           "ExceptionHandling": 1
         }
       },
-      "libraries": ["-lgit2"]
+      "libraries": [
+        "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
+        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
+        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
+        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a",
+        "-lrt"
+      ],
+      "conditions": [
+        ["OS=='linux'", {
+          "ldflags": [
+            "-Wl,-Bsymbolic",
+            "-Wl,--exclude-libs,ALL"
+          ]
+        }]
+      ]
     }
   ]
 }

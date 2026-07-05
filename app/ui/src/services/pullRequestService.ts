@@ -135,6 +135,16 @@ export async function closePullRequest(pr: PullRequest) {
     return false;
 }
 
+export async function submitPullRequestReview(pr: PullRequest, event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body?: string) {
+    if (!repoPath.value || !window.gitbox) return false;
+    const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+    const info = getProvider(remoteUrl);
+    if (!info) return false;
+    const ok = await info.provider.submitReview(info.repoId, pr.number, event, body);
+    if (ok) loadPullRequests(true);
+    return ok;
+}
+
 export async function convertPullRequestToDraft(pr: PullRequest) {
     if (!repoPath.value || !window.gitbox || !pr.nodeId) return false;
     const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);

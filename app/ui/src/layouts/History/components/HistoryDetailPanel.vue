@@ -86,7 +86,7 @@ function onSetTab(tab: string) {
         </div>
 
         <Tooltip :text="t('history_detail.explain_commit')" position="bottom">
-            <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors outline-none shadow-sm shrink-0">
+            <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-accent hover:bg-accent-hover text-accent-fg rounded transition-colors outline-none shadow-sm shrink-0">
                 <Icon icon="lucide:sparkles" class="text-sm" />
             </button>
         </Tooltip>
@@ -97,7 +97,7 @@ function onSetTab(tab: string) {
         <span class="text-xs text-content-strong font-bold truncate min-w-0">{{ t('history_detail.n_commits_selected', { count: selectedCommits.length }) }}</span>
 
         <Tooltip :text="t('history_detail.explain_commits')" position="bottom">
-            <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors outline-none shadow-sm shrink-0">
+            <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-accent hover:bg-accent-hover text-accent-fg rounded transition-colors outline-none shadow-sm shrink-0">
                 <Icon icon="lucide:sparkles" class="text-sm" />
             </button>
         </Tooltip>

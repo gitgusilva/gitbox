@@ -330,7 +330,14 @@ function onKeyDown(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeyDown));
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown);
+  // Arriving from another tab (e.g. a conflict card's commit link) the commit is
+  // already selected — scroll it into view once the list has rendered.
+  if (selectedCommit.value) {
+    nextTick(() => setTimeout(() => commitListRef.value?.scrollToCommit(selectedCommit.value!.id), 100));
+  }
+});
 onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
 
 const navigateToCommit = async (p: any) => {

@@ -92,14 +92,14 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
     <div class="v-stack py-2 border-b border-line">
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'history' ? 'bg-surface-hover text-content-strong' : ''
+          activeTab === 'history' ? 'bg-accent/20 text-content-strong' : ''
         )"
         @click="activeTab = 'history'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:history" /> {{ t('common.history') }}</span>
       </button>
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'local_changes' ? 'bg-surface-hover text-content-strong' : ''
+          activeTab === 'local_changes' ? 'bg-accent/20 text-content-strong' : ''
         )"
         @click="activeTab = 'local_changes'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:file-edit" /> {{ t('common.local_changes') }}</span>
@@ -107,7 +107,7 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
       </button>
       <button :class="cn(
           'px-3 h-8 h-stack justify-between hover:bg-neutral-200 dark:hover:bg-neutral-800',
-          activeTab === 'stashes' ? 'bg-surface-hover text-content-strong' : ''
+          activeTab === 'stashes' ? 'bg-accent/20 text-content-strong' : ''
         )"
         @click="activeTab = 'stashes'">
         <span class="font-bold text-xs h-stack gap-1.5"><Icon icon="lucide:layers" /> {{ t('common.stashes') }}</span>

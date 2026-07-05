@@ -9,14 +9,14 @@ const emit = defineEmits(['open']);
 </script>
 
 <template>
-  <div class="pl-[34px] pr-2 py-1.5 flex flex-col gap-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer group/pr border-l-2 border-transparent hover:border-blue-500 transition-all h-[52px]"
+  <div class="pl-[34px] pr-2 py-1.5 flex flex-col gap-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 cursor-pointer group/pr border-l-2 border-transparent hover:border-accent transition-all h-[52px]"
        @click="emit('open', pr)">
      <div class="flex items-start gap-2">
        <Icon :icon="pr.state === 'open' ? 'lucide:git-pull-request' : 'lucide:git-pull-request-closed'" 
              :class="pr.state === 'open' ? 'text-green-500' : 'text-purple-500'" 
              class="text-xs mt-0.5" />
        <div class="flex-1 min-w-0">
-         <div class="text-[11px] text-content font-medium truncate group-hover/pr:text-blue-400 transition-colors">
+         <div class="text-[11px] text-content font-medium truncate group-hover/pr:text-accent transition-colors">
            <span class="text-neutral-500 font-mono">#{{ pr.number }}</span> {{ pr.title }}
          </div>
          <div class="flex items-center gap-1.5 mt-0.5">

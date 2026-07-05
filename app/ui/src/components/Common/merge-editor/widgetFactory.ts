@@ -1,4 +1,4 @@
-import { getConflictStateLabel } from './conflictState';
+import { getConflictStateKey } from './conflictState';
 import type { ConflictBlock, ConflictState } from './types';
 
 type Side = 'incoming' | 'current';
@@ -18,6 +18,7 @@ type ResultWidgetOptions = {
   editor: any;
   conflict: ConflictBlock;
   state: ConflictState;
+  t: (key: string) => string;
   onResetBase: (index: number) => void;
 };
 
@@ -45,7 +46,7 @@ export function createSideConflictWidget(options: SideWidgetOptions) {
     addButton(t('changes.accept_current'), 'merge-inline-btn merge-inline-btn-current', () => onApply(conflict.index, 'current'));
     addButton(t('changes.accept_both'), 'merge-inline-btn merge-inline-btn-both', () => onApply(conflict.index, 'both'));
   }
-  addButton('Ignore', 'merge-inline-btn merge-inline-btn-ignore', () => onApply(conflict.index, 'base'));
+  addButton(t('changes.ignore'), 'merge-inline-btn merge-inline-btn-ignore', () => onApply(conflict.index, 'base'));
 
   const widget = {
     getId: () => `merge-widget-${side}-${conflict.index}`,
@@ -61,19 +62,19 @@ export function createSideConflictWidget(options: SideWidgetOptions) {
 }
 
 export function createResultInfoWidget(options: ResultWidgetOptions) {
-  const { monaco, editor, conflict, state, onResetBase } = options;
+  const { monaco, editor, conflict, state, t, onResetBase } = options;
   const node = document.createElement('div');
   node.className = 'merge-result-info';
 
   const status = document.createElement('span');
   status.className = 'merge-result-status';
-  status.textContent = getConflictStateLabel(state);
+  status.textContent = t(getConflictStateKey(state));
   node.appendChild(status);
 
   if (state === 'manual') {
     const resetBtn = document.createElement('button');
     resetBtn.className = 'merge-inline-btn merge-inline-btn-reset';
-    resetBtn.textContent = 'Reset to base';
+    resetBtn.textContent = t('changes.reset_to_base');
     resetBtn.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();

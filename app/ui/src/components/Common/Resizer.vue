@@ -19,7 +19,7 @@ function handleMouseDown(e: MouseEvent) {
   <div 
     class="resizer-handle transition-colors z-30 fixed-size"
     :class="[
-        vertical ? 'h-1.5 w-full cursor-row-resize hover:bg-blue-500/50' : 'w-1.5 h-full cursor-col-resize hover:bg-blue-500/50',
+        vertical ? 'h-1.5 w-full cursor-row-resize hover:bg-accent/50' : 'w-1.5 h-full cursor-col-resize hover:bg-accent/50',
         $attrs.class
     ]"
     @mousedown="handleMouseDown"
@@ -33,6 +33,6 @@ function handleMouseDown(e: MouseEvent) {
 }
 /* Ensure it's always grabable */
 .resizer-handle:hover {
-    background-color: rgb(59 130 246 / 0.5);
+    background-color: rgb(var(--gb-accent) / 0.5);
 }
 </style>

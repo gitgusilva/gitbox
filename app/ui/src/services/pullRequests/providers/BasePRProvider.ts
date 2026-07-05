@@ -8,6 +8,7 @@ export abstract class BasePRProvider implements IPRProvider {
     abstract closePR(repo: string, prNumber: number): Promise<boolean>;
     abstract convertToDraft(repo: string, prId: string): Promise<boolean>;
     abstract updatePR(repo: string, prNumber: number, data: any): Promise<boolean>;
+    abstract submitReview(repo: string, prNumber: number, event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body?: string): Promise<boolean>;
     abstract fetchComments(repo: string, prNumber: number): Promise<any[]>;
     abstract addComment(repo: string, prNumber: number, body: string): Promise<boolean>;
     abstract fetchMetadata(repo: string): Promise<any>;

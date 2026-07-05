@@ -4,8 +4,12 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import Modal from './Common/Modal.vue';
 import ScrollArea from './Common/ScrollArea.vue';
+import Button from './Common/Button.vue';
+import { openRepository } from '../services/workspaceService';
 
 const { t } = useI18n();
+
+const busy = ref(false);
 
 const props = defineProps<{ action: 'init' | 'clone' }>();
 const emit = defineEmits(['close', 'success']);
@@ -22,8 +26,35 @@ const initTargetDir = ref('');
 const defaultBranch = ref('main');
 
 async function handleAction() {
-    alert(t('modal.repo_action_coming_soon'));
-    emit('close');
+    if (props.action === 'clone') {
+        if (!window.gitbox || !cloneUrl.value.trim() || !cloneTargetDir.value.trim() || busy.value) return;
+        busy.value = true;
+        try {
+            const res = await window.gitbox.clone(cloneUrl.value.trim(), cloneTargetDir.value.trim());
+            if (res && res.path) openRepository(res.path, res.name);
+            emit('success');
+            emit('close');
+        } catch (e: any) {
+            alert(e?.message || 'Clone failed');
+        } finally {
+            busy.value = false;
+        }
+        return;
+    }
+
+    // init
+    if (!window.gitbox || !initTargetDir.value.trim() || busy.value) return;
+    busy.value = true;
+    try {
+        const res = await window.gitbox.init(initTargetDir.value.trim(), initName.value.trim(), defaultBranch.value.trim() || 'main');
+        if (res && res.path) openRepository(res.path, res.name);
+        emit('success');
+        emit('close');
+    } catch (e: any) {
+        alert(e?.message || 'Init failed');
+    } finally {
+        busy.value = false;
+    }
 }
 
 async function browseFolder(formType: 'clone' | 'init') {
@@ -47,14 +78,14 @@ async function browseFolder(formType: 'clone' | 'init') {
         <button v-if="props.action === 'init'"
                 @click="activeTab = 'local'" 
                 class="flex items-center gap-2 px-4 py-2.5 text-[13px] transition-colors text-left"
-                :class="activeTab === 'local' ? 'bg-surface-hover text-content-strong border-l-2 border-[#4182E1]' : 'text-content-muted hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
+                :class="activeTab === 'local' ? 'bg-surface-hover text-content-strong border-l-2 border-accent' : 'text-content-muted hover:bg-surface-hover hover:text-content-strong border-l-2 border-transparent'">
           <Icon icon="lucide:monitor" class="w-4 h-4 ml-1" /> {{ t('modal.local_only') }}
         </button>
 
         <button v-if="props.action === 'clone'"
                 @click="activeTab = 'url'" 
                 class="flex items-center gap-2 px-4 py-2.5 text-[13px] transition-colors text-left"
-                :class="activeTab === 'url' ? 'bg-surface-hover text-content-strong border-l-2 border-[#4182E1]' : 'text-content-muted hover:bg-neutral-200 dark:hover:bg-[#2A2B2E] hover:text-neutral-900 dark:hover:text-white border-l-2 border-transparent'">
+                :class="activeTab === 'url' ? 'bg-surface-hover text-content-strong border-l-2 border-accent' : 'text-content-muted hover:bg-surface-hover hover:text-content-strong border-l-2 border-transparent'">
           <Icon icon="lucide:globe" class="w-4 h-4 ml-1" /> {{ t('modal.clone_with_url') }}
         </button>
       </aside>
@@ -83,7 +114,7 @@ async function browseFolder(formType: 'clone' | 'init') {
                 <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.initialize_in') }}</label>
                 <div class="flex-1 flex gap-2">
                     <input v-model="initTargetDir" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
-                    <button @click="browseFolder('init')" class="bg-[#3A6B9B] hover:bg-[#467FB7] text-white px-4 rounded-sm text-[13px] font-medium transition-colors">{{ t('modal.browse') }}</button>
+                    <Button variant="secondary" @click="browseFolder('init')">{{ t('modal.browse') }}</Button>
                 </div>
              </div>
              
@@ -100,7 +131,7 @@ async function browseFolder(formType: 'clone' | 'init') {
              </div>
              
              <div class="flex justify-end mt-4">
-                <button @click="handleAction" class="bg-[#236041] hover:bg-[#348A5E] text-green-100 border border-[#2B7951] px-5 py-2 rounded-sm text-[13px] shadow transition-colors font-semibold">{{ t('modal.create_repository') }}</button>
+                <Button variant="primary" :loading="busy" icon="lucide:folder-plus" @click="handleAction">{{ t('modal.create_repository') }}</Button>
              </div>
           </div>
 
@@ -111,7 +142,7 @@ async function browseFolder(formType: 'clone' | 'init') {
                 <label class="text-[13px] text-content-muted w-32 text-right shrink-0">{{ t('modal.where_to_clone_to') }}</label>
                 <div class="flex-1 flex gap-2">
                     <input v-model="cloneTargetDir" type="text" class="flex-1 bg-app border border-line-strong rounded-sm px-3 py-1.5 text-[13px] text-content-strong outline-none focus:border-accent" />
-                    <button @click="browseFolder('clone')" class="bg-[#3A6B9B] hover:bg-[#467FB7] text-white px-4 rounded-sm text-[13px] font-medium transition-colors">{{ t('modal.browse') }}</button>
+                    <Button variant="secondary" @click="browseFolder('clone')">{{ t('modal.browse') }}</Button>
                 </div>
              </div>
              
@@ -128,7 +159,7 @@ async function browseFolder(formType: 'clone' | 'init') {
              </div>
              
              <div class="flex justify-end mt-4">
-                <button @click="handleAction" class="bg-[#236041] hover:bg-[#348A5E] text-green-100 border border-[#2B7951] px-5 py-2 rounded-sm text-[13px] shadow transition-colors font-semibold">{{ t('modal.clone_the_repo') }}</button>
+                <Button variant="primary" :loading="busy" icon="lucide:git-branch" @click="handleAction">{{ t('modal.clone_the_repo') }}</Button>
              </div>
           </div>
 

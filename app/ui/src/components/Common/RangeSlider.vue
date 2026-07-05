@@ -28,7 +28,7 @@ function onInput(event: Event) {
       <!-- Custom Track Background -->
       <div class="absolute w-full h-[3px] bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden pointer-events-none">
           <!-- Progress Bar (color of the dot) -->
-          <div class="h-full bg-blue-600" :style="{ width: `${progressPercent}%` }"></div>
+          <div class="h-full bg-accent" :style="{ width: `${progressPercent}%` }"></div>
       </div>
       
       <!-- Actual Range Input -->
@@ -44,7 +44,7 @@ function onInput(event: Event) {
       
       <!-- Custom Thumb (Dot) - smaller -->
       <div 
-          class="absolute w-2.5 h-2.5 bg-blue-500 rounded-full shadow-md pointer-events-none transform -translate-x-1/2 -translate-y-1/2 top-1/2 z-10"
+          class="absolute w-2.5 h-2.5 bg-accent rounded-full shadow-md pointer-events-none transform -translate-x-1/2 -translate-y-1/2 top-1/2 z-10"
           :style="{ left: `${progressPercent}%` }"
       ></div>
     </div>

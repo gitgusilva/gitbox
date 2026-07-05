@@ -67,7 +67,7 @@ const openZoomMenu = (e: MouseEvent) => {
             <div
               @click="activeTab = activeTab === 'output_log' ? 'history' : 'output_log'"
               class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5"
-              :class="{ 'text-blue-400 bg-blue-400/5': activeTab === 'output_log' }"
+              :class="{ 'text-accent bg-accent/10': activeTab === 'output_log' }"
             >
                 <Icon icon="lucide:terminal" class="w-3.5 h-3.5" />
                 <span class="font-medium">{{ t('common.output_log') }}</span>
@@ -77,7 +77,7 @@ const openZoomMenu = (e: MouseEvent) => {
             <div
               @click="activeTab = activeTab === 'statistics' ? 'history' : 'statistics'"
               class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5 border-r border-line"
-              :class="{ 'text-blue-400 bg-blue-400/5': activeTab === 'statistics' }"
+              :class="{ 'text-accent bg-accent/10': activeTab === 'statistics' }"
             >
                 <Icon icon="lucide:chart-pie" class="w-3.5 h-3.5" />
                 <span class="font-medium">{{ t('stats.title') }}</span>
@@ -101,7 +101,7 @@ const openZoomMenu = (e: MouseEvent) => {
 
         <div class="w-px h-3.5 bg-line hidden sm:block"></div>
 
-        <div @click="openSupport" class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-1 text-blue-400">
+        <div @click="openSupport" class="cursor-pointer hover:text-accent-hover transition-colors h-full flex items-center px-1 text-accent">
             {{ t('common.support') }}
         </div>
         

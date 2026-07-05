@@ -24,10 +24,10 @@ const emit = defineEmits(['toggle', 'refreshPRs', 'createPR']);
     
     <div v-if="item.id === 'pull_requests' && hasActivePRProvider" class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
       <button @click.stop="emit('refreshPRs')" class="p-1 hover:bg-neutral-700 rounded transition-colors group/btn">
-        <Icon icon="lucide:rotate-cw" :class="{'animate-spin text-blue-400': isPRLoading}" class="text-[10px]" />
+        <Icon icon="lucide:rotate-cw" :class="{'animate-spin text-accent': isPRLoading}" class="text-[10px]" />
       </button>
       <button @click.stop="emit('createPR')" class="p-1 hover:bg-neutral-700 rounded transition-colors group/btn ml-1">
-        <Icon icon="lucide:plus" class="text-[10px] group-hover/btn:text-blue-400" />
+        <Icon icon="lucide:plus" class="text-[10px] group-hover/btn:text-accent" />
       </button>
     </div>
   </div>

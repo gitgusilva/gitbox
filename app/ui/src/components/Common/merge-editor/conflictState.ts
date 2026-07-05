@@ -1,9 +1,10 @@
 import type { ConflictState } from './types';
 
-export function getConflictStateLabel(state: ConflictState): string {
-  if (state === 'incoming') return 'Accepted Incoming';
-  if (state === 'current') return 'Accepted Current';
-  if (state === 'both') return 'Accepted Both';
-  if (state === 'manual') return 'Manual Resolution';
-  return 'No Changes Accepted';
+/** i18n key for the result-widget status badge, translated at the call site. */
+export function getConflictStateKey(state: ConflictState): string {
+  if (state === 'incoming') return 'changes.accepted_incoming';
+  if (state === 'current') return 'changes.accepted_current';
+  if (state === 'both') return 'changes.accepted_both_label';
+  if (state === 'manual') return 'changes.manual_resolution';
+  return 'changes.no_changes_accepted';
 }

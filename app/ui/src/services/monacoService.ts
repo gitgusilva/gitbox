@@ -87,6 +87,9 @@ export const monacoOptions: any = {
     minimap: { enabled: false },
     stickyScroll: { enabled: false },
     contextmenu: false,
+    // Keep editors read-only but suppress Monaco's "Cannot edit in read-only
+    // editor" tooltip when the user types into a read-only pane.
+    readOnlyMessage: { value: '' },
     scrollBeyondLastLine: false,
     renderOverviewRuler: false,
     fontFamily: activeTheme.value.typography.editorFont,

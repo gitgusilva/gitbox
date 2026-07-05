@@ -15,6 +15,7 @@ import { ref, watch, onMounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
 import Tooltip from '../components/Common/Tooltip.vue';
+import ColorPicker from '../components/Common/ColorPicker.vue';
 
 const isOverflowing = ref(false);
 let observer: ResizeObserver | null = null;
@@ -336,7 +337,7 @@ watch(activeWorkspaceId, async (val) => {
                      @click="activeWorkspaceId = 'changelog'"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 min-w-[120px] px-3 flex items-center justify-between gap-2 rounded-t-md mx-[1px] cursor-pointer group transition-colors relative"
-                     :class="activeWorkspaceId === 'changelog' ? 'bg-surface text-content-strong' : 'bg-app text-content-muted hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
+                     :class="activeWorkspaceId === 'changelog' ? 'bg-surface text-content-strong' : 'bg-app text-content-muted hover:bg-surface-hover hover:text-content'">
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                         <Icon icon="lucide:megaphone" class="w-3.5 h-3.5 text-blue-500" />
                         <span class="truncate text-xs font-medium">{{ t('common.whats_new') }}</span>
@@ -356,7 +357,7 @@ watch(activeWorkspaceId, async (val) => {
                      @dragend="onDragEnd"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 max-w-[200px] min-w-[120px] px-3 flex items-center justify-between rounded-t-md mx-[1px] cursor-pointer group transition-colors relative border-b-2 border-transparent"
-                     :class="activeWorkspaceId === ws.id ? 'bg-surface text-content-strong border-blue-500' : 'bg-app text-content-muted hover:bg-neutral-200 dark:hover:bg-[#252525] hover:text-neutral-800 dark:hover:text-neutral-200'">
+                     :class="activeWorkspaceId === ws.id ? 'bg-surface text-content-strong border-blue-500' : 'bg-app text-content-muted hover:bg-surface-hover hover:text-content'">
                      
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                          <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: ws.color }"></div>
@@ -370,7 +371,7 @@ watch(activeWorkspaceId, async (val) => {
 
                 <!-- Inline + button -->
                 <Tooltip v-if="!isOverflowing" :text="t('ui.add_workspace')" position="bottom">
-                  <div class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded-t-md text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors" @click="handleAddWorkspaceFlow" style="-webkit-app-region: no-drag;">
+                  <div class="h-8 w-8 ml-1 mb-0 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-surface-hover rounded-t-md text-content-muted hover:text-content transition-colors" @click="handleAddWorkspaceFlow" style="-webkit-app-region: no-drag;">
                       <Icon icon="lucide:plus" class="w-4 h-4" />
                   </div>
                 </Tooltip>
@@ -399,10 +400,10 @@ watch(activeWorkspaceId, async (val) => {
 
     <!-- Right Window Controls -->
     <div class="flex h-full" style="-webkit-app-region: no-drag;">
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMinimize">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMinimize">
             <Icon icon="lucide:minus" class="w-4 h-4" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-neutral-300 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer" @click="handleMaximize">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMaximize">
             <Icon icon="lucide:square" class="w-3.5 h-3.5" />
         </div>
         <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
@@ -414,7 +415,7 @@ watch(activeWorkspaceId, async (val) => {
     <template v-if="isColorPickerOpen">
         <!-- Click-away backdrop -->
         <div class="fixed inset-0 z-40" style="-webkit-app-region: no-drag;" @click="isColorPickerOpen = false; editingWorkspaceId = null"></div>
-        <div class="fixed w-48 p-3 bg-neutral-200 dark:bg-neutral-800 border border-line-strong rounded-md shadow-xl z-50"
+        <div class="fixed w-48 p-3 bg-overlay border border-line-strong rounded-md shadow-xl z-50"
              :style="{ top: '40px', left: colorPickerX + 'px' }" style="-webkit-app-region: no-drag;">
             <div class="flex flex-wrap gap-2">
                 <div v-for="c in colors" :key="c" @click="selectColor(c)"
@@ -422,12 +423,9 @@ watch(activeWorkspaceId, async (val) => {
                      :style="{ backgroundColor: c }"></div>
             </div>
             <div class="mt-3 pt-3 border-t border-line-strong flex items-center gap-2">
-                <label class="relative w-7 h-7 rounded overflow-hidden border border-neutral-400 dark:border-neutral-600 cursor-pointer shrink-0" :style="{ backgroundColor: customColor }">
-                    <input type="color" v-model="customColor" class="absolute inset-0 opacity-0 cursor-pointer" />
-                </label>
-                <span class="text-[11px] font-mono text-content-muted flex-1 truncate">{{ customColor }}</span>
+                <ColorPicker v-model="customColor" class="flex-1 min-w-0" />
                 <button @click="selectColor(customColor)"
-                        class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                        class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0">
                     {{ t('common.apply') || 'Apply' }}
                 </button>
             </div>

@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '../services/themeService';
 import MergeEditor from './Common/MergeEditor.vue';
+import Button from './Common/Button.vue';
 
 const { t } = useI18n();
 const { currentTheme, applyTheme } = useTheme();
@@ -151,24 +152,25 @@ onMounted(() => {
   <div class="h-screen w-screen flex flex-col bg-app text-content overflow-hidden">
     <!-- Title bar (draggable) -->
     <div
-      class="h-9 shrink-0 flex items-center justify-between px-3 bg-surface border-b border-line select-none"
+      class="h-9 shrink-0 flex items-center justify-between bg-surface border-b border-line select-none"
       style="-webkit-app-region: drag;"
     >
-      <div class="flex items-center gap-2 min-w-0 text-[11px] font-bold uppercase tracking-widest text-content">
+      <div class="flex items-center gap-2 min-w-0 pl-3 text-[11px] font-bold uppercase tracking-widest text-content">
         <Icon icon="lucide:git-merge" class="text-amber-500 text-sm" />
         <span class="truncate">{{ t('changes.merging') }}: {{ fileName }}</span>
       </div>
 
-      <div class="flex items-center gap-1" style="-webkit-app-region: no-drag;">
-        <button @click="minimizeWindow" class="w-9 h-7 center text-content-muted hover:bg-surface-hover hover:text-content-strong rounded transition-colors">
-          <Icon icon="lucide:minus" class="text-sm" />
-        </button>
-        <button @click="maximizeWindow" class="w-9 h-7 center text-content-muted hover:bg-surface-hover hover:text-content-strong rounded transition-colors">
-          <Icon icon="lucide:square" class="text-[11px]" />
-        </button>
-        <button @click="closeWindow" class="w-9 h-7 center text-content-muted hover:bg-red-600 hover:text-white rounded transition-colors">
-          <Icon icon="lucide:x" class="text-sm" />
-        </button>
+      <!-- Window controls — match the main GitBox window (flush, full-height). -->
+      <div class="flex h-full" style="-webkit-app-region: no-drag;">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="minimizeWindow">
+          <Icon icon="lucide:minus" class="w-4 h-4" />
+        </div>
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="maximizeWindow">
+          <Icon icon="lucide:square" class="w-3.5 h-3.5" />
+        </div>
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="closeWindow">
+          <Icon icon="lucide:x" class="w-4 h-4" />
+        </div>
       </div>
     </div>
 
@@ -185,23 +187,6 @@ onMounted(() => {
           @complete="handleComplete"
           @state="handleState"
         />
-
-        <!-- Floating complete-merge action -->
-        <div class="absolute bottom-3 right-5 h-stack gap-2 z-30">
-          <button
-            @click="mergeEditorRef?.completeMerge?.()"
-            :disabled="!mergeState.canCompleteMerge || isSaving"
-            :class="[
-              'h-stack items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-xl',
-              mergeState.canCompleteMerge && !isSaving
-                ? 'bg-accent hover:bg-accent-hover border border-accent/40 text-accent-fg'
-                : 'bg-surface border border-line-strong text-content-muted cursor-not-allowed',
-            ]"
-          >
-            <Icon :icon="isSaving ? 'lucide:loader-2' : 'lucide:check'" :class="isSaving ? 'animate-spin' : ''" />
-            {{ t('changes.complete_merge') }}
-          </button>
-        </div>
       </template>
 
       <div v-else-if="loaded && loadError" class="flex-1 center v-stack text-content-muted text-center p-8">
@@ -232,20 +217,15 @@ onMounted(() => {
           </div>
         </div>
         <div class="flex items-center justify-end gap-2 px-5 py-3 bg-app border-t border-line">
-          <button @click="finishMergeSession"
-                  class="px-3 py-1.5 rounded text-xs font-bold text-content hover:bg-surface-hover transition-colors">
+          <Button variant="ghost" class="py-1.5" @click="finishMergeSession">
             {{ t('changes.finish_merge_session') }}
-          </button>
-          <button v-if="mergeTool" @click="openNextInExternal"
-                  class="px-3 py-1.5 rounded text-xs font-bold text-content border border-line-strong hover:bg-surface-hover transition-colors flex items-center gap-1.5">
-            <Icon icon="lucide:external-link" class="text-xs" />
+          </Button>
+          <Button v-if="mergeTool" variant="secondary" icon="lucide:external-link" class="py-1.5" @click="openNextInExternal">
             {{ t('changes.open_in_external', { tool: mergeTool.label }) }}
-          </button>
-          <button @click="continueWithNext"
-                  class="px-4 py-1.5 rounded text-xs font-bold bg-accent hover:bg-accent-hover text-accent-fg transition-colors flex items-center gap-1.5">
-            <Icon icon="lucide:arrow-right" class="text-xs" />
+          </Button>
+          <Button variant="primary" icon="lucide:arrow-right" class="py-1.5" @click="continueWithNext">
             {{ t('changes.continue_here') }}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

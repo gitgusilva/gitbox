@@ -143,6 +143,14 @@ export const selectedStashFile = ref<string>('');
 
 /** Pending commit message. */
 export const commitMessage = ref('');
+// The commit message is per-repository: when the active repo changes, stash the
+// current draft under the old repo and restore the new repo's draft, instead of
+// sharing one global message across every repo.
+const commitDrafts = new Map<string, string>();
+watch(repoPath, (newPath, oldPath) => {
+    if (oldPath) commitDrafts.set(oldPath, commitMessage.value);
+    commitMessage.value = newPath ? (commitDrafts.get(newPath) ?? '') : '';
+});
 
 /** Git user name from config. */
 export const userName = ref('');
@@ -520,6 +528,49 @@ export const abortMergeAction = async () => {
         showToast('Abort failed', error.value, 'error');
     } finally {
         isLoading.value = false;
+    }
+};
+
+/**
+ * Open the conflicted file in the configured merge tool. Routes by the
+ * `externalMergeTool` setting: the built-in GitBox merge editor (default), or
+ * the external tool configured in Preferences. Targets the currently selected
+ * conflicted file, falling back to the first conflict in the working tree.
+ */
+export const manualMergeAction = async () => {
+    if (!repoPath.value || !window.gitbox) return;
+    const isConflicted = (s: string) => (s || '').toLowerCase().includes('conflicted');
+
+    // The merge editor only makes sense for content conflicts (both sides modified
+    // the file, UU/AA). Delete/add conflicts have no content on one side and can't
+    // be resolved in the editor — skip them and tell the user.
+    let types: Record<string, string> = {};
+    try { types = (await (window as any).gitbox.conflictTypes?.(repoPath.value)) || {}; } catch { /* ignore */ }
+    const isContent = (p: string) => types[p] === 'UU' || types[p] === 'AA';
+    const conflicted = status.value.filter(f => isConflicted(f.status)).map(f => f.path);
+
+    const target = (selectedFile.value && conflicted.includes(selectedFile.value) && isContent(selectedFile.value))
+        ? selectedFile.value
+        : conflicted.find(isContent);
+    if (!target) {
+        const { showToast } = await import('./toastService');
+        showToast('Merge', 'No content conflicts to merge in the editor. Resolve deleted/added files from the conflict panel.', 'info');
+        return;
+    }
+
+    const tool = generalSettings.value.externalMergeTool;
+    const useExternal = !!tool && tool !== 'gitbox' && tool !== 'none' && tool !== 'custom';
+    try {
+        if (useExternal) {
+            await window.gitbox.openMergeTool(repoPath.value, target, tool === 'git_config_default' ? undefined : tool);
+            await loadRepoData();
+        } else {
+            await window.gitbox.openMergeWindow(repoPath.value, target);
+        }
+    } catch (err: any) {
+        error.value = String(err?.message || err);
+        const { showToast } = await import('./toastService');
+        showToast('Merge tool failed', error.value, 'error');
     }
 };
 

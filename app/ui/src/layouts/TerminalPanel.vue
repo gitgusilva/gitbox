@@ -9,19 +9,11 @@ import Resizer from '../components/Common/Resizer.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
 import ScrollArea from '../components/Common/ScrollArea.vue';
 import { terminalHeight, terminalListWidth, layoutRefs } from '../services/layoutService';
+import { terminals, activeTerminalId, bindTerminalListeners, cleanupTerminal } from '../services/terminalStore';
 import '@xterm/xterm/css/xterm.css';
 
 const { t } = useI18n();
 
-interface TermInstance {
-    id: number;
-    name: string;
-    term: Terminal | null;
-    fitAddon: FitAddon | null;
-}
-
-const terminals = ref<TermInstance[]>([]);
-const activeTerminalId = ref<number | null>(null);
 const panelEl = ref<HTMLElement | null>(null);
 
 let resizeObserver: ResizeObserver | null = null;
@@ -50,15 +42,23 @@ const addTerminal = async () => {
 
     const termId = await window.gitbox.spawnTerminal(repoPath.value);
     
+    // Derive the terminal palette from the active theme tokens so it matches the
+    // rest of the app (and recolors when the user picks another theme + reopens).
+    const cs = getComputedStyle(document.documentElement);
+    const tok = (name: string, fallback: string) => {
+        const v = cs.getPropertyValue(name).trim();
+        return v ? `rgb(${v.replace(/\s+/g, ', ')})` : fallback;
+    };
+
     // Create xterm instance
     const term = new Terminal({
         fontFamily: '"Fira Code", monospace, "Courier New", Courier',
         fontSize: 12,
         theme: {
-            background: '#1E1E1E',
-            foreground: '#D4D4D4',
-            cursor: '#FFFFFF',
-            selectionBackground: '#5c5c5c'
+            background: tok('--gb-bg', '#1E1E1E'),
+            foreground: tok('--gb-text', '#D4D4D4'),
+            cursor: tok('--gb-accent', '#FFFFFF'),
+            selectionBackground: tok('--gb-surface-hover', '#5c5c5c'),
         },
         cursorBlink: true
     });
@@ -99,33 +99,19 @@ const removeTerminal = (id: number) => {
     window.gitbox.killTerminal(id);
 };
 
-const cleanupTerminal = (id: number) => {
-    const idx = terminals.value.findIndex(t => t.id === id);
-    if (idx >= 0) {
-        const inst = terminals.value[idx];
-        inst.term?.dispose();
-        terminals.value.splice(idx, 1);
-        
-        if (activeTerminalId.value === id) {
-            if (terminals.value.length > 0) {
-                activeTerminalId.value = terminals.value[terminals.value.length - 1].id;
-                nextTick(() => { fitActiveTerminal(); });
-            } else {
-                activeTerminalId.value = null;
-                isTerminalOpen.value = false;
-            }
-        }
-    }
-};
-
 const setTerminalRef = (el: any, id: number) => {
-    if (el) {
-        const inst = terminals.value.find(t => t.id === id);
-        if (inst && inst.term && !inst.term.element) {
-            inst.term.open(el);
-            inst.fitAddon?.fit();
-        }
+    if (!el) return;
+    const inst = terminals.value.find(t => t.id === id);
+    if (!inst || !inst.term) return;
+    if (!inst.term.element) {
+        // First mount: create the xterm DOM inside this container.
+        inst.term.open(el);
+    } else if (inst.term.element.parentElement !== el) {
+        // Remounted: the old container was destroyed — re-attach the existing
+        // xterm DOM (with its scrollback intact) to the fresh container.
+        el.appendChild(inst.term.element);
     }
+    inst.fitAddon?.fit();
 };
 
 watch(repoPath, async (newPath) => {
@@ -153,17 +139,28 @@ watch([isMaximized, terminalHeight, terminalListWidth], () => {
     scheduleFit();
 });
 
-onMounted(() => {
-    window.gitbox.onTerminalData((id, data) => {
-        const inst = terminals.value.find(t => t.id === id);
-        if (inst && inst.term) {
-            inst.term.write(data);
-        }
-    });
+// Switching terminal tabs re-shows a v-show-hidden xterm whose grid measured
+// against a 0-size element; refit it once it's visible so it reflows correctly.
+watch(activeTerminalId, () => {
+    nextTick(() => fitActiveTerminal());
+});
 
-    window.gitbox.onTerminalExit((id) => {
-        cleanupTerminal(id);
+// Maximizing swaps the panel to `absolute inset-0`; the grid must be recomputed
+// only after that layout settles, otherwise the terminal keeps its old (small)
+// row count and its content spills past the visible panel. Refit across a few
+// frames to catch the final size.
+watch(isMaximized, () => {
+    nextTick(() => {
+        fitActiveTerminal();
+        requestAnimationFrame(() => fitActiveTerminal());
+        setTimeout(() => fitActiveTerminal(), 60);
     });
+});
+
+onMounted(() => {
+    // Data/exit listeners live in the store (bound once) so PTY output keeps
+    // filling the xterm buffers even while this panel is unmounted.
+    bindTerminalListeners();
 
     // Observe the panel itself (not <body>): its height changes on drag/maximize
     // while the body stays the same size, so a body observer never fired.
@@ -176,10 +173,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    for (const t of terminals.value) {
-        window.gitbox.killTerminal(t.id);
-        t.term?.dispose();
-    }
+    // Do NOT kill the terminals here — the store keeps them alive so the running
+    // shells + scrollback survive a remount (re-attached in setTerminalRef).
     resizeObserver?.disconnect();
 });
 
@@ -255,11 +250,11 @@ const handleTerminalResize = () => {
                         <div v-for="t in terminals" :key="t.id"
                              @click="activeTerminalId = t.id; fitActiveTerminal()"
                              class="h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors group relative"
-                             :class="activeTerminalId === t.id ? 'bg-surface text-blue-400' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
+                             :class="activeTerminalId === t.id ? 'bg-surface text-accent' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
                              <Icon icon="lucide:terminal-square" class="w-3.5 h-3.5 flex-shrink-0" />
                              <span class="text-xs flex-1 truncate">{{ t.name }}</span>
                              <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity flex-shrink-0" @click.stop="removeTerminal(t.id)" />
-                             <div v-if="activeTerminalId === t.id" class="absolute left-0 inset-y-0 w-[3px] bg-blue-500"></div>
+                             <div v-if="activeTerminalId === t.id" class="absolute left-0 inset-y-0 w-[3px] bg-accent"></div>
                         </div>
                     </div>
                 </ScrollArea>

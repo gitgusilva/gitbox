@@ -5,6 +5,7 @@ export interface IPRProvider {
     closePR(repo: string, prNumber: number): Promise<boolean>;
     convertToDraft(repo: string, prId: string): Promise<boolean>;
     updatePR(repo: string, prNumber: number, data: any): Promise<boolean>;
+    submitReview(repo: string, prNumber: number, event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body?: string): Promise<boolean>;
     fetchComments(repo: string, prNumber: number): Promise<any[]>;
     addComment(repo: string, prNumber: number, body: string): Promise<boolean>;
     fetchMetadata(repo: string): Promise<PullRequestMetadata>;

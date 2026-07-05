@@ -62,6 +62,16 @@ export class GitHubPRProvider extends BasePRProvider {
         return res.ok;
     }
 
+    async submitReview(repo: string, prNumber: number, event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body?: string): Promise<boolean> {
+        const res = await this._fetchJSON(`https://api.github.com/repos/${repo}/pulls/${prNumber}/reviews`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event, body: body || '' })
+        });
+        if (!res.ok) throw new Error(res.data?.message || 'review_failed');
+        return true;
+    }
+
     async fetchComments(repo: string, prNumber: number): Promise<any[]> {
         const token = await this.getAccessToken();
         if (!token) return [];

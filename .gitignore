@@ -39,3 +39,7 @@ AGENTS.md
 example/
 shared/
 domain/
+
+# Vendored libgit2 (built via core/addon/vendor/build-libgit2.sh)
+core/addon/vendor/libgit2/
+core/addon/vendor/mbedtls/

@@ -362,8 +362,8 @@ function openIntegrationsSettings() {
                                 <Tooltip :text="isAIConfigured() ? '' : t('modal.configure_ai_hint')" position="top">
                                     <button @click="generateWithAI" 
                                             :disabled="isGeneratingAI || !isAIConfigured()" 
-                                            class="text-[9px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full transition-colors flex items-center gap-1"
-                                            :class="isGeneratingAI || !isAIConfigured() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600/30'">
+                                            class="text-[9px] bg-accent/20 text-accent px-2 py-0.5 rounded-full transition-colors flex items-center gap-1"
+                                            :class="isGeneratingAI || !isAIConfigured() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent/30'">
                                     <Icon v-if="isGeneratingAI" icon="lucide:loader-2" class="animate-spin" />
                                     <Icon v-else icon="lucide:sparkles" /> 
                                     {{ isGeneratingAI ? t('common.loading') + '...' : t('settings.create_pr.generate') }}
@@ -418,8 +418,8 @@ function openIntegrationsSettings() {
                 <div class="flex items-center shrink-0">
                     <!-- Draft Checkbox moved here -->
                     <label class="flex items-center gap-2 cursor-pointer group">
-                        <div class="w-4 h-4 rounded border border-line-strong flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-blue-600 border-blue-600' : 'bg-transparent'">
-                            <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-white" />
+                        <div class="w-4 h-4 rounded border border-line-strong flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-accent border-accent' : 'bg-transparent'">
+                            <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-accent-fg" />
                         </div>
                         <input type="checkbox" v-model="isDraft" class="hidden" />
                         <span class="text-[11px] font-medium text-content-muted group-hover:text-neutral-800 dark:group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
@@ -430,7 +430,7 @@ function openIntegrationsSettings() {
                     <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-content-muted hover:text-neutral-900 dark:hover:text-white hover:bg-white/5 transition-all">
                         {{ t('common.cancel') }}
                     </button>
-                    <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch || fromBranch === toBranch" :title="fromBranch === toBranch ? t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.' : ''" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:grayscale text-white rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">
+                    <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch || fromBranch === toBranch" :title="fromBranch === toBranch ? t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.' : ''" class="px-6 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:grayscale text-accent-fg rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">
                         <Icon v-if="isLoading" icon="lucide:loader-2" class="animate-spin" />
                         {{ t('common.create_pr') }}
                     </button>
