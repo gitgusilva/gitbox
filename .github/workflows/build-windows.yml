@@ -18,7 +18,10 @@ on:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    # Pinned to 2022 (VS 2022 / v17). windows-latest moved to 2025 which ships
+    # Visual Studio 18 preview, and node-gyp v11 cannot detect it
+    # ("unknown version undefined"), breaking @electron/rebuild.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -72,9 +75,12 @@ jobs:
         working-directory: app/ui
         run: npm run build
 
+      # --ignore-scripts skips the redundant node-targeted node-gyp build of the
+      # gitbox-addon file: dep here; electron-builder's @electron/rebuild step
+      # recompiles it (and node-pty) against Electron's ABI during packaging.
       - name: Install Electron deps
         working-directory: ui/electron
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then
