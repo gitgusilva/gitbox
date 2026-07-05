@@ -22,18 +22,40 @@
           "ExceptionHandling": 1
         }
       },
-      "libraries": [
-        "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
-        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
-        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
-        "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a",
-        "-lrt"
-      ],
       "conditions": [
         ["OS=='linux'", {
+          "libraries": [
+            "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a",
+            "-lrt"
+          ],
           "ldflags": [
             "-Wl,-Bsymbolic",
             "-Wl,--exclude-libs,ALL"
+          ]
+        }],
+        ["OS=='mac'", {
+          "libraries": [
+            "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a"
+          ]
+        }],
+        ["OS=='win'", {
+          "libraries": [
+            "<(module_root_dir)/vendor/libgit2/install/lib/git2.lib",
+            "<(module_root_dir)/vendor/mbedtls/install/lib/mbedtls_all.lib",
+            "ws2_32.lib",
+            "advapi32.lib",
+            "crypt32.lib",
+            "rpcrt4.lib",
+            "secur32.lib",
+            "ole32.lib",
+            "bcrypt.lib",
+            "user32.lib"
           ]
         }]
       ]

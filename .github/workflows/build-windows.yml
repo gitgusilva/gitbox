@@ -1,0 +1,90 @@
+name: Build Windows
+
+# Builds the Windows installers (NSIS + MSI) for GitBox.
+#
+# GitBox ships a native addon (gitbox_addon.node) that statically links
+# libgit2 + mbedTLS, so it must be compiled on Windows with MSVC — it cannot be
+# cross-compiled from Linux. This job does that end to end:
+#   1. build the vendored static libs (libgit2 + mbedTLS) with MSVC
+#   2. build the Vue UI
+#   3. let electron-builder (@electron/rebuild) recompile the native addon
+#      against Electron's ABI and package the NSIS/MSI installers.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Puts cl.exe / lib.exe / cmake's MSVC toolchain on PATH for the build.
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # The vendored static libs are expensive (~10 min) and depend only on the
+      # build script + the libgit2/mbedTLS tags pinned inside it.
+      - name: Cache vendored libgit2 + mbedTLS
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/addon/vendor/libgit2/install
+            core/addon/vendor/mbedtls/install
+          key: vendor-libs-win-${{ hashFiles('core/addon/vendor/build-libgit2.ps1') }}
+
+      - name: Build vendored libgit2 + mbedTLS (static, MSVC)
+        shell: pwsh
+        run: ./core/addon/vendor/build-libgit2.ps1
+
+      # The addon points libgit2 at a bundled CA store (it ships mbedTLS, which
+      # has no system trust store). certs/ is not committed, so fetch it here.
+      - name: Fetch CA bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path core/addon/certs | Out-Null
+          Invoke-WebRequest -Uri https://curl.se/ca/cacert.pem `
+            -OutFile core/addon/certs/cacert.pem
+
+      - name: Install addon deps
+        working-directory: core/addon
+        run: npm ci --ignore-scripts
+
+      - name: Install UI deps
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: app/ui
+        run: npm run build
+
+      - name: Install Electron deps
+        working-directory: ui/electron
+        run: npm ci
+
+      # electron-builder runs @electron/rebuild first (compiling gitbox_addon
+      # and node-pty against Electron via node-gyp + the vendored libs), then
+      # packages the NSIS and MSI targets declared in package.json.
+      - name: Package Windows installers
+        working-directory: ui/electron
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitbox-windows-installers
+          path: |
+            ui/electron/release/*.exe
+            ui/electron/release/*.msi
+          if-no-files-found: error
