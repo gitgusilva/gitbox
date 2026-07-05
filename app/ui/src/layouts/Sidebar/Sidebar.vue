@@ -16,6 +16,7 @@ import { sidebarWidth, layoutRefs } from '../../services/layoutService';
 import { hasActivePRProvider } from '../../services/pullRequestService';
 import Resizer from '../../components/Common/Resizer.vue';
 import VirtualScroll from '../../components/Common/VirtualScroll.vue';
+import SearchInput from '../../components/Common/SearchInput.vue';
 import { useSidebar } from '../../composables/useSidebar';
 import { activePullRequest, contextMenu, requestConfirm } from '../../services/modalService';
 
@@ -119,10 +120,7 @@ function showRemoteMenu(e: MouseEvent, remoteName: string) {
     <div class="v-stack flex-1 min-h-0">
       <!-- Filter -->
       <div class="p-2 border-b border-line">
-        <div class="relative h-stack">
-          <Icon icon="lucide:search" class="absolute left-2 text-neutral-500 text-xs" />
-          <input v-model="branchFilter" class="w-full bg-surface border border-line pl-6 pr-2 py-1 text-xs text-content outline-none rounded focus:border-neutral-500" :placeholder="t('common.search')" />
-        </div>
+        <SearchInput v-model="branchFilter" />
       </div>
       
       <!-- Unified Virtual Scroll -->

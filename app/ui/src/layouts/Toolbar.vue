@@ -225,11 +225,14 @@ function openMainMenu(e: MouseEvent) {
             { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', action: () => {} },
             { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', action: () => {} },
             { separator: true },
-            { label: t('common.panels'), icon: 'lucide:panels-top-left', subItems: [
+            // Command Log / Statistics panels only make sense inside a repo.
+            ...(repoPath.value ? [
+              { label: t('common.panels'), icon: 'lucide:panels-top-left', subItems: [
                 { label: t('common.output_log'), icon: 'lucide:terminal', action: () => { activeTab.value = 'output_log'; } },
                 { label: t('stats.title'), icon: 'lucide:chart-pie', action: () => { activeTab.value = 'statistics'; } },
-            ] },
-            { separator: true },
+              ] },
+              { separator: true },
+            ] : []),
             {
                 label: t('settings.title'),
                 icon: 'lucide:settings',

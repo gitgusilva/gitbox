@@ -126,6 +126,15 @@ async function openNextInExternal() {
   await continueWithNext();
 }
 
+// Open the current file in the configured external merge tool.
+async function openInExternalEditor() {
+  try {
+    await window.gitbox.openMergeTool(repoPath, filePath.value, mergeTool.value?.value);
+  } catch (e) {
+    console.error('Failed to open external merge tool:', e);
+  }
+}
+
 // Stop here — refresh the main window and close (remaining conflicts stay).
 function finishMergeSession() {
   showNextPrompt.value = false;
@@ -183,8 +192,10 @@ onMounted(() => {
           :modified="modified"
           :filename="filePath"
           :repoPath="repoPath"
+          :externalEditor="mergeTool?.label"
           @save="handleSave"
           @complete="handleComplete"
+          @openExternal="openInExternalEditor"
           @state="handleState"
         />
       </template>

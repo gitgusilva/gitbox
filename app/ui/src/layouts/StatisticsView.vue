@@ -122,12 +122,12 @@ const overviewCards = computed(() => {
   const s = stats.value;
   if (!s) return [];
   return [
-    { key: 'commits', icon: 'lucide:git-commit-horizontal', label: t('stats.commits'), value: fmt(s.totalCommits), color: 'text-blue-400' },
+    { key: 'commits', icon: 'lucide:git-commit-horizontal', label: t('stats.commits'), value: fmt(s.totalCommits), color: 'text-accent' },
     { key: 'contributors', icon: 'lucide:users', label: t('stats.contributors'), value: fmt(authors.value.length), color: 'text-emerald-400' },
     { key: 'branches', icon: 'lucide:git-branch', label: t('stats.branches'), value: fmt(s.branchCount), color: 'text-purple-400' },
     { key: 'tags', icon: 'lucide:tag', label: t('stats.tags'), value: fmt(s.tagCount), color: 'text-amber-400' },
     { key: 'size', icon: 'lucide:database', label: t('stats.size'), value: humanBytes(s.sizeBytes), color: 'text-cyan-400' },
-    { key: 'churn', icon: 'lucide:diff', label: t('stats.churn'), value: `+${fmt(s.totalAdded)} / -${fmt(s.totalDeleted)}`, color: 'text-neutral-400' },
+    { key: 'churn', icon: 'lucide:diff', label: t('stats.churn'), value: `+${fmt(s.totalAdded)} / -${fmt(s.totalDeleted)}`, color: 'text-content-muted' },
   ];
 });
 
@@ -281,7 +281,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
     <!-- Header -->
     <div class="shrink-0 h-11 px-4 flex items-center justify-between border-b border-line bg-surface">
       <div class="flex items-center gap-2 text-content">
-        <Icon icon="lucide:chart-pie" class="w-4 h-4 text-blue-400" />
+        <Icon icon="lucide:chart-pie" class="w-4 h-4 text-accent" />
         <span class="text-sm font-semibold">{{ t('stats.title') }}</span>
       </div>
       <div class="flex items-center gap-2">
@@ -295,7 +295,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
         <button
           @click="recompute"
           :disabled="loading || !repoPath"
-          class="h-7 px-3 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+          class="h-7 px-3 rounded bg-accent hover:bg-accent-hover disabled:opacity-40 text-accent-fg text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
         >
           <Icon :icon="loading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="['w-3.5 h-3.5', loading && 'animate-spin']" />
           {{ t('stats.compute') }}
@@ -305,8 +305,8 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
 
     <ScrollArea class="flex-1 min-h-0">
       <!-- Loading -->
-      <div v-if="loading && !stats" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-3 text-neutral-500">
-        <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-blue-400" />
+      <div v-if="loading && !stats" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-3 text-content-muted">
+        <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-accent" />
         <span class="text-xs">{{ t('stats.computing') }}</span>
       </div>
 
@@ -317,7 +317,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
       </div>
 
       <!-- Empty -->
-      <div v-else-if="!hasData" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-2 text-neutral-500 px-6 text-center">
+      <div v-else-if="!hasData" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-2 text-content-muted px-6 text-center">
         <Icon icon="lucide:chart-no-axes-combined" class="w-8 h-8 opacity-50" />
         <span class="text-xs">{{ repoPath ? t('stats.empty') : t('stats.no_repo') }}</span>
       </div>
@@ -334,7 +334,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
               <Icon :icon="card.icon" :class="['w-3.5 h-3.5', card.color]" />
               {{ card.label }}
             </div>
-            <div class="text-lg font-bold tabular-nums text-neutral-800 dark:text-neutral-100 truncate">{{ card.value }}</div>
+            <div class="text-lg font-bold tabular-nums text-content-strong truncate">{{ card.value }}</div>
           </div>
         </div>
 
@@ -359,7 +359,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
                 <div
                   v-for="{ data: a, index: i } in virtualAuthors"
                   :key="a.email + a.name + i"
-                  class="grid items-center border-b border-neutral-100 dark:border-neutral-800/50 px-2 text-[11px] hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+                  class="grid items-center border-b border-line px-2 text-[11px] hover:bg-surface-hover"
                   :style="{ height: SUMMARY_ROW_H + 'px', gridTemplateColumns: SUMMARY_COLS }"
                 >
                   <div class="flex items-center gap-2 min-w-0">
@@ -371,7 +371,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
                   </div>
                   <span class="text-right tabular-nums text-content">{{ fmt(a.commits) }}</span>
                   <span class="text-right tabular-nums text-content">{{ fmt(a.lines) }}</span>
-                  <span class="text-right tabular-nums text-neutral-500">{{ fmt(a.avgLinesPerCommit) }}</span>
+                  <span class="text-right tabular-nums text-content-muted">{{ fmt(a.avgLinesPerCommit) }}</span>
                 </div>
               </div>
             </div>
@@ -385,11 +385,11 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
             <div class="flex items-center rounded border border-line overflow-hidden text-[10px]">
               <button
                 @click="metric = 'lines'"
-                :class="['px-2 py-1 transition-colors', metric === 'lines' ? 'bg-blue-600 text-white' : 'text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800']"
+                :class="['px-2 py-1 transition-colors', metric === 'lines' ? 'bg-accent text-accent-fg' : 'text-content-muted hover:bg-surface-hover']"
               >{{ t('stats.lines') }}</button>
               <button
                 @click="metric = 'commits'"
-                :class="['px-2 py-1 transition-colors', metric === 'commits' ? 'bg-blue-600 text-white' : 'text-content-muted hover:bg-neutral-100 dark:hover:bg-neutral-800']"
+                :class="['px-2 py-1 transition-colors', metric === 'commits' ? 'bg-accent text-accent-fg' : 'text-content-muted hover:bg-surface-hover']"
               >{{ t('stats.commits') }}</button>
             </div>
           </div>
@@ -404,7 +404,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
               <Tooltip :text="t('stats.reset_zoom')" position="left">
                 <button
                   @click="resetActivityZoom"
-                  class="w-6 h-6 flex items-center justify-center rounded border border-line text-content-muted hover:text-neutral-800 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  class="w-6 h-6 flex items-center justify-center rounded border border-line text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors"
                 >
                   <Icon icon="lucide:zoom-out" class="w-3.5 h-3.5" />
                 </button>

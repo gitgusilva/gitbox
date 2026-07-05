@@ -34,9 +34,11 @@ function getStatusIcon(status: string) {
 }
 
 function getStatusColor(status: string, isSelected: boolean) {
+  // Selected row: icon matches the row's text color (both accent-fg), never a
+  // distinct status hue — checked first so even conflicts unify when active.
+  if (isSelected) return 'text-accent-fg';
   const s = (status || '').toLowerCase();
   if (s.includes('conflicted')) return 'text-removed';
-  if (isSelected) return 'text-accent-fg';
   if (!status) return 'text-content-muted';
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
   if (s.includes('deleted')) return 'text-red-500';

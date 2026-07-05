@@ -216,7 +216,10 @@
     "use_both": "Usar ambos",
     "merge_manually": "Fusionar manualmente",
     "conflicts_label": "Conflictos",
-    "line_by_line": "Línea por línea"
+    "line_by_line": "Línea por línea",
+    "save": "Guardar",
+    "external_editor": "Editor externo",
+    "open_in_external_editor": "Abrir en {tool}"
   },
   "branch_menu": {
     "merge_into_current": "Fusionar en {branch}",
@@ -585,7 +588,8 @@
   "diff": {
     "word_wrap": "Ajuste de línea",
     "blame": "Blame",
-    "connectors": "Conectores"
+    "connectors": "Conectores",
+    "only_changes": "Solo cambios"
   },
   "stats": {
     "title": "Estadísticas",

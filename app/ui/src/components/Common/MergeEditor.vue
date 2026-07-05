@@ -28,11 +28,15 @@ const props = defineProps<{
   modified: string;
   filename?: string;
   repoPath?: string;
+  /** Label of the configured external merge tool, if any. When set, an
+   *  "open in external editor" button is shown next to Save. */
+  externalEditor?: string;
 }>();
 
 const emit = defineEmits<{
   (e: 'save', value: string): void;
   (e: 'complete', value: string): void;
+  (e: 'openExternal'): void;
   (e: 'state', value: { remainingConflicts: number; canCompleteMerge: boolean; isDirty: boolean }): void;
 }>();
 
@@ -996,8 +1000,9 @@ onMounted(async () => {
   resizeObserver = new ResizeObserver(() => {
     clampSplitters();
     relayoutEditors();
-    updateConnectors();
-    updateCurrentGutter();
+    // .layout() re-wraps a frame later, so recompute once positions settle
+    // (immediate update would use stale pre-wrap tops → drifted béziers/bg).
+    scheduleConnectorsUpdate();
   });
 
   if (workspaceContainer.value) resizeObserver.observe(workspaceContainer.value);
@@ -1096,9 +1101,15 @@ onBeforeUnmount(() => {
           {{ totalConflicts > 0 ? `${selectedConflictIndex + 1}/${totalConflicts}` : '0/0' }}
         </span>
 
-        <Tooltip :text="t('changes.complete_merge')">
-          <Button variant="primary" size="sm" icon="lucide:check" :disabled="remainingConflicts > 0" @click="handleCompleteMerge">
-            {{ t('changes.complete_merge') }}
+        <Tooltip v-if="externalEditor" :text="t('changes.open_in_external_editor', { tool: externalEditor })">
+          <Button variant="secondary" size="sm" icon="lucide:external-link" @click="emit('openExternal')">
+            {{ t('changes.external_editor') }}
+          </Button>
+        </Tooltip>
+
+        <Tooltip :text="t('changes.save')">
+          <Button variant="primary" size="sm" icon="lucide:save" :disabled="remainingConflicts > 0" @click="handleCompleteMerge">
+            {{ t('changes.save') }}
           </Button>
         </Tooltip>
       </div>
@@ -1155,14 +1166,18 @@ onBeforeUnmount(() => {
         <div v-for="r in leftRibbons" :key="'a'+r.index"
              class="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5"
              :style="{ top: (r.arrowY - 9) + 'px' }">
-          <button @mousedown.stop @click="applyConflictAt(r.index, 'base')" :title="t('changes.ignore')"
-                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
-            <Icon icon="lucide:x" class="text-[10px]" />
-          </button>
-          <button @mousedown.stop @click="applyConflictAt(r.index, 'current')" :title="t('changes.accept_all_current')"
-                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
-            <Icon icon="lucide:chevrons-right" class="text-[10px]" />
-          </button>
+          <Tooltip :text="t('changes.ignore')">
+            <button @mousedown.stop @click="applyConflictAt(r.index, 'base')"
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+              <Icon icon="lucide:x" class="text-[10px]" />
+            </button>
+          </Tooltip>
+          <Tooltip :text="t('changes.accept_all_current')">
+            <button @mousedown.stop @click="applyConflictAt(r.index, 'current')"
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
+              <Icon icon="lucide:chevrons-right" class="text-[10px]" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -1249,14 +1264,18 @@ onBeforeUnmount(() => {
         <div v-for="r in rightRibbons" :key="'a'+r.index"
              class="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5"
              :style="{ top: (r.arrowY - 9) + 'px' }">
-          <button @mousedown.stop @click="applyConflictAt(r.index, 'incoming')" :title="t('changes.accept_all_incoming')"
-                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
-            <Icon icon="lucide:chevrons-left" class="text-[10px]" />
-          </button>
-          <button @mousedown.stop @click="applyConflictAt(r.index, 'base')" :title="t('changes.ignore')"
-                  class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
-            <Icon icon="lucide:x" class="text-[10px]" />
-          </button>
+          <Tooltip :text="t('changes.accept_all_incoming')">
+            <button @mousedown.stop @click="applyConflictAt(r.index, 'incoming')"
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-accent hover:border-accent shadow transition-colors">
+              <Icon icon="lucide:chevrons-left" class="text-[10px]" />
+            </button>
+          </Tooltip>
+          <Tooltip :text="t('changes.ignore')">
+            <button @mousedown.stop @click="applyConflictAt(r.index, 'base')"
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+              <Icon icon="lucide:x" class="text-[10px]" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -1339,7 +1358,7 @@ onBeforeUnmount(() => {
 :deep(.merge-inline-actions) {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex-wrap: nowrap;
   white-space: nowrap;
   background: transparent;
@@ -1350,69 +1369,62 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
+/* Conflict-action badges. Colors come from theme tokens (tint bg + border +
+   text per side) so they read correctly in light AND dark themes and match
+   each side's block color. */
 :deep(.merge-inline-btn) {
   font-size: 9px;
   line-height: 1;
   padding: 3px 6px;
   border-radius: 3px;
   border: 1px solid transparent;
-  background: rgba(22, 22, 22, 0.72);
+  background: rgb(var(--gb-surface) / 0.9);
   cursor: pointer;
+  transition: background-color 0.12s ease;
 }
 
 :deep(.merge-inline-btn-incoming) {
-  color: #6ee7b7;
-  border-color: rgba(16, 185, 129, 0.5);
+  color: rgb(var(--gb-added));
+  border-color: rgb(var(--gb-added) / 0.5);
+  background: rgb(var(--gb-added) / 0.12);
 }
 
 :deep(.merge-inline-btn-current) {
-  color: #7dd3fc;
-  border-color: rgba(14, 165, 233, 0.5);
+  color: rgb(var(--gb-modified));
+  border-color: rgb(var(--gb-modified) / 0.5);
+  background: rgb(var(--gb-modified) / 0.12);
 }
 
 :deep(.merge-inline-btn-both) {
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.55);
+  color: rgb(var(--gb-accent));
+  border-color: rgb(var(--gb-accent) / 0.5);
+  background: rgb(var(--gb-accent) / 0.12);
 }
 
 :deep(.merge-inline-btn-ignore) {
-  color: #d4d4d8;
-  border-color: rgba(161, 161, 170, 0.45);
+  color: rgb(var(--gb-text-muted));
+  border-color: rgb(var(--gb-text-muted) / 0.4);
+  background: rgb(var(--gb-text-muted) / 0.1);
 }
 
 :deep(.merge-inline-btn-manual) {
-  color: #c4b5fd;
-  border-color: rgba(167, 139, 250, 0.5);
+  color: rgb(var(--gb-accent));
+  border-color: rgb(var(--gb-accent) / 0.5);
+  background: rgb(var(--gb-accent) / 0.12);
 }
 
 :deep(.merge-inline-btn-reset) {
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.55);
+  color: rgb(var(--gb-removed));
+  border-color: rgb(var(--gb-removed) / 0.55);
+  background: rgb(var(--gb-removed) / 0.12);
 }
 
-:deep(.merge-inline-btn-incoming:hover) {
-  background: rgba(16, 185, 129, 0.18);
-}
-
-:deep(.merge-inline-btn-current:hover) {
-  background: rgba(14, 165, 233, 0.18);
-}
-
-:deep(.merge-inline-btn-both:hover) {
-  background: rgba(245, 158, 11, 0.18);
-}
-
-:deep(.merge-inline-btn-ignore:hover) {
-  background: rgba(113, 113, 122, 0.18);
-}
-
-:deep(.merge-inline-btn-manual:hover) {
-  background: rgba(167, 139, 250, 0.18);
-}
-
-:deep(.merge-inline-btn-reset:hover) {
-  background: rgba(248, 113, 113, 0.18);
-}
+:deep(.merge-inline-btn-incoming:hover) { background: rgb(var(--gb-added) / 0.24); }
+:deep(.merge-inline-btn-current:hover)  { background: rgb(var(--gb-modified) / 0.24); }
+:deep(.merge-inline-btn-both:hover)     { background: rgb(var(--gb-accent) / 0.24); }
+:deep(.merge-inline-btn-ignore:hover)   { background: rgb(var(--gb-text-muted) / 0.2); }
+:deep(.merge-inline-btn-manual:hover)   { background: rgb(var(--gb-accent) / 0.24); }
+:deep(.merge-inline-btn-reset:hover)    { background: rgb(var(--gb-removed) / 0.24); }
 
 :deep(.merge-result-info) {
   display: inline-flex;
@@ -1424,9 +1436,9 @@ onBeforeUnmount(() => {
 
 :deep(.merge-result-status) {
   font-size: 10px;
-  color: #9ca3af;
-  background: rgba(17, 24, 39, 0.55);
-  border: 1px solid rgba(75, 85, 99, 0.55);
+  color: rgb(var(--gb-text-muted));
+  background: rgb(var(--gb-surface) / 0.7);
+  border: 1px solid rgb(var(--gb-text-muted) / 0.35);
   border-radius: 3px;
   line-height: 1;
   padding: 3px 6px;

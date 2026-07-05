@@ -239,7 +239,10 @@
     "use_both": "Usar ambos",
     "merge_manually": "Mesclar manualmente",
     "conflicts_label": "Conflitos",
-    "line_by_line": "Linha por linha"
+    "line_by_line": "Linha por linha",
+    "save": "Salvar",
+    "external_editor": "Editor externo",
+    "open_in_external_editor": "Abrir em {tool}"
   },
   "branch_menu": {
     "merge_into_current": "Mesclar em {branch}",
@@ -260,7 +263,8 @@
     "diff_view": "Diff",
     "prev_change": "Alteração Anterior",
     "next_change": "Próxima Alteração",
-    "connectors": "Conectores"
+    "connectors": "Conectores",
+    "only_changes": "Apenas alterações"
   },
   "settings": {
     "title": "Configurações",

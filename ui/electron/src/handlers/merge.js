@@ -1,5 +1,5 @@
 const { ipcMain, BrowserWindow } = require('electron');
-const { createMergeWindow } = require('../windows/merge');
+const { createMergeWindow, closeMergeWindowsForRepo } = require('../windows/merge');
 
 /**
  * Registers IPC for the standalone merge-conflict window.
@@ -24,5 +24,11 @@ module.exports = function (getMainWindow) {
         // Close the merge window that emitted the event.
         const sender = BrowserWindow.fromWebContents(event.sender);
         if (sender && !sender.isDestroyed()) sender.close();
+    });
+
+    // Main window signals a repo has no more conflicts (merge completed/committed)
+    // → close any lingering merge windows for that repo.
+    ipcMain.on('gitbox:closeMergeWindows', (_event, repoPath) => {
+        closeMergeWindowsForRepo(repoPath);
     });
 };

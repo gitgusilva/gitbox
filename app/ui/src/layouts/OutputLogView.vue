@@ -14,6 +14,7 @@ import { requestConfirm } from '../services/modalService';
 import Tabs from '../components/Common/Tabs.vue';
 import Tab from '../components/Common/Tab.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
+import SearchInput from '../components/Common/SearchInput.vue';
 import ScrollArea from '../components/Common/ScrollArea.vue';
 import { onMounted, onUnmounted } from 'vue';
 
@@ -129,20 +130,9 @@ const getColor = (type: string) => {
   <div class="flex-1 flex flex-col min-h-0 min-w-0 bg-app">
     <Tabs v-model="activeCategoryModel" type="underlined" @change="visibleCount = pageSize">
         <template #sidebar-footer>
-            <div class="flex items-center gap-2 h-full">
-                <div class="flex items-center gap-2">
-                    <div class="relative w-48 sm:w-64">
-                         <Icon icon="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-content-muted" />
-                         <input
-                          v-model="searchQuery"
-                          type="text"
-                          :placeholder="t('common.search') || 'Search logs...'"
-                          class="w-full bg-app border border-line rounded px-8 py-1 text-xs text-content-strong focus:outline-none focus:border-accent/50 transition-colors h-7"
-                         />
-                         <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-strong transition-colors">
-                             <Icon icon="lucide:x" class="w-3.5 h-3.5" />
-                         </button>
-                    </div>
+            <div class="flex items-center gap-2 h-full pr-2">
+                <div class="w-48 sm:w-64">
+                    <SearchInput v-model="searchQuery" />
                 </div>
 
                 <Tooltip :text="t('common.clear')" position="left">

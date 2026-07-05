@@ -22,7 +22,7 @@ import {
   setActiveWorkspace, 
   removeWorkspace 
 } from '../services/workspaceService';
-import { isSettingsOpen, requestConfirm } from '../services/modalService';
+import { isSettingsOpen, settingsActiveSection, requestConfirm } from '../services/modalService';
 import SettingsModal from '../components/Settings/SettingsModal.vue';
 import SelectMenu from '../components/SelectMenu.vue';
 import IconButton from '../components/Common/IconButton.vue';
@@ -144,22 +144,22 @@ const openBranchMenu = (e: MouseEvent) => {
 
       <!-- Actions (Centered) -->
       <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1" style="-webkit-app-region: no-drag;">
-          <IconButton icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.fetch')" :action="doFetch" />
-          <IconButton icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.pull')" :action="doPull" />
-          <IconButton icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.push')" :action="doPush" />
+          <IconButton direction="row" icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.fetch')" :action="doFetch" />
+          <IconButton direction="row" icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.pull')" :action="doPull" />
+          <IconButton direction="row" icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.push')" :action="doPush" />
           <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-600 mx-1"></div>
-          <IconButton icon="lucide:git-branch-plus" :label="t('ui.create_branch')" :action="createBranchAction" />
-          <IconButton icon="lucide:archive-restore" :label="t('common.discard')" :action="onDiscardAll" />
+          <IconButton direction="row" icon="lucide:git-branch-plus" :label="t('ui.create_branch')" :action="createBranchAction" />
+          <IconButton direction="row" icon="lucide:archive-restore" :label="t('common.discard')" :action="onDiscardAll" />
       </div>
       
       <div class="flex items-center gap-1 ml-auto" style="-webkit-app-region: no-drag;">
         <Tooltip :text="t('ui.toggle_terminal_focus')">
-          <button @click="toggleTerminal" :class="isTerminalOpen ? 'text-accent bg-accent/10' : 'text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600'" class="p-1.5 rounded transition-colors">
+          <button @click="toggleTerminal" :class="isTerminalOpen ? 'text-accent bg-accent/10' : 'text-content-muted hover:text-content-strong hover:bg-surface-hover'" class="p-1.5 rounded transition-colors">
             <Icon icon="lucide:terminal-square" class="text-base" />
           </button>
         </Tooltip>
         <Tooltip :text="t('common.settings')">
-          <button @click="isSettingsOpen = true" class="text-neutral-400 dark:text-neutral-400 hover:text-black dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-600 p-1.5 rounded transition-colors">
+          <button @click="settingsActiveSection = 'general'; isSettingsOpen = true" class="text-content-muted hover:text-content-strong hover:bg-surface-hover p-1.5 rounded transition-colors">
             <Icon icon="lucide:settings" class="text-base" />
           </button>
         </Tooltip>

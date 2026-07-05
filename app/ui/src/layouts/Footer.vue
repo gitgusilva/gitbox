@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
 import { getItem, setItem } from '../services/storageService';
-import { activeTab } from '../services/gitService';
+import { activeTab, repoPath } from '../services/gitService';
 import { appVersion as version } from '../services/versionService';
 
 const { t } = useI18n();
@@ -63,7 +63,7 @@ const openZoomMenu = (e: MouseEvent) => {
     
     <!-- Left Side: main-content panels (Command Log + Statistics side by side) -->
     <div class="flex items-center h-full">
-        <Tooltip :text="t('common.output_log')" position="top">
+        <Tooltip v-if="repoPath" :text="t('common.output_log')" position="top">
             <div
               @click="activeTab = activeTab === 'output_log' ? 'history' : 'output_log'"
               class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5"
@@ -73,7 +73,7 @@ const openZoomMenu = (e: MouseEvent) => {
                 <span class="font-medium">{{ t('common.output_log') }}</span>
             </div>
         </Tooltip>
-        <Tooltip :text="t('stats.title')" position="top">
+        <Tooltip v-if="repoPath" :text="t('stats.title')" position="top">
             <div
               @click="activeTab = activeTab === 'statistics' ? 'history' : 'statistics'"
               class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5 border-r border-line"
@@ -107,7 +107,7 @@ const openZoomMenu = (e: MouseEvent) => {
         
         <Tooltip :text="t('common.version')" position="top">
             <div class="flex items-center gap-1.5 h-full px-1">
-                <span class="text-neutral-500 font-mono tracking-tight">GITBOX v{{ version }}</span>
+                <span class="text-content-muted font-mono tracking-tight">GITBOX v{{ version }}</span>
             </div>
         </Tooltip>
     </div>

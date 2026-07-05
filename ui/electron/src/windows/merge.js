@@ -2,6 +2,20 @@ const { BrowserWindow, nativeImage } = require('electron');
 const path = require('path');
 const { DIST_INDEX, isDev, ICON } = require('../paths');
 
+// Track open merge windows per repo so they can be auto-closed once that repo
+// has no remaining conflicts (e.g. after the merge is completed/committed).
+const openMergeWindows = [];
+
+/** Close any open merge windows belonging to a repo (no more conflicts). */
+function closeMergeWindowsForRepo(repoPath) {
+    if (!repoPath) return;
+    for (const entry of [...openMergeWindows]) {
+        if (entry.repoPath === repoPath && entry.win && !entry.win.isDestroyed()) {
+            entry.win.close();
+        }
+    }
+}
+
 /**
  * Creates a standalone, resizable window dedicated to resolving merge
  * conflicts for a single file. It loads the same renderer bundle as the main
@@ -57,7 +71,13 @@ function createMergeWindow({ repoPath, filePath }) {
 
     win.once('ready-to-show', () => win.show());
 
+    openMergeWindows.push({ win, repoPath });
+    win.on('closed', () => {
+        const i = openMergeWindows.findIndex((e) => e.win === win);
+        if (i >= 0) openMergeWindows.splice(i, 1);
+    });
+
     return win;
 }
 
-module.exports = { createMergeWindow };
+module.exports = { createMergeWindow, closeMergeWindowsForRepo };

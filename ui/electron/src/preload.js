@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   checkMerge: (repoPath, toBranch, fromBranch) => ipcRenderer.invoke('gitbox:checkMerge', repoPath, toBranch, fromBranch),
   openMergeTool: (repoPath, filePath, toolName) => ipcRenderer.invoke('gitbox:openMergeTool', repoPath, filePath, toolName),
   openMergeWindow: (repoPath, filePath) => ipcRenderer.invoke('gitbox:openMergeWindow', repoPath, filePath),
+  closeMergeWindows: (repoPath) => ipcRenderer.send('gitbox:closeMergeWindows', repoPath),
   mergeBranch: (repoPath, branchName, noFastForward) => ipcRenderer.invoke('gitbox:mergeBranch', repoPath, branchName, noFastForward),
   mergeContinue: (repoPath, message) => ipcRenderer.invoke('gitbox:mergeContinue', repoPath, message),
   mergeAbort: (repoPath) => ipcRenderer.invoke('gitbox:mergeAbort', repoPath),

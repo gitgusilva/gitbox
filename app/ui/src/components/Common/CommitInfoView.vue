@@ -62,13 +62,13 @@ function getStatusIcon(status: string) {
  * @returns {string} Tailwind CSS color class.
  */
 function getStatusColor(status: string) {
-  if (!status) return 'text-neutral-500';
+  if (!status) return 'text-content-muted';
   const s = status.toLowerCase();
   if (s.indexOf('untracked') !== -1 || s.indexOf('added') !== -1 || s.indexOf('new') !== -1) return 'text-green-500';
   if (s.indexOf('deleted') !== -1) return 'text-red-500';
   if (s.indexOf('renamed') !== -1 || s.indexOf('moved') !== -1) return 'text-purple-400';
   if (s.indexOf('modified') !== -1 || s.indexOf('staged') !== -1) return 'text-[#E2B93D]';
-  return 'text-neutral-500';
+  return 'text-content-muted';
 }
 </script>
 
@@ -91,18 +91,18 @@ function getStatusColor(status: string) {
                 <div class="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-line"></div>
               </div>
               <div class="v-stack min-w-0 flex-1">
-                <div class="text-[9px] text-neutral-400 dark:text-neutral-500 uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.author') }}</div>
+                <div class="text-[9px] text-content-muted uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.author') }}</div>
                 <Tooltip :text="commit.author">
                   <div class="font-bold text-black dark:text-neutral-100 text-xs min-w-0 w-full truncate">
                      {{ commit.author }}
                   </div>
                 </Tooltip>
                 <Tooltip :text="commit.authorEmail">
-                  <div class="text-neutral-400 dark:text-neutral-500 font-normal text-xs mb-1 min-w-0 w-full truncate">
+                  <div class="text-content-muted font-normal text-xs mb-1 min-w-0 w-full truncate">
                      &lt;{{ commit.authorEmail }}&gt;
                   </div>
                 </Tooltip>
-                <div class="text-[10px] text-neutral-500">{{ formatFullDate(commit.timestamp) }}</div>
+                <div class="text-[10px] text-content-muted">{{ formatFullDate(commit.timestamp) }}</div>
               </div>
             </div>
 
@@ -119,18 +119,18 @@ function getStatusColor(status: string) {
               <img v-else :src="gravatarUrl(commit.committerEmail || commit.authorEmail)" class="w-12 h-12 rounded border-2 border-line shadow-lg opacity-80 object-cover flex-shrink-0" />
               
               <div class="v-stack min-w-0 flex-1">
-                <div class="text-[9px] text-neutral-500 uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.committer') }}</div>
+                <div class="text-[9px] text-content-muted uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.committer') }}</div>
                 <Tooltip :text="commit.committer || commit.author">
                   <div class="font-bold text-neutral-300 dark:text-neutral-300 text-xs min-w-0 w-full truncate">
                      {{ commit.committer || commit.author }}
                   </div>
                 </Tooltip>
                 <Tooltip v-if="commit.committerEmail" :text="commit.committerEmail">
-                  <div class="text-neutral-500 font-normal text-xs mb-1 min-w-0 w-full truncate">
+                  <div class="text-content-muted font-normal text-xs mb-1 min-w-0 w-full truncate">
                      &lt;{{ commit.committerEmail }}&gt;
                   </div>
                 </Tooltip>
-                <div class="text-[10px] text-neutral-600">{{ formatFullDate(commit.committerTimestamp || commit.timestamp) }}</div>
+                <div class="text-[10px] text-content-muted">{{ formatFullDate(commit.committerTimestamp || commit.timestamp) }}</div>
               </div>
             </div>
         </div>
@@ -138,14 +138,14 @@ function getStatusColor(status: string) {
         <!-- Metadata Grid -->
         <div class="v-stack gap-4 text-[11px]">
             <div class="h-stack items-start">
-               <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.sha') }}</div>
+               <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.sha') }}</div>
                <div class="flex-1 h-stack gap-2 bg-surface px-2 py-1 rounded border border-line overflow-hidden">
                   <span class="font-mono text-content truncate text-[10px]">{{ commit.id }}</span>
                </div>
             </div>
 
             <div v-if="commit.parents && commit.parents.length" class="h-stack items-start">
-               <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.parents') }}</div>
+               <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.parents') }}</div>
                <div class="flex-1 flex flex-wrap gap-2">
                   <button v-for="p in commit.parents" :key="p.id" 
                           @click="emit('navigate', p)"
@@ -156,7 +156,7 @@ function getStatusColor(status: string) {
             </div>
 
             <div v-if="commitRefs.length > 0" class="h-stack items-start">
-               <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.refs') }}</div>
+               <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.refs') }}</div>
                <div class="flex-1 flex flex-wrap gap-2">
                   <span v-for="ref in commitRefs" :key="ref.name" 
                         class="h-stack gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border"
@@ -172,7 +172,7 @@ function getStatusColor(status: string) {
             </div>
 
             <div class="h-stack items-start">
-               <div class="w-20 shrink-0 text-neutral-500 font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.message') }}</div>
+               <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.message') }}</div>
                <div class="flex-1 text-content whitespace-pre-wrap leading-relaxed min-w-0">
                   <div class="font-bold text-black dark:text-neutral-100 mb-2 text-xs truncate">{{ commit.summary }}</div>
                   <div v-html="renderMessageLinks(commit.message || '')" @click="handleLinkClick" class="opacity-80 text-[11px] overflow-hidden"></div>
@@ -191,7 +191,7 @@ function getStatusColor(status: string) {
     <!-- Lower section: Changed files -->
     <div v-if="showFiles !== false" class="flex-1 v-stack min-h-0 bg-app overflow-hidden">
         <div class="p-4 py-2 border-b border-line bg-surface h-stack justify-between flex-shrink-0">
-            <div class="text-neutral-500 font-bold uppercase tracking-widest text-[9px]">{{ t('history_detail.n_changed_files', { count: changedFiles.length }) }}</div>
+            <div class="text-content-muted font-bold uppercase tracking-widest text-[9px]">{{ t('history_detail.n_changed_files', { count: changedFiles.length }) }}</div>
         </div>
 
         <VirtualScroll

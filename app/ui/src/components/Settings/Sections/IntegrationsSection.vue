@@ -120,9 +120,9 @@ watch([aiProvider, aiApiKey], () => {
       
       <div class="grid grid-cols-1 gap-3">
         <div v-for="item in integrationsList" :key="item.id" 
-             class="bg-surface border border-line rounded-xl p-4 flex items-center justify-between group hover:border-blue-500/30 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] transition-all shadow-sm">
+             class="bg-surface border border-line rounded-xl p-4 flex items-center justify-between group hover:border-accent/40 hover:bg-surface-hover transition-all shadow-sm">
           <div class="flex items-center gap-4 min-w-0">
-            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-2xl border border-neutral-200 dark:border-white/10 bg-white relative overflow-hidden flex-shrink-0" :style="{ color: item.color }">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-2xl border border-line bg-surface-hover relative overflow-hidden flex-shrink-0" :style="{ color: item.color }">
               <div class="absolute inset-0 opacity-10" :style="{ background: `radial-gradient(circle at center, ${item.color}, transparent)` }"></div>
               <Icon :icon="item.icon" class="relative z-10" />
             </div>
@@ -143,7 +143,7 @@ watch([aiProvider, aiApiKey], () => {
           
           <button v-if="!item.connected" 
                   @click="connectProvider(item.id)"
-                  class="px-4 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-blue-600/20 flex-shrink-0">
+                  class="px-4 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-accent-fg rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-accent/20 flex-shrink-0">
             <Icon icon="lucide:link-2" class="w-3 h-3" />
             {{ t('settings.connect') }}
           </button>

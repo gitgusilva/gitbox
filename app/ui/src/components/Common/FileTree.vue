@@ -146,9 +146,11 @@ function getStatusIcon(status: string) {
 }
 
 function getStatusColor(status: string, isSelected: boolean) {
+  // Selected row is bg-accent/20 with content-strong text — the icon matches that
+  // text color (not a distinct status hue), checked first so conflicts unify too.
+  if (isSelected) return 'text-content-strong';
   const s = (status || '').toLowerCase();
   if (s.includes('conflicted')) return 'text-removed';
-  if (isSelected) return 'text-accent-fg';
   if (!status) return 'text-content-muted';
 
   if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';

@@ -493,6 +493,14 @@ export const mergeBranchAction = async (name: string) => {
 };
 
 /** Finalize an in-progress merge (after conflicts are resolved + staged). */
+/** Once a repo has no conflicts left, close any standalone merge windows for it. */
+function closeMergeWindowsIfResolved() {
+    const hasConflicts = status.value.some((f: any) => String(f?.status || '').toLowerCase().includes('conflict'));
+    if (!hasConflicts && repoPath.value) {
+        (window as any).gitbox?.closeMergeWindows?.(repoPath.value);
+    }
+}
+
 export const completeMergeAction = async (message?: string) => {
     if (!repoPath.value) return;
     isLoading.value = true;
@@ -500,6 +508,7 @@ export const completeMergeAction = async (message?: string) => {
         const msg = message || (currentBranchName.value ? `Merge into ${currentBranchName.value}` : 'Merge');
         await window.gitbox.mergeContinue(repoPath.value, msg);
         await loadRepoData(true);
+        closeMergeWindowsIfResolved();
         const { showToast } = await import('./toastService');
         showToast('Merge', 'Merge completed.', 'success');
         addLog('Merge completed', 'Action', 'success');
@@ -519,6 +528,7 @@ export const abortMergeAction = async () => {
     try {
         await window.gitbox.mergeAbort(repoPath.value);
         await loadRepoData(true);
+        closeMergeWindowsIfResolved();
         const { showToast } = await import('./toastService');
         showToast('Merge', 'Merge aborted.', 'info');
         addLog('Merge aborted', 'Action', 'info');
@@ -622,6 +632,7 @@ export const commitAll = async () => {
     if (!commitMessage.value.trim()) return;
     await runAction(() => window.gitbox.commitAll(repoPath.value, commitMessage.value.trim()), 'full', "Commit changes", true);
     commitMessage.value = '';
+    closeMergeWindowsIfResolved();
 };
 
 export const deleteBranch = (name: string) => runAction(() => window.gitbox.deleteBranch(repoPath.value, name), 'full', `Delete branch ${name}`, true);

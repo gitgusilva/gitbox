@@ -239,7 +239,7 @@ const isCreatingNew = computed(() => {
                  :placeholder="placeholder || t('common.search') || 'Search...'" 
                  :class="cn(
                     'w-full bg-surface border rounded-lg py-2 text-xs text-content-strong outline-none focus:border-accent transition-all shadow-inner',
-                    isOpen ? 'border-blue-500' : 'border-neutral-300/50 dark:border-neutral-700/50',
+                    isOpen ? 'border-accent' : 'border-neutral-300/50 dark:border-neutral-700/50',
                     icon ? 'pl-9 pr-8' : 'px-3 pr-8'
                  )" />
                 
@@ -281,7 +281,7 @@ const isCreatingNew = computed(() => {
                    :class="cn(
                      'h-stack gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors',
                      (multiple ? (Array.isArray(modelValue) && modelValue.includes(opt.value)) : modelValue === opt.value) 
-                       ? (multiple ? 'bg-surface-hover' : 'bg-blue-600')
+                       ? (multiple ? 'bg-surface-hover' : 'bg-accent text-accent-fg')
                        : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D] text-content hover:text-neutral-900 dark:hover:text-white'
                    )">
                 
@@ -289,7 +289,7 @@ const isCreatingNew = computed(() => {
                 <div v-if="multiple" 
                      :class="cn(
                         'center w-3 h-3 rounded border transition-colors flex-shrink-0',
-                        (Array.isArray(modelValue) && modelValue.includes(opt.value)) ? 'bg-blue-600 border-blue-600' : 'bg-transparent border-neutral-600'
+                        (Array.isArray(modelValue) && modelValue.includes(opt.value)) ? 'bg-accent border-accent' : 'bg-transparent border-neutral-600'
                      )">
                     <Icon v-if="(Array.isArray(modelValue) && modelValue.includes(opt.value))" icon="lucide:check" class="text-[8px] text-white" />
                 </div>

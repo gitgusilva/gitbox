@@ -81,7 +81,7 @@ function onSetTab(tab: string) {
          button on the right. Both flex so they adapt when the panel is resized. -->
     <div v-if="selectedCommits.length === 1" class="flex-shrink-0 bg-surface border-b border-line flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
         <div class="flex items-center gap-1.5 min-w-0">
-            <span class="text-xs text-neutral-500 shrink-0">{{ t('history_detail.commit_label') }}</span>
+            <span class="text-xs text-content-muted shrink-0">{{ t('history_detail.commit_label') }}</span>
             <span class="text-xs font-mono font-bold tracking-wider text-content-strong truncate">{{ selectedCommits[0].id.substring(0,6) }}</span>
         </div>
 

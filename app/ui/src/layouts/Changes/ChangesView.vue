@@ -511,6 +511,15 @@ onBeforeUnmount(() => {
 /** List of all files that have changes. */
 const allChangedFiles = computed(() => [...stagedFiles.value, ...unstagedFiles.value]);
 
+// Clear the open diff when its file leaves the change set — committed, discarded,
+// or a transient entry (e.g. a nested repo). Otherwise a stale diff keeps showing
+// a file that is no longer changed.
+watch(allChangedFiles, (files) => {
+  if (selectedFile.value && !files.some(f => f.path === selectedFile.value)) {
+    selectedFile.value = '';
+  }
+});
+
 /**
  * Checks if a file has merge conflicts.
  * @param {string} filePath - Path to check.
@@ -774,9 +783,9 @@ async function handleExplainChanges() {
               <!-- Conflict panel (Fork-style). The merge editor always opens in a
                    separate window, never inline here. -->
               <div v-if="isSelectedFileConflicted"
-                   :class="cn('flex-1 flex flex-col items-center justify-center gap-7 p-8 bg-app overflow-auto')">
-                <!-- header -->
-                <div class="flex items-start gap-3 max-w-lg">
+                   :class="cn('flex-1 flex flex-col gap-6 p-8 bg-app overflow-auto')">
+                <!-- header (pinned top-left) -->
+                <div class="flex items-start gap-3">
                   <Icon icon="lucide:alert-triangle" class="text-2xl text-amber-500 shrink-0 mt-0.5" />
                   <div class="text-left">
                     <div class="text-base font-bold text-content-strong">{{ t('changes.conflicts_detected') }}</div>
@@ -784,8 +793,8 @@ async function handleExplainChanges() {
                   </div>
                 </div>
 
-                <!-- side cards, Y-connector, and the merge button as one vertical flow -->
-                <div class="flex flex-col items-center">
+                <!-- side cards, Y-connector, and the merge button — centered in the space below the header -->
+                <div class="flex-1 flex flex-col items-center justify-center">
                   <div class="flex justify-between w-[464px]">
                     <!-- Incoming (remote) -->
                     <button type="button" @click="toggleIncoming"
@@ -798,11 +807,12 @@ async function handleExplainChanges() {
                       </div>
                       <div class="h-stack items-center justify-between gap-2 mt-1">
                         <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${incomingStatusKey}`) }}</span>
-                        <span v-if="incomingSha" role="button" tabindex="0" @click.stop="openCommitInHistory(incomingSha)"
-                              :title="t('changes.view_in_history')"
-                              class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
-                          <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ incomingSha.substring(0,7) }}
-                        </span>
+                        <Tooltip v-if="incomingSha" :text="t('changes.view_in_history')">
+                          <span role="button" tabindex="0" @click.stop="openCommitInHistory(incomingSha)"
+                                class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
+                            <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ incomingSha.substring(0,7) }}
+                          </span>
+                        </Tooltip>
                       </div>
                     </button>
 
@@ -817,11 +827,12 @@ async function handleExplainChanges() {
                       </div>
                       <div class="h-stack items-center justify-between gap-2 mt-1">
                         <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${currentStatusKey}`) }}</span>
-                        <span v-if="currentSha" role="button" tabindex="0" @click.stop="openCommitInHistory(currentSha)"
-                              :title="t('changes.view_in_history')"
-                              class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
-                          <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ currentSha.substring(0,7) }}
-                        </span>
+                        <Tooltip v-if="currentSha" :text="t('changes.view_in_history')">
+                          <span role="button" tabindex="0" @click.stop="openCommitInHistory(currentSha)"
+                                class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
+                            <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ currentSha.substring(0,7) }}
+                          </span>
+                        </Tooltip>
                       </div>
                     </button>
                   </div>
@@ -853,9 +864,9 @@ async function handleExplainChanges() {
                           :readOnly="true" />
             </template>
         </template>
-        <div v-else :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
-          <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-10')" />
-          <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-20')">{{ t('changes.select_file_diff') }}</div>
+        <div v-else :class="cn('flex-1 center v-stack text-content-muted pointer-events-none text-center p-8')">
+          <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-30')" />
+          <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-70')">{{ t('changes.select_file_diff') }}</div>
         </div>
         
         <!-- AI Explanation Panel -->
@@ -876,12 +887,6 @@ async function handleExplainChanges() {
           </ScrollArea>
         </div>
 
-        <div v-if="!selectedFile" :class="cn('flex-1 center v-stack text-neutral-600 pointer-events-none text-center p-8')">
-          <Icon icon="lucide:file-diff" :class="cn('text-5xl mb-4 opacity-10')" />
-          <div :class="cn('font-bold uppercase tracking-widest text-sm opacity-20')">
-            {{ t('changes.select_file_diff') }}
-          </div>
-        </div>
       </div>
 
        <!-- Commit Area (resizable — drag the top edge up) -->

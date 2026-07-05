@@ -210,7 +210,10 @@
     "use_both": "Use Both",
     "merge_manually": "Merge manually",
     "conflicts_label": "Conflicts",
-    "line_by_line": "Line by line"
+    "line_by_line": "Line by line",
+    "save": "Save",
+    "external_editor": "External editor",
+    "open_in_external_editor": "Open in {tool}"
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",
@@ -231,7 +234,8 @@
     "diff_view": "Diff",
     "prev_change": "Previous Change",
     "next_change": "Next Change",
-    "connectors": "Connectors"
+    "connectors": "Connectors",
+    "only_changes": "Only changes"
   },
   "settings": {
     "title": "Settings",

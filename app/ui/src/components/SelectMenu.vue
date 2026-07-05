@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
                       :class="cn(
                         'h-stack justify-between px-2.5 w-full text-left cursor-pointer transition-colors duration-150 rounded-md group/item',
                         item.active
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                          ? 'bg-accent text-accent-fg shadow-lg shadow-accent/20'
                           : 'hover:bg-white/10 text-content hover:text-neutral-900 dark:hover:text-white'
                       )">
 
@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
                   <span v-if="item.icon"
                         :class="cn(
                           'w-4 center text-center text-[12px] opacity-70 group-hover/item:opacity-100 transition-opacity',
-                          item.active ? 'text-white opacity-100' : ''
+                          item.active ? 'text-accent-fg opacity-100' : ''
                         )">
                     <Icon :icon="item.icon" />
                   </span>
@@ -156,7 +156,7 @@ onBeforeUnmount(() => {
                     <span v-if="item.sublabel"
                           :class="cn(
                             'text-[9px] truncate block leading-none opacity-50',
-                            item.active ? 'text-blue-100 opacity-80' : 'text-neutral-500'
+                            item.active ? 'text-accent-fg opacity-80' : 'text-content-muted'
                           )">{{ item.sublabel }}</span>
                   </div>
                 </div>

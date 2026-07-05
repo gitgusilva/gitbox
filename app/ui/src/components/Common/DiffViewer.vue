@@ -47,6 +47,9 @@ const ribbonRef = ref<InstanceType<typeof RibbonDiffViewer> | null>(null);
 const viewType = ref<'diff' | 'file'>('diff');
 const isWordWrap = ref(false);
 const ignoreWhitespace = ref(false);
+// Collapse unchanged regions — show only the changed hunks (like the merge tool's
+// "only conflicts"). Backed by Monaco's hideUnchangedRegions.
+const onlyChanges = ref(getItem('gitbox_diff_only_changes') === 'true');
 const isBlameVisible = ref(false);
 const blameData = ref<any[]>([]);
 const isBlameLoading = ref(false);
@@ -188,7 +191,7 @@ async function setupEditor() {
         diffWordWrap: isWordWrap.value ? 'on' : 'off',
         wordWrap: isWordWrap.value ? 'on' : 'off',
         ignoreTrimWhitespace: ignoreWhitespace.value,
-        hideUnchangedRegions: { enabled: false },
+        hideUnchangedRegions: { enabled: onlyChanges.value },
       });
 
       editor.setModel({ original: originalModel, modified: modifiedModel });
@@ -254,6 +257,11 @@ watch(viewType, async () => {
     destroyEditor();
     await nextTick();
     setupEditor();
+});
+
+watch(onlyChanges, (val) => {
+    setItem('gitbox_diff_only_changes', String(val));
+    if (editor) editor.updateOptions({ hideUnchangedRegions: { enabled: val } });
 });
 
 watch(isWordWrap, (val) => {
@@ -419,6 +427,15 @@ function onToolbarWheel(e: WheelEvent) {
                             :label="t('diff.ignore_whitespace')"
                             :active="ignoreWhitespace"
                             @click="ignoreWhitespace = !ignoreWhitespace" />
+
+                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+
+                <IconButton direction="row"
+                            :showLabel="false"
+                            icon="lucide:fold-vertical"
+                            :label="t('diff.only_changes')"
+                            :active="onlyChanges"
+                            @click="onlyChanges = !onlyChanges" />
 
                 <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
 
