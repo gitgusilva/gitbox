@@ -14,7 +14,10 @@ $ErrorActionPreference = "Stop"
 $Here        = $PSScriptRoot
 $LIBGIT2_TAG = if ($env:LIBGIT2_TAG) { $env:LIBGIT2_TAG } else { "v1.9.4" }
 $MBEDTLS_TAG = if ($env:MBEDTLS_TAG) { $env:MBEDTLS_TAG } else { "v3.6.6" }
-$Gen         = "Visual Studio 17 2022"
+# Ninja (single-config) picks up cl.exe/lib.exe from the active MSVC dev
+# environment. This sidesteps the "Visual Studio 17 2022" generator's flaky
+# VS-instance detection on CI runners.
+$Gen         = "Ninja"
 
 $MbedSrc    = Join-Path $Here "mbedtls\src"
 $MbedBuild  = Join-Path $Here "mbedtls\build"
@@ -42,16 +45,17 @@ if (-not (Test-Path (Join-Path $MbedSrc "CMakeLists.txt"))) {
   if ($LASTEXITCODE -ne 0) { throw "mbedTLS clone failed" }
 }
 Remove-Item -Recurse -Force $MbedBuild, $MbedPrefix -ErrorAction Ignore
-cmake -S $MbedSrc -B $MbedBuild -G $Gen -A x64 `
+cmake -S $MbedSrc -B $MbedBuild -G $Gen `
+  -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_INSTALL_PREFIX="$MbedPrefix" `
   -DENABLE_TESTING=OFF `
   -DENABLE_PROGRAMS=OFF `
   -DUSE_STATIC_MBEDTLS_LIBRARY=ON `
   -DUSE_SHARED_MBEDTLS_LIBRARY=OFF
 if ($LASTEXITCODE -ne 0) { throw "mbedTLS configure failed" }
-cmake --build $MbedBuild --config Release --parallel
+cmake --build $MbedBuild --parallel
 if ($LASTEXITCODE -ne 0) { throw "mbedTLS build failed" }
-cmake --install $MbedBuild --config Release
+cmake --install $MbedBuild
 if ($LASTEXITCODE -ne 0) { throw "mbedTLS install failed" }
 
 # Merge every mbedTLS static lib (mbedtls, mbedx509, mbedcrypto and any
@@ -73,7 +77,8 @@ if (-not (Test-Path (Join-Path $Src "CMakeLists.txt"))) {
   if ($LASTEXITCODE -ne 0) { throw "libgit2 clone failed" }
 }
 Remove-Item -Recurse -Force $Build, $Prefix -ErrorAction Ignore
-cmake -S $Src -B $Build -G $Gen -A x64 `
+cmake -S $Src -B $Build -G $Gen `
+  -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_INSTALL_PREFIX="$Prefix" `
   -DCMAKE_PREFIX_PATH="$MbedPrefix" `
   -DMBEDTLS_ROOT_DIR="$MbedPrefix" `
@@ -90,9 +95,9 @@ cmake -S $Src -B $Build -G $Gen -A x64 `
   -DUSE_BUNDLED_ZLIB=ON `
   -DREGEX_BACKEND=builtin
 if ($LASTEXITCODE -ne 0) { throw "libgit2 configure failed" }
-cmake --build $Build --config Release --parallel
+cmake --build $Build --parallel
 if ($LASTEXITCODE -ne 0) { throw "libgit2 build failed" }
-cmake --install $Build --config Release
+cmake --install $Build
 if ($LASTEXITCODE -ne 0) { throw "libgit2 install failed" }
 
 Write-Host ">> installed:"

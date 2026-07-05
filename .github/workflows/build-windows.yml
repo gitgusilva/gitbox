@@ -32,6 +32,11 @@ jobs:
         with:
           arch: x64
 
+      # Ninja is the CMake generator used by build-libgit2.ps1 (it picks up the
+      # MSVC toolchain from the environment above, avoiding VS-generator flakiness).
+      - name: Set up Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
       # The vendored static libs are expensive (~10 min) and depend only on the
       # build script + the libgit2/mbedTLS tags pinned inside it.
       - name: Cache vendored libgit2 + mbedTLS
