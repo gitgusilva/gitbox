@@ -47,6 +47,8 @@ if (-not (Test-Path (Join-Path $MbedSrc "CMakeLists.txt"))) {
 Remove-Item -Recurse -Force $MbedBuild, $MbedPrefix -ErrorAction Ignore
 cmake -S $MbedSrc -B $MbedBuild -G $Gen `
   -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
+  -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
   -DCMAKE_INSTALL_PREFIX="$MbedPrefix" `
   -DENABLE_TESTING=OFF `
   -DENABLE_PROGRAMS=OFF `
@@ -79,6 +81,8 @@ if (-not (Test-Path (Join-Path $Src "CMakeLists.txt"))) {
 Remove-Item -Recurse -Force $Build, $Prefix -ErrorAction Ignore
 cmake -S $Src -B $Build -G $Gen `
   -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
+  -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
   -DCMAKE_INSTALL_PREFIX="$Prefix" `
   -DCMAKE_PREFIX_PATH="$MbedPrefix" `
   -DMBEDTLS_ROOT_DIR="$MbedPrefix" `
