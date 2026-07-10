@@ -85,9 +85,13 @@ jobs:
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then
       # packages the NSIS and MSI targets declared in package.json.
+      #
+      # On a tag push we publish to the GitHub Release (uploads latest.yml +
+      # the NSIS .blockmap that electron-updater reads for differential updates);
+      # a manual workflow_dispatch only builds artifacts for testing.
       - name: Package Windows installers
         working-directory: ui/electron
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish ${{ github.ref_type == 'tag' && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

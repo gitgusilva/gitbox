@@ -365,7 +365,10 @@
     "up_to_date": "Estás en la última versión",
     "update_available": "Nueva versión {version} disponible — descargar",
     "update_check_failed": "Error al buscar actualizaciones",
-    "check_updates": "Verificar"
+    "check_updates": "Verificar",
+    "downloading_update": "Descargando {version}… {percent}%",
+    "update_ready": "Versión {version} lista para instalar",
+    "restart_install": "Reiniciar e instalar"
   },
   "time": {
     "just_now": "Recién",

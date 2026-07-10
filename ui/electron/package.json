@@ -2,8 +2,8 @@
   "name": "gitbox",
   "version": "1.0.0",
   "description": "GitBox Desktop Application",
-  "author": "GitBox Team <gitbox@example.com>",
-  "homepage": "https://gitbox.example.com",
+  "author": "Gustavo Will",
+  "homepage": "https://github.com/gitgusilva/gitbox",
   "repository": {
     "type": "git",
     "url": "https://github.com/gitgusilva/gitbox.git"
@@ -87,6 +87,7 @@
     ]
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "gitbox-addon": "file:../../core/addon",
     "node-pty": "^1.1.0"
   },

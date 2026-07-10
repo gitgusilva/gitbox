@@ -423,7 +423,10 @@
     "up_to_date": "Você está na versão mais recente",
     "update_available": "Nova versão {version} disponível — baixar",
     "update_check_failed": "Falha ao verificar atualizações",
-    "check_updates": "Verificar"
+    "check_updates": "Verificar",
+    "downloading_update": "Baixando {version}… {percent}%",
+    "update_ready": "Versão {version} pronta para instalar",
+    "restart_install": "Reiniciar e instalar"
   },
   "time": {
     "just_now": "Agora mesmo",

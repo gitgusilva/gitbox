@@ -389,7 +389,10 @@
     "up_to_date": "You're on the latest version",
     "update_available": "New version {version} available — download",
     "update_check_failed": "Failed to check for updates",
-    "check_updates": "Check"
+    "check_updates": "Check",
+    "downloading_update": "Downloading {version}… {percent}%",
+    "update_ready": "Version {version} ready to install",
+    "restart_install": "Restart & Install"
   },
   "history_menu": {
     "visibility_graph": "Visibility in Graph",

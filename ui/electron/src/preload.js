@@ -153,6 +153,19 @@ contextBridge.exposeInMainWorld('gitbox', {
   openExternal: (url) => ipcRenderer.invoke('gitbox:openExternal', url),
   getAppChangelog: () => ipcRenderer.invoke('gitbox:getAppChangelog'),
   getAppVersion: () => ipcRenderer.invoke('gitbox:getAppVersion'),
+
+  // ==========================================
+  // Native auto-update (electron-updater)
+  // ==========================================
+  updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterDownload: () => ipcRenderer.invoke('updater:download'),
+  updaterInstall: () => ipcRenderer.invoke('updater:install'),
+  updaterGetState: () => ipcRenderer.invoke('updater:getState'),
+  onUpdaterStatus: (callback) => {
+    const listener = (_e, status) => callback(status);
+    ipcRenderer.on('updater:status', listener);
+    return () => ipcRenderer.removeListener('updater:status', listener);
+  },
   debugMark: (label) => { try { ipcRenderer.sendSync('debug:mark', label); } catch (e) {} },
   detectExternalTools: () => ipcRenderer.invoke('gitbox:detectExternalTools'),
   detectAiClis: () => ipcRenderer.invoke('gitbox:detectAiClis'),

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { loadRepoData, startPolling } from './services/gitService';
-import { loadAppVersion } from './services/versionService';
+import { loadAppVersion, initUpdater, checkForUpdates } from './services/versionService';
+import { generalSettings } from './services/settingsService';
 import { useTheme } from './services/themeService';
 import AppLayout from './layouts/AppLayout.vue';
 import DashboardView from './layouts/DashboardView.vue';
@@ -14,6 +15,14 @@ onMounted(() => {
   // Initialize theme
   applyTheme(currentTheme.value);
   loadAppVersion();
+
+  // Native auto-updater: subscribe to download/install events, then (if the
+  // user opted in) run a silent check on startup. On updatable builds the main
+  // process auto-downloads and we toast "restart to install" when ready.
+  initUpdater();
+  if (generalSettings.value.checkForUpdates !== false) {
+    setTimeout(() => { checkForUpdates(); }, 4000);
+  }
 
   if (window.gitbox && window.gitbox.onGitLog) {
       window.gitbox.onGitLog((_repoPath, cmd, stdout, stderr, duration, exitCode) => {

@@ -127,6 +127,15 @@ export interface MergeResult {
     conflicts?: string[];
 }
 
+/** Live status pushed by the main-process auto-updater (see updater.js). */
+export interface UpdaterStatus {
+    state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+    info?: { version?: string; releaseNotes?: string | null; releaseDate?: string } | null;
+    progress?: { percent?: number; transferred?: number; total?: number; bytesPerSecond?: number } | null;
+    error?: string | null;
+    supported?: boolean;
+}
+
 export interface GitboxAPI {
     selectFolder: () => Promise<string | null>;
     status: (repoPath: string) => Promise<GitStatusEntry[]>;
@@ -214,6 +223,14 @@ export interface GitboxAPI {
     saveFile: (repoPath: string, filePath: string, content: string) => Promise<void>;
     getAppChangelog: () => Promise<string>;
     getAppVersion: () => Promise<string>;
+    // Native auto-update (electron-updater). `supported` is false on builds that
+    // can't self-update (deb/rpm/pacman/msi, dev) — callers fall back to the
+    // browser-download path.
+    updaterCheck: () => Promise<{ supported: boolean }>;
+    updaterDownload: () => Promise<{ supported: boolean }>;
+    updaterInstall: () => Promise<{ supported: boolean }>;
+    updaterGetState: () => Promise<UpdaterStatus>;
+    onUpdaterStatus: (callback: (status: UpdaterStatus) => void) => (() => void);
     detectExternalTools: () => Promise<{ editors: { value: string, label: string }[], terminals: { value: string, label: string }[], mergeTools: { value: string, label: string }[], diffTools: { value: string, label: string }[] }>;
     detectAiClis: () => Promise<{ id: string, label: string }[]>;
     aiRunCli: (cliId: string, prompt: string) => Promise<{ text: string, error?: string }>;

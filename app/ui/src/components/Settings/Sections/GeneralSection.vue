@@ -4,17 +4,13 @@ import { useI18n } from 'vue-i18n';
 import { useLanguage } from '../../../services/languageService';
 import { generalSettings } from '../../../services/settingsService';
 import { formatDate } from '../../../utils/formatters';
-import { Icon } from '@iconify/vue';
 import RangeSlider from '../../Common/RangeSlider.vue';
 import Checkbox from '../../Common/Checkbox.vue';
 import Select from '../../Common/Select.vue';
-import { appVersion, checkForUpdates, updateStatus, latestVersion, releaseUrl } from '../../../services/versionService';
+import UpdatesSection from './UpdatesSection.vue';
 
 const { t, locale } = useI18n();
 
-function openRelease() {
-  if (releaseUrl.value && (window as any).gitbox?.openExternal) (window as any).gitbox.openExternal(releaseUrl.value);
-}
 const { languages, changeLanguage } = useLanguage();
 
 const emit = defineEmits(['close']);
@@ -143,22 +139,9 @@ const notificationPositionOptions = computed(() => [
     </section>
 
     <!-- Updates (kept last) -->
-    <section class="space-y-3 pt-4 border-t border-line/50">
-        <label class="block text-xs font-bold text-content-muted uppercase">{{ t('settings.updates') }}</label>
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex flex-col gap-0.5 min-w-0">
-                <span class="text-xs text-content">{{ t('settings.current_version') }} <span class="font-mono text-content-strong">v{{ appVersion }}</span></span>
-                <span v-if="updateStatus === 'up-to-date'" class="text-[11px] text-green-500 flex items-center gap-1"><Icon icon="lucide:check-circle" class="w-3 h-3" /> {{ t('settings.up_to_date') }}</span>
-                <span v-else-if="updateStatus === 'available'" role="button" @click="openRelease" class="text-[11px] text-accent flex items-center gap-1 cursor-pointer hover:underline"><Icon icon="lucide:download" class="w-3 h-3" /> {{ t('settings.update_available', { version: latestVersion }) }}</span>
-                <span v-else-if="updateStatus === 'error'" class="text-[11px] text-red-400 flex items-center gap-1"><Icon icon="lucide:alert-circle" class="w-3 h-3" /> {{ t('settings.update_check_failed') }}</span>
-            </div>
-            <button @click="checkForUpdates()" :disabled="updateStatus === 'checking'"
-                    class="shrink-0 h-8 px-3 rounded bg-accent hover:bg-accent-hover text-accent-fg text-[11px] font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50">
-                <Icon :icon="updateStatus === 'checking' ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="updateStatus === 'checking' ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
-                {{ t('settings.check_updates') }}
-            </button>
-        </div>
-    </section>
+    <div class="pt-4 border-t border-line/50">
+        <UpdatesSection />
+    </div>
 
   </div>
 </template>

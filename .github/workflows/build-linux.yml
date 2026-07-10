@@ -1,0 +1,103 @@
+name: Build Linux
+
+# Builds the Linux packages (AppImage + deb + rpm + pacman) for GitBox.
+#
+# Mirrors build-windows.yml. GitBox ships a native addon (gitbox_addon.node)
+# that statically links libgit2 + mbedTLS, so it is compiled here end to end:
+#   1. build the vendored static libs (libgit2 + mbedTLS) with the shell recipe
+#   2. build the Vue UI
+#   3. let electron-builder (@electron/rebuild) recompile the native addon
+#      against Electron's ABI and package the Linux targets from package.json.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  linux:
+    # Pinned to 22.04 for a widely-compatible glibc so the AppImage/deb/rpm run
+    # on older distros too (newer runners raise the minimum glibc).
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Toolchain for the vendored CMake builds + the Linux packagers:
+      #  - cmake/ninja/build-essential: compile mbedTLS + libgit2 (static)
+      #  - rpm: rpmbuild backend for electron-builder's rpm target
+      #  - libarchive-tools: bsdtar, used by the pacman target
+      #  - libfuse2: AppImage runtime mounting
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential \
+            rpm libarchive-tools libfuse2
+
+      # The vendored static libs are expensive (~10 min) and depend only on the
+      # build script + the libgit2/mbedTLS tags pinned inside it.
+      - name: Cache vendored libgit2 + mbedTLS
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/addon/vendor/libgit2/install
+            core/addon/vendor/mbedtls/install
+          key: vendor-libs-linux-${{ hashFiles('core/addon/vendor/build-libgit2.sh') }}
+
+      - name: Build vendored libgit2 + mbedTLS (static)
+        run: ./core/addon/vendor/build-libgit2.sh
+
+      # The addon points libgit2 at a bundled CA store (it ships mbedTLS, which
+      # has no system trust store). certs/ is not committed, so fetch it here.
+      - name: Fetch CA bundle
+        run: |
+          mkdir -p core/addon/certs
+          curl -fsSL https://curl.se/ca/cacert.pem -o core/addon/certs/cacert.pem
+
+      - name: Install addon deps
+        working-directory: core/addon
+        run: npm ci --ignore-scripts
+
+      - name: Install UI deps
+        working-directory: app/ui
+        run: npm ci
+
+      - name: Build UI
+        working-directory: app/ui
+        run: npm run build
+
+      # --ignore-scripts skips the redundant node-targeted node-gyp build of the
+      # gitbox-addon file: dep here; electron-builder's @electron/rebuild step
+      # recompiles it (and node-pty) against Electron's ABI during packaging.
+      - name: Install Electron deps
+        working-directory: ui/electron
+        run: npm ci --ignore-scripts
+
+      # electron-builder runs @electron/rebuild first (compiling gitbox_addon
+      # and node-pty against Electron via node-gyp + the vendored libs), then
+      # packages the AppImage/deb/rpm/pacman targets declared in package.json.
+      #
+      # On a tag push we publish to the GitHub Release (uploads latest-linux.yml
+      # + the AppImage .blockmap that electron-updater reads for differential
+      # updates); a manual workflow_dispatch only builds artifacts for testing.
+      - name: Package Linux artifacts
+        working-directory: ui/electron
+        run: npx electron-builder --linux --publish ${{ github.ref_type == 'tag' && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitbox-linux-packages
+          path: |
+            ui/electron/release/*.AppImage
+            ui/electron/release/*.deb
+            ui/electron/release/*.rpm
+            ui/electron/release/*.pacman
+          if-no-files-found: error

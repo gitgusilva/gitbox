@@ -18,6 +18,7 @@ const registerMergeHandlers = require('./handlers/merge');
 const registerThemeHandlers = require('./handlers/theme');
 const registerSettingsHandlers = require('./handlers/settings');
 const registerAiHandlers = require('./handlers/ai');
+const { registerUpdater } = require('./updater');
 
 const { setupProtocol } = require('./protocol');
 const { createWindow, getMainWindow } = require('./windows/index');
@@ -80,6 +81,7 @@ app.whenReady().then(() => {
   registerThemeHandlers();
   registerSettingsHandlers();
   registerAiHandlers();
+  registerUpdater();
 
   createWindow(isDev);
 });
