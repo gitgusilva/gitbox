@@ -38,13 +38,17 @@ async function handleSaveGitConfig() {
 </script>
 
 <template>
-  <div class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+  <div class="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-8 mb-2 border-b border-line">
     <div>
-      <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.user_name') }}</label>
+      <h2 class="text-xl font-bold text-content">{{ t('settings.git_config_title') }}</h2>
+      <p class="text-[11px] text-content-muted mt-1">{{ t('settings.git_config_hint') }}</p>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-content-muted uppercase mb-2">{{ t('settings.user_name') }}</label>
       <input v-model="draftName" type="text" placeholder="e.g. John Doe" class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm" />
     </div>
     <div>
-      <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.user_email') }}</label>
+      <label class="block text-xs font-bold text-content-muted uppercase mb-2">{{ t('settings.user_email') }}</label>
       <input v-model="draftEmail" type="text" placeholder="e.g. john@example.com" class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm" />
     </div>
     <div class="flex items-center gap-3 pt-2">

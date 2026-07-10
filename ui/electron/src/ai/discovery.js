@@ -99,7 +99,7 @@ function resolveAiCli(id) {
     if (!entry) return null;
     const bin = findBinary(entry.bins);
     if (!bin) return null;
-    return { path: bin, runArgs: entry.runArgs };
+    return { path: bin, runArgs: entry.runArgs, promptAsArg: !!entry.promptAsArg };
 }
 
 module.exports = { discoverAiClis, resolveAiCli, findBinary };

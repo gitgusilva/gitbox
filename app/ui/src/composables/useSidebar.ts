@@ -3,7 +3,7 @@ import {
     branches,
     tags,
     submodules,
-    selectedLogRef,
+    toggleLogFilter,
     activeTab,
     selectedCommit,
     log,
@@ -93,14 +93,14 @@ export function useSidebar(branchFilter: Ref<string>) {
         // Local Branches
         items.push({ type: 'header', id: 'local', label: t('common.local'), count: localBranches.value.length, collapsed: sectionsCollapsed.value.local });
         if (!sectionsCollapsed.value.local) {
-            const flat = flattenTree(localTree.value, expandedGroups.value, headBranchName.value);
+            const flat = flattenTree(localTree.value, expandedGroups.value, headBranchName.value, !!branchFilter.value.trim());
             items.push(...flat.map(n => ({ type: 'node', section: 'local', id: `local-${n.name}`, node: n })));
         }
 
         // Remotes
         items.push({ type: 'header', id: 'remotes', label: t('common.remotes'), count: remoteBranches.value.length, collapsed: sectionsCollapsed.value.remotes });
         if (!sectionsCollapsed.value.remotes) {
-            const flat = flattenTree(remoteTree.value, expandedGroups.value, headBranchName.value);
+            const flat = flattenTree(remoteTree.value, expandedGroups.value, headBranchName.value, !!branchFilter.value.trim());
             items.push(...flat.map(n => ({ type: 'node', section: 'remotes', id: `remote-${n.name}`, node: n })));
         }
 
@@ -129,31 +129,30 @@ export function useSidebar(branchFilter: Ref<string>) {
         return items;
     });
 
-    async function selectBranchLog(name: string) {
-        selectedLogRef.value = name;
+    function selectBranchLog(name: string) {
         activeTab.value = 'history';
-
-        // Reload the history for this ref immediately — don't wait for the poll.
-        await loadInitialLog();
-
-        // Select the branch tip (now near the top of the reloaded log).
+        // SourceGit-style: clicking a branch/tag NAME only navigates to its tip in
+        // the current graph — it does NOT change the filter (that's the funnel icon).
         const branch = branches.value.find(b => b.name === name);
-        if (branch && branch.target) {
-            const commit = log.value.find(c => c.id === branch.target);
-            if (commit) {
-                selectedCommit.value = commit;
-                setTimeout(() => {
-                    const el = document.getElementById(`commit-${commit.id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
-            }
+        const tag = !branch ? tags.value.find((t: any) => (typeof t === 'string' ? t : t.name) === name) : null;
+        const targetId = branch?.target || (tag && typeof tag !== 'string' ? (tag as any).target : undefined);
+        if (!targetId) return;
+        const commit = log.value.find(c => c.id === targetId);
+        if (commit) {
+            selectedCommit.value = commit;
+            setTimeout(() => {
+                const el = document.getElementById(`commit-${commit.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         }
     }
 
     function toggleFilter(e: Event, name: string) {
         e.stopPropagation();
-        selectedLogRef.value = selectedLogRef.value === name ? '' : name;
-        // Reload the log filtered to the new ref right away.
+        // Funnel toggle: add/remove this ref from the history/graph filter.
+        toggleLogFilter(name);
+        activeTab.value = 'history';
+        // Reload the log for the new filter set right away.
         loadInitialLog();
     }
 
@@ -169,6 +168,35 @@ export function useSidebar(branchFilter: Ref<string>) {
         triggerRef(sectionsCollapsed);
     }
 
+    /** Index of the current (HEAD) branch's row within `allItems`, or -1. */
+    function currentBranchIndex(): number {
+        const name = headBranchName.value;
+        if (!name) return -1;
+        return allItems.value.findIndex(it =>
+            it.type === 'node' && it.section === 'local' && !it.node.isGroup && it.node.fullPath === name);
+    }
+
+    /**
+     * Open the Local section and every ancestor folder of the current branch so
+     * its row becomes visible, then return that row's index (for scrolling).
+     * Additive — leaves the user's other expanded folders untouched.
+     */
+    function revealCurrentBranch(): number {
+        const name = headBranchName.value;
+        if (!name) return -1;
+        sectionsCollapsed.value.local = false;
+        const parts = name.split('/');
+        let acc = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+            acc += (i === 0 ? parts[i] : '/' + parts[i]);
+            expandedGroups.value[acc] = true;
+        }
+        triggerRef(expandedGroups);
+        triggerRef(sectionsCollapsed);
+        persistExpandedGroups(repoPath.value, expandedGroups.value);
+        return currentBranchIndex();
+    }
+
     return {
         allItems,
         sectionsCollapsed,
@@ -180,7 +208,8 @@ export function useSidebar(branchFilter: Ref<string>) {
         checkoutBranch,
         deleteBranch,
         loadPullRequests,
-        createPullRequest
+        createPullRequest,
+        revealCurrentBranch
     };
 }
 

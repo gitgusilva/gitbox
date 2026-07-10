@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <git2.h>
 #include <napi.h>
@@ -345,13 +346,30 @@ Napi::Value Log(const Napi::CallbackInfo &info) {
       return env.Null();
     }
   } else {
-    git_object *obj = nullptr;
-    if (git_revparse_single(&obj, repo, refName.c_str()) == 0) {
-      git_revwalk_push(walk, git_object_id(obj));
-      git_object_free(obj);
-    } else {
-      git_revwalk_push_head(walk);
+    // One or more refs, separated by '\n' (multi-branch history filter). Push each
+    // resolvable ref onto the walk; libgit2 yields their sorted union with correct
+    // pagination. If none resolve, fall back to HEAD so the view is never empty.
+    bool pushedAny = false;
+    size_t start = 0;
+    while (start <= refName.size()) {
+      size_t nl = refName.find('\n', start);
+      std::string one = (nl == std::string::npos)
+                            ? refName.substr(start)
+                            : refName.substr(start, nl - start);
+      if (!one.empty()) {
+        git_object *obj = nullptr;
+        if (git_revparse_single(&obj, repo, one.c_str()) == 0) {
+          git_revwalk_push(walk, git_object_id(obj));
+          git_object_free(obj);
+          pushedAny = true;
+        }
+      }
+      if (nl == std::string::npos)
+        break;
+      start = nl + 1;
     }
+    if (!pushedAny)
+      git_revwalk_push_head(walk);
   }
 
   Napi::Array result = Napi::Array::New(env);
@@ -756,165 +774,252 @@ void ApplyAuth(const Napi::CallbackInfo &info, size_t index,
   }
 }
 
+// Network git ops (fetch/pull/push/clone) run over the network and can take tens
+// of seconds. Doing them on the JS thread froze the whole Electron UI ("not
+// responding" until they returned), so they run on a libuv worker thread and
+// resolve a Promise. Each worker opens its own git_repository handle (libgit2 is
+// thread-safe across separate handles) and keeps its credential payload as a
+// member so it outlives the async call. This base handles the Promise plumbing;
+// subclasses only implement Execute() (no V8/Napi access allowed in there).
+class BoolPromiseWorker : public Napi::AsyncWorker {
+ public:
+  explicit BoolPromiseWorker(Napi::Env env)
+      : Napi::AsyncWorker(env),
+        deferred_(Napi::Promise::Deferred::New(env)) {}
+
+  Napi::Promise GetPromise() { return deferred_.Promise(); }
+
+  void OnOK() override {
+    Napi::HandleScope scope(Env());
+    deferred_.Resolve(Napi::Boolean::New(Env(), true));
+  }
+
+  void OnError(const Napi::Error &e) override {
+    Napi::HandleScope scope(Env());
+    deferred_.Reject(e.Value());
+  }
+
+ protected:
+  Napi::Promise::Deferred deferred_;
+  CredPayload cred_;
+};
+
+class FetchWorker : public BoolPromiseWorker {
+ public:
+  FetchWorker(Napi::Env env, std::string repoPath, std::string remoteName,
+              std::string token)
+      : BoolPromiseWorker(env),
+        repoPath_(std::move(repoPath)),
+        remoteName_(std::move(remoteName)),
+        token_(std::move(token)) {}
+
+  void Execute() override {
+    git_repository *repo = nullptr;
+    if (git_repository_open(&repo, repoPath_.c_str()) != 0) {
+      SetError(LastGitErrorOr("failed to open repository"));
+      return;
+    }
+    git_remote *remote = nullptr;
+    if (git_remote_lookup(&remote, repo, remoteName_.c_str()) != 0) {
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to find remote"));
+      return;
+    }
+    git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
+    cred_.username = "oauth2";
+    cred_.token = token_;
+    cred_.tried = 0;
+    if (!token_.empty()) {
+      opts.callbacks.credentials = CredentialsCb;
+      opts.callbacks.payload = &cred_;
+    }
+    int rc = git_remote_fetch(remote, nullptr, &opts, nullptr);
+    git_remote_free(remote);
+    git_repository_free(repo);
+    if (rc != 0) {
+      SetError(LastGitErrorOr("fetch failed"));
+    }
+  }
+
+ private:
+  std::string repoPath_;
+  std::string remoteName_;
+  std::string token_;
+};
+
 Napi::Value Fetch(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  auto repoValue = EnsureRepo(info);
-  if (env.IsExceptionPending())
-    return env.Null();
-
-  std::string remoteName = "origin";
-  if (info.Length() > 1 && info[1].IsString()) {
-    remoteName = info[1].As<Napi::String>().Utf8Value();
-  }
-
-  git_repository *repo = nullptr;
-  std::string path = repoValue.As<Napi::String>().Utf8Value();
-  if (!OpenRepoOrThrow(env, path, &repo)) {
-    return env.Null();
-  }
-
-  git_remote *remote = nullptr;
-  if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to find remote"), env.Null();
-  }
-
-  git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
-  CredPayload cred;
-  ApplyAuth(info, 2, &opts.callbacks, &cred);
-  if (git_remote_fetch(remote, nullptr, &opts, nullptr) != 0) {
-    git_remote_free(remote);
-    git_repository_free(repo);
-    return ThrowGitError(env, "fetch failed"), env.Null();
-  }
-
-  git_remote_free(remote);
-  git_repository_free(repo);
-  return Napi::Boolean::New(env, true);
-}
-
-Napi::Value Pull(const Napi::CallbackInfo &info) {
-  Napi::Env env = info.Env();
-  auto repoValue = EnsureRepo(info);
-  if (env.IsExceptionPending())
-    return env.Null();
-
-  std::string remoteName = "origin";
-  if (info.Length() > 1 && info[1].IsString()) {
-    remoteName = info[1].As<Napi::String>().Utf8Value();
-  }
-
-  git_repository *repo = nullptr;
-  std::string path = repoValue.As<Napi::String>().Utf8Value();
-  if (!OpenRepoOrThrow(env, path, &repo)) {
-    return env.Null();
-  }
-
-  std::string branch = CurrentBranchName(repo);
-  if (branch.empty()) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "detached HEAD is not supported for pull"),
-           env.Null();
-  }
-
-  git_remote *remote = nullptr;
-  if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to find remote"), env.Null();
-  }
-  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-  CredPayload cred;
-  ApplyAuth(info, 2, &fetchOpts.callbacks, &cred);
-  if (git_remote_fetch(remote, nullptr, &fetchOpts, nullptr) != 0) {
-    git_remote_free(remote);
-    git_repository_free(repo);
-    return ThrowGitError(env, "pull fetch failed"), env.Null();
-  }
-  git_remote_free(remote);
-
-  std::string remoteRefName = "refs/remotes/" + remoteName + "/" + branch;
-  git_reference *remoteRef = nullptr;
-  if (git_reference_lookup(&remoteRef, repo, remoteRefName.c_str()) != 0) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "remote tracking branch not found"), env.Null();
-  }
-
-  git_annotated_commit *remoteHead = nullptr;
-  if (git_annotated_commit_from_ref(&remoteHead, repo, remoteRef) != 0) {
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to read remote head"), env.Null();
-  }
-
-  const git_annotated_commit *heads[] = {remoteHead};
-  git_merge_analysis_t analysis;
-  git_merge_preference_t pref;
-  if (git_merge_analysis(&analysis, &pref, repo, heads, 1) != 0) {
-    git_annotated_commit_free(remoteHead);
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to analyze merge"), env.Null();
-  }
-
-  if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
-    git_annotated_commit_free(remoteHead);
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    return Napi::Boolean::New(env, true);
-  }
-
-  if (!(analysis & GIT_MERGE_ANALYSIS_FASTFORWARD)) {
-    git_annotated_commit_free(remoteHead);
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    Napi::Error::New(env, "non-fast-forward pull is not supported yet")
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "repoPath (string) is required")
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-
-  const git_oid *targetOid = git_annotated_commit_id(remoteHead);
-  git_object *target = nullptr;
-  if (git_object_lookup(&target, repo, targetOid, GIT_OBJECT_COMMIT) != 0) {
-    git_annotated_commit_free(remoteHead);
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to lookup fetched commit"), env.Null();
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  std::string remoteName = "origin";
+  if (info.Length() > 1 && info[1].IsString()) {
+    remoteName = info[1].As<Napi::String>().Utf8Value();
+  }
+  std::string token;
+  if (info.Length() > 2 && info[2].IsString()) {
+    token = info[2].As<Napi::String>().Utf8Value();
   }
 
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
-  if (git_checkout_tree(repo, target, &checkoutOpts) != 0 ||
-      git_reference_set_target(&remoteRef, remoteRef, targetOid,
-                               "gitbox pull") != 0) {
+  FetchWorker *worker = new FetchWorker(env, path, remoteName, token);
+  Napi::Promise promise = worker->GetPromise();
+  worker->Queue();
+  return promise;
+}
+
+// Pull = fetch + fast-forward. All of it (network + checkout) runs off-thread.
+class PullWorker : public BoolPromiseWorker {
+ public:
+  PullWorker(Napi::Env env, std::string repoPath, std::string remoteName,
+             std::string token)
+      : BoolPromiseWorker(env),
+        repoPath_(std::move(repoPath)),
+        remoteName_(std::move(remoteName)),
+        token_(std::move(token)) {}
+
+  void Execute() override {
+    git_repository *repo = nullptr;
+    if (git_repository_open(&repo, repoPath_.c_str()) != 0) {
+      SetError(LastGitErrorOr("failed to open repository"));
+      return;
+    }
+    std::string branch = CurrentBranchName(repo);
+    if (branch.empty()) {
+      git_repository_free(repo);
+      SetError("detached HEAD is not supported for pull");
+      return;
+    }
+    git_remote *remote = nullptr;
+    if (git_remote_lookup(&remote, repo, remoteName_.c_str()) != 0) {
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to find remote"));
+      return;
+    }
+    git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+    cred_.username = "oauth2";
+    cred_.token = token_;
+    cred_.tried = 0;
+    if (!token_.empty()) {
+      fetchOpts.callbacks.credentials = CredentialsCb;
+      fetchOpts.callbacks.payload = &cred_;
+    }
+    if (git_remote_fetch(remote, nullptr, &fetchOpts, nullptr) != 0) {
+      git_remote_free(remote);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("pull fetch failed"));
+      return;
+    }
+    git_remote_free(remote);
+
+    std::string remoteRefName = "refs/remotes/" + remoteName_ + "/" + branch;
+    git_reference *remoteRef = nullptr;
+    if (git_reference_lookup(&remoteRef, repo, remoteRefName.c_str()) != 0) {
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("remote tracking branch not found"));
+      return;
+    }
+    git_annotated_commit *remoteHead = nullptr;
+    if (git_annotated_commit_from_ref(&remoteHead, repo, remoteRef) != 0) {
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to read remote head"));
+      return;
+    }
+    const git_annotated_commit *heads[] = {remoteHead};
+    git_merge_analysis_t analysis;
+    git_merge_preference_t pref;
+    if (git_merge_analysis(&analysis, &pref, repo, heads, 1) != 0) {
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to analyze merge"));
+      return;
+    }
+    if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      return;  // already up to date -> resolve(true)
+    }
+    if (!(analysis & GIT_MERGE_ANALYSIS_FASTFORWARD)) {
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError("non-fast-forward pull is not supported yet");
+      return;
+    }
+    const git_oid *targetOid = git_annotated_commit_id(remoteHead);
+    git_object *target = nullptr;
+    if (git_object_lookup(&target, repo, targetOid, GIT_OBJECT_COMMIT) != 0) {
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to lookup fetched commit"));
+      return;
+    }
+    git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+    if (git_checkout_tree(repo, target, &checkoutOpts) != 0 ||
+        git_reference_set_target(&remoteRef, remoteRef, targetOid,
+                                 "gitbox pull") != 0) {
+      git_object_free(target);
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to fast-forward working tree"));
+      return;
+    }
+    std::string localRefName = "refs/heads/" + branch;
+    git_reference *localRef = nullptr;
+    if (git_reference_lookup(&localRef, repo, localRefName.c_str()) != 0 ||
+        git_reference_set_target(&localRef, localRef, targetOid,
+                                 "gitbox pull") != 0 ||
+        git_repository_set_head(repo, localRefName.c_str()) != 0) {
+      if (localRef != nullptr)
+        git_reference_free(localRef);
+      git_object_free(target);
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to update local branch"));
+      return;
+    }
+    git_reference_free(localRef);
     git_object_free(target);
     git_annotated_commit_free(remoteHead);
     git_reference_free(remoteRef);
     git_repository_free(repo);
-    return ThrowGitError(env, "failed to fast-forward working tree"),
-           env.Null();
   }
 
-  std::string localRefName = "refs/heads/" + branch;
-  git_reference *localRef = nullptr;
-  if (git_reference_lookup(&localRef, repo, localRefName.c_str()) != 0 ||
-      git_reference_set_target(&localRef, localRef, targetOid, "gitbox pull") !=
-          0 ||
-      git_repository_set_head(repo, localRefName.c_str()) != 0) {
-    if (localRef != nullptr)
-      git_reference_free(localRef);
-    git_object_free(target);
-    git_annotated_commit_free(remoteHead);
-    git_reference_free(remoteRef);
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to update local branch"), env.Null();
-  }
+ private:
+  std::string repoPath_;
+  std::string remoteName_;
+  std::string token_;
+};
 
-  git_reference_free(localRef);
-  git_object_free(target);
-  git_annotated_commit_free(remoteHead);
-  git_reference_free(remoteRef);
-  git_repository_free(repo);
-  return Napi::Boolean::New(env, true);
+Napi::Value Pull(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "repoPath (string) is required")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  std::string remoteName = "origin";
+  if (info.Length() > 1 && info[1].IsString()) {
+    remoteName = info[1].As<Napi::String>().Utf8Value();
+  }
+  std::string token;
+  if (info.Length() > 2 && info[2].IsString()) {
+    token = info[2].As<Napi::String>().Utf8Value();
+  }
+  PullWorker *worker = new PullWorker(env, path, remoteName, token);
+  Napi::Promise promise = worker->GetPromise();
+  worker->Queue();
+  return promise;
 }
 
 Napi::Value Remotes(const Napi::CallbackInfo &info) {
@@ -1041,35 +1146,109 @@ Napi::Value Stashes(const Napi::CallbackInfo &info) {
   return result;
 }
 
+class PushWorker : public BoolPromiseWorker {
+ public:
+  PushWorker(Napi::Env env, std::string repoPath, std::string remoteName,
+             std::string token, std::string target, bool force, bool pushTags,
+             bool setUpstream)
+      : BoolPromiseWorker(env),
+        repoPath_(std::move(repoPath)),
+        remoteName_(std::move(remoteName)),
+        token_(std::move(token)),
+        target_(std::move(target)),
+        force_(force),
+        pushTags_(pushTags),
+        setUpstream_(setUpstream) {}
+
+  void Execute() override {
+    git_repository *repo = nullptr;
+    if (git_repository_open(&repo, repoPath_.c_str()) != 0) {
+      SetError(LastGitErrorOr("failed to open repository"));
+      return;
+    }
+    std::string branch = CurrentBranchName(repo);
+    if (branch.empty()) {
+      git_repository_free(repo);
+      SetError("detached HEAD is not supported for push");
+      return;
+    }
+    std::string target = target_.empty() ? branch : target_;
+
+    git_remote *remote = nullptr;
+    if (git_remote_lookup(&remote, repo, remoteName_.c_str()) != 0) {
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("failed to find remote"));
+      return;
+    }
+    // A leading '+' forces the update (moves the ref even when it isn't a
+    // fast-forward), matching `git push --force`.
+    std::string lead = force_ ? "+" : "";
+    std::string branchSpec =
+        lead + "refs/heads/" + branch + ":refs/heads/" + target;
+    std::string tagSpec = lead + "refs/tags/*:refs/tags/*";
+    std::vector<char *> specs;
+    specs.push_back(const_cast<char *>(branchSpec.c_str()));
+    if (pushTags_)
+      specs.push_back(const_cast<char *>(tagSpec.c_str()));
+    git_strarray refspecs{specs.data(), specs.size()};
+
+    git_push_options opts = GIT_PUSH_OPTIONS_INIT;
+    cred_.username = "oauth2";
+    cred_.token = token_;
+    cred_.tried = 0;
+    if (!token_.empty()) {
+      opts.callbacks.credentials = CredentialsCb;
+      opts.callbacks.payload = &cred_;
+    }
+    if (git_remote_push(remote, &refspecs, &opts) != 0) {
+      git_remote_free(remote);
+      git_repository_free(repo);
+      SetError(LastGitErrorOr("push failed"));
+      return;
+    }
+    git_remote_free(remote);
+
+    if (setUpstream_) {
+      git_reference *localRef = nullptr;
+      if (git_branch_lookup(&localRef, repo, branch.c_str(),
+                            GIT_BRANCH_LOCAL) == 0) {
+        std::string upstream = remoteName_ + "/" + target;
+        git_branch_set_upstream(localRef, upstream.c_str());
+        git_reference_free(localRef);
+      }
+    }
+    git_repository_free(repo);
+  }
+
+ private:
+  std::string repoPath_;
+  std::string remoteName_;
+  std::string token_;
+  std::string target_;
+  bool force_;
+  bool pushTags_;
+  bool setUpstream_;
+};
+
 Napi::Value Push(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
-  auto repoValue = EnsureRepo(info);
-  if (env.IsExceptionPending())
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "repoPath (string) is required")
+        .ThrowAsJavaScriptException();
     return env.Null();
-
+  }
+  std::string path = info[0].As<Napi::String>().Utf8Value();
   std::string remoteName = "origin";
   if (info.Length() > 1 && info[1].IsString()) {
     remoteName = info[1].As<Napi::String>().Utf8Value();
   }
-
-  git_repository *repo = nullptr;
-  std::string path = repoValue.As<Napi::String>().Utf8Value();
-  if (!OpenRepoOrThrow(env, path, &repo)) {
-    return env.Null();
+  std::string token;
+  if (info.Length() > 2 && info[2].IsString()) {
+    token = info[2].As<Napi::String>().Utf8Value();
   }
-
-  std::string branch = CurrentBranchName(repo);
-  if (branch.empty()) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "detached HEAD is not supported for push"),
-           env.Null();
-  }
-
-  // Optional args: [2]=token, [3]=targetBranch, [4]=force, [5]=pushTags,
-  // [6]=setUpstream. Target defaults to the current branch name.
-  std::string target = branch;
-  if (info.Length() > 3 && info[3].IsString() &&
-      !info[3].As<Napi::String>().Utf8Value().empty()) {
+  // Optional: [3]=targetBranch, [4]=force, [5]=pushTags, [6]=setUpstream.
+  std::string target;
+  if (info.Length() > 3 && info[3].IsString()) {
     target = info[3].As<Napi::String>().Utf8Value();
   }
   bool force = info.Length() > 4 && info[4].IsBoolean() &&
@@ -1079,67 +1258,61 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
   bool setUpstream = info.Length() > 6 && info[6].IsBoolean() &&
                      info[6].As<Napi::Boolean>().Value();
 
-  git_remote *remote = nullptr;
-  if (git_remote_lookup(&remote, repo, remoteName.c_str()) != 0) {
-    git_repository_free(repo);
-    return ThrowGitError(env, "failed to find remote"), env.Null();
-  }
-
-  // Build refspecs. A leading '+' forces the update (moves the ref even when
-  // it isn't a fast-forward), matching `git push --force`.
-  std::string lead = force ? "+" : "";
-  std::string branchSpec =
-      lead + "refs/heads/" + branch + ":refs/heads/" + target;
-  std::string tagSpec = lead + "refs/tags/*:refs/tags/*";
-  std::vector<char *> specs;
-  specs.push_back(const_cast<char *>(branchSpec.c_str()));
-  if (pushTags)
-    specs.push_back(const_cast<char *>(tagSpec.c_str()));
-  git_strarray refspecs{specs.data(), specs.size()};
-
-  git_push_options opts = GIT_PUSH_OPTIONS_INIT;
-  CredPayload cred;
-  ApplyAuth(info, 2, &opts.callbacks, &cred);
-  if (git_remote_push(remote, &refspecs, &opts) != 0) {
-    git_remote_free(remote);
-    git_repository_free(repo);
-    return ThrowGitError(env, "push failed"), env.Null();
-  }
-  git_remote_free(remote);
-
-  // Set the upstream tracking ref so future pull/push know the target.
-  if (setUpstream) {
-    git_reference *localRef = nullptr;
-    if (git_branch_lookup(&localRef, repo, branch.c_str(), GIT_BRANCH_LOCAL) ==
-        0) {
-      std::string upstream = remoteName + "/" + target;
-      git_branch_set_upstream(localRef, upstream.c_str());
-      git_reference_free(localRef);
-    }
-  }
-
-  git_repository_free(repo);
-  return Napi::Boolean::New(env, true);
+  PushWorker *worker = new PushWorker(env, path, remoteName, token, target,
+                                      force, pushTags, setUpstream);
+  Napi::Promise promise = worker->GetPromise();
+  worker->Queue();
+  return promise;
 }
 
-// Native clone over HTTPS. args: [0]=url, [1]=localPath, [2]=token?
+// Native clone over HTTPS (off-thread — clones can take minutes).
+class CloneWorker : public BoolPromiseWorker {
+ public:
+  CloneWorker(Napi::Env env, std::string url, std::string localPath,
+              std::string token)
+      : BoolPromiseWorker(env),
+        url_(std::move(url)),
+        localPath_(std::move(localPath)),
+        token_(std::move(token)) {}
+
+  void Execute() override {
+    git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
+    cred_.username = "oauth2";
+    cred_.token = token_;
+    cred_.tried = 0;
+    if (!token_.empty()) {
+      opts.fetch_opts.callbacks.credentials = CredentialsCb;
+      opts.fetch_opts.callbacks.payload = &cred_;
+    }
+    git_repository *repo = nullptr;
+    if (git_clone(&repo, url_.c_str(), localPath_.c_str(), &opts) != 0) {
+      SetError(LastGitErrorOr("clone failed"));
+      return;
+    }
+    git_repository_free(repo);
+  }
+
+ private:
+  std::string url_;
+  std::string localPath_;
+  std::string token_;
+};
+
+// args: [0]=url, [1]=localPath, [2]=token?
 Napi::Value Clone(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   if (!EnsureStringArg(info, 0, "url") || !EnsureStringArg(info, 1, "localPath"))
     return env.Null();
   std::string url = info[0].As<Napi::String>().Utf8Value();
   std::string localPath = info[1].As<Napi::String>().Utf8Value();
-
-  git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
-  CredPayload cred;
-  ApplyAuth(info, 2, &opts.fetch_opts.callbacks, &cred);
-
-  git_repository *repo = nullptr;
-  if (git_clone(&repo, url.c_str(), localPath.c_str(), &opts) != 0) {
-    return ThrowGitError(env, "clone failed"), env.Null();
+  std::string token;
+  if (info.Length() > 2 && info[2].IsString()) {
+    token = info[2].As<Napi::String>().Utf8Value();
   }
-  git_repository_free(repo);
-  return Napi::Boolean::New(env, true);
+  CloneWorker *worker = new CloneWorker(env, url, localPath, token);
+  Napi::Promise promise = worker->GetPromise();
+  worker->Queue();
+  return promise;
 }
 
 // Resolve a remote's configured URL natively (used to pick the auth token),
@@ -1732,6 +1905,211 @@ std::string RepoStateLabel(int state) {
   }
 }
 
+// --- Rebase control (abort / skip / continue) -------------------------------
+// GitBox drives an in-progress rebase via libgit2 so it never shells out to git.
+
+// libgit2 refuses to open interactive / "merge backend" rebases (the git CLI
+// default), so git_rebase_abort can't be used. This restores the branch by hand:
+// reset it to the pre-rebase HEAD recorded in .git/rebase-merge (or rebase-apply)
+// and delete the rebase state directory. Works for every rebase backend.
+static bool ManualRebaseAbort(git_repository *repo, std::string *err) {
+  namespace fs = std::filesystem;
+  std::string gitdir = git_repository_path(repo);  // has a trailing separator
+  auto readTrim = [](const std::string &p) -> std::string {
+    std::ifstream f(p);
+    if (!f) return "";
+    std::string s;
+    std::getline(f, s);
+    while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' '))
+      s.pop_back();
+    return s;
+  };
+
+  std::string base;
+  std::error_code ec;
+  if (fs::exists(gitdir + "rebase-merge", ec)) base = gitdir + "rebase-merge/";
+  else if (fs::exists(gitdir + "rebase-apply", ec)) base = gitdir + "rebase-apply/";
+  else { *err = "no rebase in progress"; return false; }
+
+  std::string origHead = readTrim(base + "orig-head");
+  std::string headName = readTrim(base + "head-name");  // refs/heads/… (may be empty)
+  if (origHead.empty()) { *err = "cannot find the pre-rebase HEAD"; return false; }
+
+  git_oid oid;
+  if (git_oid_fromstr(&oid, origHead.c_str()) != 0) {
+    *err = "invalid pre-rebase HEAD"; return false;
+  }
+  git_object *target = nullptr;
+  if (git_object_lookup(&target, repo, &oid, GIT_OBJECT_COMMIT) != 0) {
+    *err = LastGitErrorOr("pre-rebase commit not found"); return false;
+  }
+
+  // Re-point the original branch at the pre-rebase commit and re-attach HEAD.
+  if (!headName.empty()) {
+    git_reference *branchRef = nullptr;
+    if (git_reference_create(&branchRef, repo, headName.c_str(), &oid, 1,
+                             "rebase abort") == 0 && branchRef) {
+      git_reference_free(branchRef);
+    }
+    git_repository_set_head(repo, headName.c_str());
+  }
+
+  git_checkout_options coOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  coOpts.checkout_strategy = GIT_CHECKOUT_FORCE;
+  int rc = git_reset(repo, target, GIT_RESET_HARD, &coOpts);
+  git_object_free(target);
+  if (rc != 0) { *err = LastGitErrorOr("failed to reset to the pre-rebase HEAD"); return false; }
+
+  fs::remove_all(base, ec);
+  git_repository_state_cleanup(repo);
+  return true;
+}
+
+Napi::Value RebaseAbort(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  if (!OpenRepoOrThrow(env, path, &repo))
+    return env.Null();
+
+  // Fast path: apply-backend rebases libgit2 can drive.
+  git_rebase *rebase = nullptr;
+  if (git_rebase_open(&rebase, repo, nullptr) == 0) {
+    int rc = git_rebase_abort(rebase);
+    git_rebase_free(rebase);
+    if (rc == 0) {
+      git_repository_free(repo);
+      return Napi::Boolean::New(env, true);
+    }
+    // else fall through to the manual restore.
+  }
+
+  // Fallback for interactive / merge-backend rebases libgit2 won't open.
+  std::string err;
+  bool ok = ManualRebaseAbort(repo, &err);
+  git_repository_free(repo);
+  if (!ok) {
+    Napi::Error::New(env, err).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return Napi::Boolean::New(env, true);
+}
+
+// Drive the rebase forward. `skipCurrent` drops the stopped patch (git rebase
+// --skip); otherwise it commits the resolved patch and continues (--continue).
+// Stops at the next conflict for the user to resolve; finalizes when all
+// operations are applied cleanly. Returns { done, conflicts }.
+static Napi::Value RebaseAdvance(const Napi::CallbackInfo &info,
+                                 bool skipCurrent) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  git_repository *repo = nullptr;
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  if (!OpenRepoOrThrow(env, path, &repo))
+    return env.Null();
+
+  git_rebase *rebase = nullptr;
+  if (git_rebase_open(&rebase, repo, nullptr) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "no rebase in progress"), env.Null();
+  }
+  git_signature *sig = nullptr;
+  if (!SignatureFromConfig(repo, &sig)) {
+    git_rebase_free(rebase);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to build committer signature"),
+           env.Null();
+  }
+
+  auto hasConflicts = [&]() -> bool {
+    git_index *idx = nullptr;
+    if (git_repository_index(&idx, repo) != 0)
+      return false;
+    bool c = git_index_has_conflicts(idx) != 0;
+    git_index_free(idx);
+    return c;
+  };
+
+  // Continue: commit the current (resolved) operation first. Skip: leave it.
+  if (!skipCurrent) {
+    if (hasConflicts()) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      Napi::Error::New(env, "resolve the remaining conflicts first")
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    git_oid cid;
+    int rc = git_rebase_commit(&cid, rebase, nullptr, sig, nullptr, nullptr);
+    // GIT_EAPPLIED: nothing to commit (empty patch) — fine, keep going.
+    if (rc != 0 && rc != GIT_EAPPLIED) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to continue rebase"), env.Null();
+    }
+  }
+
+  bool stoppedAtConflict = false;
+  while (true) {
+    git_rebase_operation *op = nullptr;
+    int rc = git_rebase_next(&op, rebase);
+    if (rc == GIT_ITEROVER)
+      break;
+    if (rc != 0) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "rebase step failed"), env.Null();
+    }
+    if (hasConflicts()) {
+      stoppedAtConflict = true;
+      break;  // hand control back to the user
+    }
+    git_oid cid;
+    int crc = git_rebase_commit(&cid, rebase, nullptr, sig, nullptr, nullptr);
+    if (crc != 0 && crc != GIT_EAPPLIED) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to commit rebased change"), env.Null();
+    }
+  }
+
+  bool done = false;
+  if (!stoppedAtConflict) {
+    if (git_rebase_finish(rebase, sig) != 0) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to finish rebase"), env.Null();
+    }
+    done = true;
+  }
+
+  git_signature_free(sig);
+  git_rebase_free(rebase);
+  git_repository_free(repo);
+
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("done", Napi::Boolean::New(env, done));
+  result.Set("conflicts", Napi::Boolean::New(env, stoppedAtConflict));
+  return result;
+}
+
+Napi::Value RebaseSkip(const Napi::CallbackInfo &info) {
+  return RebaseAdvance(info, true);
+}
+Napi::Value RebaseContinue(const Napi::CallbackInfo &info) {
+  return RebaseAdvance(info, false);
+}
+
 Napi::Array CollectConflictPaths(Napi::Env env, git_index *index) {
   Napi::Array arr = Napi::Array::New(env);
   git_index_conflict_iterator *it = nullptr;
@@ -2285,6 +2663,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("mergeBranch", Napi::Function::New(env, MergeBranch));
   exports.Set("mergeContinue", Napi::Function::New(env, MergeContinue));
   exports.Set("mergeAbort", Napi::Function::New(env, MergeAbort));
+  exports.Set("rebaseAbort", Napi::Function::New(env, RebaseAbort));
+  exports.Set("rebaseSkip", Napi::Function::New(env, RebaseSkip));
+  exports.Set("rebaseContinue", Napi::Function::New(env, RebaseContinue));
   exports.Set("repoState", Napi::Function::New(env, RepoState));
   exports.Set("diffFile", Napi::Function::New(env, DiffFile));
   exports.Set("stashChanges", Napi::Function::New(env, StashChanges));

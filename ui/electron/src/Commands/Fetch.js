@@ -16,7 +16,9 @@ class Fetch extends Command {
             try {
                 const remote = remoteName || 'origin';
                 const token = getTokenForRemote(this.addon, repoPath, remote);
-                return this.addon.fetch(repoPath, remote, token);
+                // addon.fetch now returns a Promise (runs off the main thread) — await
+                // so failures are caught here and surfaced with a clean message.
+                return await this.addon.fetch(repoPath, remote, token);
             } catch (e) { throw new Error(e.message); }
     }
 }

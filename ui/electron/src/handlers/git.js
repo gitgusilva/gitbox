@@ -74,6 +74,7 @@ module.exports = function (addon) {
     // Tags
     ipcMain.handle('gitbox:tags', async (_, repoPath) => tagCmd.getTags(repoPath));
     ipcMain.handle('gitbox:createTag', async (_, repoPath, tagName, commitSha) => tagCmd.create(repoPath, tagName, commitSha));
+    ipcMain.handle('gitbox:deleteTag', async (_, repoPath, tagName) => tagCmd.delete(repoPath, tagName));
 
     // Stashes
     ipcMain.handle('gitbox:stashes', async (_, repoPath) => stashCmd.getStashes(repoPath));
@@ -91,6 +92,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:squashCommit', async (_, repoPath, commitSha) => commitCmd.squash(repoPath, commitSha));
     ipcMain.handle('gitbox:revertCommit', async (_, repoPath, commitSha) => commitCmd.revert(repoPath, commitSha));
     ipcMain.handle('gitbox:commitAmend', async (_, repoPath, message) => commitCmd.amend(repoPath, message));
+    ipcMain.handle('gitbox:resetToCommit', async (_, repoPath, commitSha, mode) => resetCmd.toCommit(repoPath, commitSha, mode));
 
     // Stage / Unstage / Discard
     ipcMain.handle('gitbox:stageAll', async (_, repoPath) => addCmd.all(repoPath));
@@ -104,6 +106,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:checkoutBranch', async (_, repoPath, branchName) => checkoutCmd.branch(repoPath, branchName));
     ipcMain.handle('gitbox:createBranch', async (_, repoPath, branchName, startPoint) => branchCmd.create(repoPath, branchName, startPoint));
     ipcMain.handle('gitbox:deleteBranch', async (_, repoPath, branchName) => branchCmd.delete(repoPath, branchName));
+    ipcMain.handle('gitbox:renameBranch', async (_, repoPath, oldName, newName) => branchCmd.rename(repoPath, oldName, newName));
 
     // Diffs / Blame
     ipcMain.handle('gitbox:diffFile', async (_, repoPath, filePath) => diffCmd.file(repoPath, filePath));
@@ -139,11 +142,22 @@ module.exports = function (addon) {
 
     // Network / Others
     ipcMain.handle('gitbox:getRemoteUrl', async (_, repoPath, remoteName) => remoteCmd.getUrl(repoPath, remoteName));
+    ipcMain.handle('gitbox:addRemote', async (_, repoPath, name, url) => remoteCmd.add(repoPath, name, url));
+    ipcMain.handle('gitbox:removeRemote', async (_, repoPath, name) => remoteCmd.remove(repoPath, name));
+    ipcMain.handle('gitbox:renameRemote', async (_, repoPath, oldName, newName) => remoteCmd.rename(repoPath, oldName, newName));
+    ipcMain.handle('gitbox:setRemoteUrl', async (_, repoPath, name, url) => remoteCmd.setUrl(repoPath, name, url));
     ipcMain.handle('gitbox:checkMerge', async (_, repoPath, toBranch, fromBranch) => mergeCmd.check(repoPath, toBranch, fromBranch));
     ipcMain.handle('gitbox:openMergeTool', async (_, repoPath, filePath, toolName) => mergeCmd.openTool(repoPath, filePath, toolName));
     ipcMain.handle('gitbox:mergeBranch', async (_, repoPath, branchName, noFastForward) => mergeCmd.branch(repoPath, branchName, noFastForward));
     ipcMain.handle('gitbox:mergeContinue', async (_, repoPath, message) => mergeCmd.complete(repoPath, message));
     ipcMain.handle('gitbox:mergeAbort', async (_, repoPath) => mergeCmd.abort(repoPath));
+    ipcMain.handle('gitbox:rebaseAbort', async (_, repoPath) => mergeCmd.rebaseAbort(repoPath));
+    ipcMain.handle('gitbox:rebaseSkip', async (_, repoPath) => mergeCmd.rebaseSkip(repoPath));
+    ipcMain.handle('gitbox:rebaseContinue', async (_, repoPath) => mergeCmd.rebaseContinue(repoPath));
+    ipcMain.handle('gitbox:cherryPick', async (_, repoPath, commitSha) => mergeCmd.cherryPick(repoPath, commitSha));
+    ipcMain.handle('gitbox:cherryPickAbort', async (_, repoPath) => mergeCmd.cherryPickAbort(repoPath));
+    ipcMain.handle('gitbox:cherryPickContinue', async (_, repoPath) => mergeCmd.cherryPickContinue(repoPath));
+    ipcMain.handle('gitbox:cherryPickSkip', async (_, repoPath) => mergeCmd.cherryPickSkip(repoPath));
     ipcMain.handle('gitbox:repoState', async (_, repoPath) => mergeCmd.state(repoPath));
     ipcMain.handle('gitbox:conflictTypes', async (_, repoPath) => mergeCmd.conflictTypes(repoPath));
     ipcMain.handle('gitbox:resolveConflict', async (_, repoPath, filePath, side) => mergeCmd.resolveConflict(repoPath, filePath, side));
@@ -156,7 +170,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:openPath', async (_, fullPath) => fileActionsCmd.openPath(fullPath));
     ipcMain.handle('gitbox:revealInFolder', async (_, fullPath) => fileActionsCmd.revealInFolder(fullPath));
     ipcMain.handle('gitbox:assumeUnchanged', async (_, repoPath, filePath, assume) => fileActionsCmd.assumeUnchanged(repoPath, filePath, assume));
-    ipcMain.handle('gitbox:stashFile', async (_, repoPath, filePath, message) => fileActionsCmd.stashFile(repoPath, filePath, message));
+    ipcMain.handle('gitbox:stashFile', async (_, repoPath, filePath, message, options) => fileActionsCmd.stashFile(repoPath, filePath, message, options));
     ipcMain.handle('gitbox:savePatch', async (_, repoPath, filePath, staged) => fileActionsCmd.savePatch(repoPath, filePath, staged));
     ipcMain.handle('gitbox:fileHistory', async (_, repoPath, filePath, maxCount) => fileActionsCmd.fileHistory(repoPath, filePath, maxCount));
     ipcMain.handle('gitbox:saveTextFile', async (_, defaultName, content) => fileActionsCmd.saveTextFile(defaultName, content));

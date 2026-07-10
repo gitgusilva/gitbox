@@ -16,7 +16,8 @@ class Pull extends Command {
             try {
                 const remote = remoteName || 'origin';
                 const token = getTokenForRemote(this.addon, repoPath, remote);
-                return this.addon.pull(repoPath, remote, token);
+                // addon.pull now returns a Promise (runs off the main thread).
+                return await this.addon.pull(repoPath, remote, token);
             } catch (e) { throw new Error(e.message); }
     }
 }

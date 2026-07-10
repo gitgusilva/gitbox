@@ -127,8 +127,10 @@ const getStatusColor = (status: string, isSelected: boolean) => {
 
 <template>
   <div ref="containerRef" class="flex-1 flex min-h-0 bg-app select-none text-content">
-    <!-- Left Column: Stashes and Files -->
-    <div class="w-[480px] border-r border-line flex flex-col flex-shrink-0 bg-app overflow-hidden">
+    <!-- Left Column: Stashes and Files (horizontally resizable, like Local Changes) -->
+    <div class="border-r border-line flex flex-col flex-shrink-0 bg-app overflow-hidden relative"
+         :style="{ width: `var(--layout-stash-width, ${layoutRefs.stashPanelWidth.value}px)` }">
+      <Resizer :target="(layoutRefs.stashPanelWidth as any)" :options="{ min: 280, max: 900, cssVar: '--layout-stash-width' }" class="absolute right-0 top-0 bottom-0 z-40" />
       <!-- Stash List (Top) -->
       <div class="flex-1 flex flex-col min-h-0 bg-app relative">
         <header class="bg-surface border-b border-line px-4 py-2 text-[10px] font-bold text-content-muted uppercase tracking-widest flex items-center justify-between relative z-10">
@@ -165,8 +167,8 @@ const getStatusColor = (status: string, isSelected: boolean) => {
             </div>
           </div>
           </VirtualScroll>
-          <div v-if="stashes.length === 0" class="p-12 text-center opacity-30 mt-20">
-            <Icon icon="lucide:layers" class="text-3xl mx-auto mb-3" />
+          <div v-if="stashes.length === 0" class="absolute inset-0 flex flex-col items-center justify-center text-center opacity-30 pointer-events-none">
+            <Icon icon="lucide:layers" class="text-3xl mb-3" />
             <div class="text-[9px] uppercase font-black tracking-widest">{{ t('view.no_stashes_found') }}</div>
           </div>
 

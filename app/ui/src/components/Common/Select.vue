@@ -92,7 +92,9 @@ function updatePosition() {
 }
 
 /**
- * Opens the dropdown and focuses/selects the input if present.
+ * Opens the dropdown and focuses the input if present. The input is only focused
+ * (not select-all'd) — highlighting the whole text on open looked like an
+ * accidental selection and let a stray keystroke wipe the field.
  */
 function openDropdown() {
   isOpen.value = true;
@@ -100,7 +102,6 @@ function openDropdown() {
       updatePosition();
       if (inputRef.value) {
           inputRef.value.focus();
-          inputRef.value.select();
       }
   });
 }
@@ -135,15 +136,56 @@ function closeDropdown(e?: MouseEvent) {
   }
 }
 
+/** Nearest scrollable ancestor of the trigger (the modal body, a panel, …). */
+function getScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement || null;
+  while (node) {
+    const s = getComputedStyle(node);
+    if (/(auto|scroll|overlay)/.test(s.overflowY + s.overflowX + s.overflow)) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/** True while the trigger is still visible within the viewport AND its scroll container. */
+function isTriggerVisible(): boolean {
+  if (!containerRef.value) return false;
+  const r = containerRef.value.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return false;
+  const sp = getScrollParent(containerRef.value);
+  if (sp) {
+    const s = sp.getBoundingClientRect();
+    if (r.bottom <= s.top || r.top >= s.bottom || r.right <= s.left || r.left >= s.right) return false;
+  }
+  return true;
+}
+
+// The dropdown is teleported to <body>. Keep it glued to the trigger as ancestors
+// scroll (reactive), but hide it once the trigger scrolls out of view — otherwise
+// it floats, orphaned, over unrelated content. Scrolling the dropdown's own option
+// list must NOT trigger this.
+function onOuterScroll(e: Event) {
+  if (!isOpen.value) return;
+  const target = e.target as Node | null;
+  if (target && dropdownRef.value?.contains(target)) return;
+  if (!isTriggerVisible()) {
+    isOpen.value = false;
+    return;
+  }
+  updatePosition();
+}
+
 onMounted(() => {
   document.addEventListener('mousedown', closeDropdown as EventListener);
   window.addEventListener('resize', updatePosition);
-  window.addEventListener('scroll', updatePosition, true);
+  window.addEventListener('scroll', onOuterScroll, true);
 });
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', closeDropdown as EventListener);
   window.removeEventListener('resize', updatePosition);
-  window.removeEventListener('scroll', updatePosition, true);
+  window.removeEventListener('scroll', onOuterScroll, true);
 });
 
 /**

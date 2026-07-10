@@ -100,7 +100,7 @@ function onConfirm() {
 
                     <div class="space-y-1.5 flex flex-col">
                         <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('push_modal.remote') || 'Remote' }}</label>
-                        <Select v-model="selectedRemote" :options="remoteOptions" icon="mdi:cloud-outline" />
+                        <Select v-model="selectedRemote" :options="remoteOptions" searchable icon="mdi:cloud-outline" />
                     </div>
 
                     <div class="space-y-1.5 flex flex-col">

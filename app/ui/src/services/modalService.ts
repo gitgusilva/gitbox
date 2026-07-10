@@ -16,6 +16,17 @@ export const inputModal = ref<{
     onConfirm: (val: string) => void
 } | null>(null);
 
+/** Stash dialog state: pick a message + mode, applied to `fileCount` selected files. */
+export interface StashMode { keepIndex: boolean; includeUntracked: boolean; }
+export const stashModal = ref<{
+    fileCount: number,
+    onConfirm: (message: string, mode: StashMode) => void
+} | null>(null);
+
+export function requestStash(fileCount: number, onConfirm: (message: string, mode: StashMode) => void) {
+    stashModal.value = { fileCount, onConfirm };
+}
+
 /**
  * Position and items for a context menu.
  */

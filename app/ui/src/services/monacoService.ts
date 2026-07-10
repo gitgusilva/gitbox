@@ -51,20 +51,26 @@ function defineMonacoTheme(theme: GitboxTheme) {
             'editor.background': c.bg,
             'editor.foreground': c.text,
             'editorLineNumber.foreground': withAlpha(c.textMuted, 0.6),
-            'editorLineNumber.activeForeground': c.text,
-            'editorCursor.foreground': c.text,
-            'editor.selectionBackground': withAlpha(c.accent, 0.30),
-            'editor.inactiveSelectionBackground': withAlpha(c.accent, 0.18),
+            'editorLineNumber.activeForeground': c.textStrong,
+            'editorCursor.foreground': c.accent,
+            // "Our" line-number gutter: a distinct surface strip (matches the merge
+            // editor's custom gutter) so every editor reads the same across the app.
+            'editorGutter.background': c.bgElevated,
+            'editor.selectionBackground': withAlpha(c.accent, 0.35),
+            'editor.inactiveSelectionBackground': withAlpha(c.accent, 0.22),
+            'editor.selectionHighlightBackground': withAlpha(c.accent, 0.18),
             'editor.lineHighlightBackground': withAlpha(c.surfaceHover, 0.5),
             'editorIndentGuide.background': withAlpha(c.border, 0.7),
             'editorWhitespace.foreground': withAlpha(c.textMuted, 0.3),
-            'editorGutter.background': c.bg,
             'diffEditor.insertedTextBackground': withAlpha(c.added, 0.18),
             'diffEditor.removedTextBackground': withAlpha(c.removed, 0.18),
             'diffEditor.insertedLineBackground': withAlpha(c.added, 0.10),
             'diffEditor.removedLineBackground': withAlpha(c.removed, 0.10),
             'scrollbarSlider.background': withAlpha(c.textMuted, 0.25),
             'scrollbarSlider.hoverBackground': withAlpha(c.textMuted, 0.4),
+            // The diff editor's drag-to-resize divider (sash) — theme its hover so
+            // it matches GitBox's own resizers instead of Monaco's default blue.
+            'sash.hoverBorder': c.accent,
         },
     });
     themeDefined = true;
@@ -86,6 +92,11 @@ export const monacoOptions: any = {
     automaticLayout: false,
     minimap: { enabled: false },
     stickyScroll: { enabled: false },
+    // Shared line-number gutter config so every editor (diff, file, side-by-side)
+    // renders "our" line numbers identically — tuned once here, applied everywhere.
+    lineNumbers: 'on',
+    lineNumbersMinChars: 4,
+    glyphMargin: false,
     contextmenu: false,
     // Keep editors read-only but suppress Monaco's "Cannot edit in read-only
     // editor" tooltip when the user types into a read-only pane.
@@ -105,6 +116,11 @@ export const monacoOptions: any = {
         horizontalScrollbarSize: 10,
     },
     lightbulb: { enabled: false },
+    // Keep the inline colour swatch preview next to hex/rgb literals, but never
+    // pop the interactive colour picker on hover (only if the user deliberately
+    // clicks the swatch). Editors are read-only, so the picker is just noise.
+    colorDecorators: true,
+    colorDecoratorsActivatedOn: 'click',
     hideUnchangedRegions: { enabled: false },
     renderMarginRevertIcon: false,
     renderIndicators: false,

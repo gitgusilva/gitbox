@@ -17,25 +17,31 @@ const confirmDisabled = computed(() => {
     return false;
 });
 
+/** Escape user text before it goes into v-html (branch names are free-form). */
+function escapeHtml(s: string) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 const highlightedBranchName = computed(() => {
     const val = inputValue.value || '';
     const match = val.match(/^((?:bugfix|feature|hotfix|pr|release|fix|chore|docs|refactor|test|wip|build|ci|perf|style)\/)(.*)/i);
     if (match) {
-        let prefixClass = 'text-blue-400 bg-blue-900/30'; // default feature-like
+        // Map each prefix category to a semantic THEME token so the badge adapts to
+        // the active theme (light/dark/custom), like the history commit badges —
+        // instead of fixed tailwind colours that ignore the theme.
         const prefixLower = match[1].toLowerCase();
-        
-        if (prefixLower.startsWith('bug') || prefixLower.startsWith('hot') || prefixLower.startsWith('fix')) 
-           prefixClass = 'text-red-400 bg-red-900/30';
-        else if (prefixLower.startsWith('feat')) 
-           prefixClass = 'text-green-400 bg-green-900/30';
-        else if (prefixLower.startsWith('pr')) 
-           prefixClass = 'text-purple-400 bg-purple-900/30';
-        else if (prefixLower.startsWith('rel')) 
-           prefixClass = 'text-orange-400 bg-orange-900/30';
+        let cssVar = '--gb-accent'; // default (feature-like)
+        if (prefixLower.startsWith('bug') || prefixLower.startsWith('hot') || prefixLower.startsWith('fix'))
+           cssVar = '--gb-removed';
+        else if (prefixLower.startsWith('feat'))
+           cssVar = '--gb-added';
+        else if (prefixLower.startsWith('rel'))
+           cssVar = '--gb-modified';
 
-        return `<span class="${prefixClass} rounded font-semibold px-0.5">${match[1]}</span><span>${match[2]}</span>`;
+        const style = `color: rgb(var(${cssVar})); background: rgb(var(${cssVar}) / 0.18);`;
+        return `<span style="${style}" class="rounded font-semibold px-0.5">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span>`;
     }
-    return `<span>${val}</span>`;
+    return `<span>${escapeHtml(val)}</span>`;
 });
 
 watch(() => branchActionModal.value, (newVal) => {
@@ -91,7 +97,7 @@ function handleCancel() {
         </div>
         <div class="flex justify-end gap-3">
           <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
-          <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-900/20 transition-all outline-none disabled:opacity-30 disabled:cursor-not-allowed">{{ t('common.create') }}</button>
+          <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest text-accent-fg bg-accent hover:bg-accent-hover shadow-lg transition-all outline-none disabled:opacity-30 disabled:cursor-not-allowed">{{ t('common.create') }}</button>
         </div>
       </template>
 
@@ -121,8 +127,8 @@ function handleCancel() {
         <div class="flex justify-end gap-3">
           <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
           <button @click="confirmCheckout"
-                  class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest text-white shadow-lg transition-all outline-none"
-                  :class="branchActionModal.hasChanges && localChangeChoice === 'discard' ? 'bg-red-600 hover:bg-red-500 shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20'">
+                  class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest shadow-lg transition-all outline-none"
+                  :class="branchActionModal.hasChanges && localChangeChoice === 'discard' ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/20' : 'bg-accent hover:bg-accent-hover text-accent-fg'">
             {{ t('common.ok') }}
           </button>
         </div>

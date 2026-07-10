@@ -24,6 +24,9 @@ const props = defineProps<{
   commit: Commit;
   /** List of references (branches, tags) associated with this commit. */
   commitRefs: { name: string, type: 'branch' | 'tag' | 'remote', isHead?: boolean }[];
+  /** Lane colour of this commit in the graph — keeps the ref badges here identical
+   *  to the commit-list badges (same per-branch colour, not a flat accent). */
+  graphColor?: string;
   /** List of files changed in this commit. */
   changedFiles: any[];
   /** Whether to show the changed files section. Default is true. */
@@ -158,13 +161,16 @@ function getStatusColor(status: string) {
             <div v-if="commitRefs.length > 0" class="h-stack items-start">
                <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.refs') }}</div>
                <div class="flex-1 flex flex-wrap gap-2">
-                  <span v-for="ref in commitRefs" :key="ref.name" 
-                        class="h-stack gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold border"
-                        :class="[
-                          ref.type === 'branch' ? 'bg-accent/15 text-accent border-accent/30' :
-                          ref.type === 'remote' ? 'bg-purple-900/20 text-purple-400 border-purple-500/30' :
-                          'bg-yellow-900/20 text-yellow-500 border-yellow-500/30'
-                        ]">
+                  <span v-for="ref in commitRefs" :key="ref.name"
+                        class="h-stack gap-1.5 px-2 py-0.5 rounded text-[10px] border"
+                        :class="ref.type === 'tag'
+                          ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-500 font-medium'
+                          : (ref.isHead ? 'font-bold' : 'font-medium')"
+                        :style="ref.type !== 'tag' ? {
+                          color: (graphColor || '#888888'),
+                          borderColor: (graphColor || '#888888'),
+                          backgroundColor: (graphColor || '#888888') + (ref.isHead ? '22' : '14')
+                        } : {}">
                      <Icon :icon="ref.isHead ? 'lucide:check-circle-2' : (ref.type === 'branch' ? 'lucide:git-branch' : (ref.type === 'remote' ? 'lucide:cloud' : 'lucide:tag'))" class="text-[10px]" />
                      {{ ref.name }}
                   </span>

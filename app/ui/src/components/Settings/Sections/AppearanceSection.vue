@@ -145,8 +145,8 @@ async function onInstall(entry: RegistryEntry) {
     <section>
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-baseline gap-2">
-          <h3 class="text-[11px] font-bold uppercase tracking-widest text-neutral-500">{{ t('appearance.custom_themes') }}</h3>
-          <span v-if="registryLoading" class="text-[9px] text-neutral-500">{{ t('appearance.loading') }}</span>
+          <h3 class="text-[11px] font-bold uppercase tracking-widest text-content-muted">{{ t('appearance.custom_themes') }}</h3>
+          <span v-if="registryLoading" class="text-[9px] text-content-muted">{{ t('appearance.loading') }}</span>
         </div>
         <div class="flex items-center gap-1.5">
           <button @click="onImport" class="px-2 py-1 text-[10px] rounded border border-line-strong text-content hover:bg-surface-hover flex items-center gap-1">
@@ -165,7 +165,7 @@ async function onInstall(entry: RegistryEntry) {
       <!-- Search + filter -->
       <div class="flex items-center gap-2 mb-3">
         <div class="relative flex-1">
-          <Icon icon="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
+          <Icon icon="lucide:search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-content-muted" />
           <input v-model="search" :placeholder="t('appearance.search')"
                  class="w-full h-8 pl-8 pr-2 text-[11px] rounded-lg border border-line-strong bg-app text-content focus:outline-none focus:border-accent" />
         </div>
@@ -179,7 +179,7 @@ async function onInstall(entry: RegistryEntry) {
       </div>
 
       <!-- Offline note: local/default themes still show; new fetches unavailable -->
-      <div v-if="registryError" class="text-[10px] text-neutral-500 mb-2 flex items-center gap-1.5">
+      <div v-if="registryError" class="text-[10px] text-content-muted mb-2 flex items-center gap-1.5">
         <Icon icon="lucide:wifi-off" class="w-3 h-3 shrink-0" />
         {{ registryThemes.length > 0 ? t('appearance.repo_offline_cached') : t('appearance.repo_offline') }}
       </div>
@@ -200,7 +200,7 @@ async function onInstall(entry: RegistryEntry) {
               <Icon icon="lucide:check" class="w-3 h-3" />
             </div>
             <button v-if="card.local && !card.local.builtin" @click.stop="deleteTheme(card.local.id)"
-                    class="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-neutral-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-content-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                     :title="t('common.delete')">
               <Icon icon="lucide:x" class="w-3 h-3" />
             </button>
@@ -210,7 +210,7 @@ async function onInstall(entry: RegistryEntry) {
               <span class="text-[11px] font-medium text-content truncate">{{ card.name }}</span>
               <span v-if="isActive(card)" class="text-[8px] uppercase tracking-wide text-accent shrink-0">{{ t('appearance.active') }}</span>
             </div>
-            <div v-if="card.author" class="text-[9px] text-neutral-500 truncate">{{ t('appearance.by', { author: card.author }) }}</div>
+            <div v-if="card.author" class="text-[9px] text-content-muted truncate">{{ t('appearance.by', { author: card.author }) }}</div>
             <button v-if="!card.local" @click.stop="installCard(card)" :disabled="installingId === card.entry?.id"
                     class="mt-1 h-7 rounded text-[10px] font-medium flex items-center justify-center gap-1 bg-accent text-accent-fg hover:bg-accent-hover transition-colors disabled:opacity-60">
               <Icon :icon="installingId === card.entry?.id ? 'lucide:loader-2' : 'lucide:download'" class="w-3 h-3" :class="installingId === card.entry?.id ? 'animate-spin' : ''" />
@@ -221,7 +221,7 @@ async function onInstall(entry: RegistryEntry) {
 
         <!-- Publish a theme: opens the community registry repo -->
         <button @click="openRegistryRepo"
-                class="rounded-lg border border-dashed border-line hover:border-accent hover:text-accent flex flex-col items-center justify-center gap-1.5 p-2.5 text-neutral-500 min-h-[120px] transition-colors">
+                class="rounded-lg border border-dashed border-line hover:border-accent hover:text-accent flex flex-col items-center justify-center gap-1.5 p-2.5 text-content-muted min-h-[120px] transition-colors">
           <Icon icon="lucide:github" class="w-5 h-5" />
           <span class="text-[10px] font-medium flex items-center gap-1">
             {{ t('appearance.publish_theme') }} <Icon icon="lucide:external-link" class="w-2.5 h-2.5" />
@@ -230,13 +230,13 @@ async function onInstall(entry: RegistryEntry) {
       </div>
 
       <div v-if="filteredCards.length === 0" class="mt-2 flex items-center gap-2">
-        <p class="text-[11px] text-neutral-500">{{ t('appearance.no_match') }}</p>
+        <p class="text-[11px] text-content-muted">{{ t('appearance.no_match') }}</p>
         <button @click="onImport" class="px-2 py-1 text-[10px] rounded border border-line-strong text-content hover:bg-surface-hover flex items-center gap-1">
           <Icon icon="lucide:upload" class="w-3 h-3" /> {{ t('appearance.import_local') }}
         </button>
       </div>
 
-      <p class="text-[10px] text-neutral-500 mt-3 flex items-center gap-1.5">
+      <p class="text-[10px] text-content-muted mt-3 flex items-center gap-1.5">
         <Icon icon="lucide:info" class="w-3 h-3 shrink-0" /> {{ t('appearance.customize_hint') }}
       </p>
     </section>

@@ -12,6 +12,7 @@ import InputModal from '../components/InputModal.vue';
 import DeviceFlowModal from '../components/DeviceFlowModal.vue';
 import ToastContainer from '../components/ToastContainer.vue';
 import BranchActionModal from '../components/BranchActionModal.vue';
+import StashModal from '../components/StashModal.vue';
 import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
 import { activeWorkspaceId, workspaces, isChangelogVisible } from '../services/workspaceService';
 import TerminalPanel from './TerminalPanel.vue';
@@ -69,6 +70,7 @@ const { t } = useI18n();
     <ContextMenu v-if="contextMenu" :x="contextMenu.x" :y="contextMenu.y" :items="contextMenu.items" @close="contextMenu = null" />
     <DeviceFlowModal v-if="deviceFlowModal" />
     <BranchActionModal v-if="branchActionModal" />
+    <StashModal />
     <ToastContainer />
 
     <ConfirmModal v-if="confirmModal"

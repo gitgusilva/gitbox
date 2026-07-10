@@ -22,9 +22,14 @@ function runAiCli(id, prompt, { timeoutMs = 180000, maxBytes = 8 * 1024 * 1024 }
         let settled = false;
         const finish = (r) => { if (!settled) { settled = true; resolve(r); } };
 
+        // Some CLIs (e.g. Antigravity's `agy -p "<prompt>"`) take the prompt as a
+        // positional ARGUMENT and ignore stdin; others read it from stdin. runArgs
+        // + promptAsArg on the registry entry decides which.
+        const args = resolved.promptAsArg ? [...resolved.runArgs, prompt] : resolved.runArgs;
+
         let child;
         try {
-            child = spawn(resolved.path, resolved.runArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+            child = spawn(resolved.path, args, { stdio: ['pipe', 'pipe', 'pipe'] });
         } catch (e) {
             return finish({ text: '', error: String((e && e.message) || e) });
         }
@@ -47,7 +52,12 @@ function runAiCli(id, prompt, { timeoutMs = 180000, maxBytes = 8 * 1024 * 1024 }
             else finish({ text: '', error: err.trim() || `AI CLI exited with code ${code}` });
         });
 
-        try { child.stdin.write(prompt); child.stdin.end(); } catch { /* ignore */ }
+        // Feed the prompt via stdin only for CLIs that read it there; for
+        // promptAsArg CLIs it's already on the command line, so just close stdin.
+        try {
+            if (!resolved.promptAsArg) child.stdin.write(prompt);
+            child.stdin.end();
+        } catch { /* ignore */ }
     });
 }
 

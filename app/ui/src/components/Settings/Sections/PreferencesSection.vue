@@ -13,38 +13,48 @@ const mergeLayoutOptions = computed(() => [
     { value: 'stacked', label: t('settings.merge_layout_stacked') },
 ]);
 
-const diffToolOptions = ref([
-    { value: 'use_merge_tool', label: '<Use Merge Tool>' },
-    { value: 'none', label: '<None>' },
-    { value: 'git_config_default', label: 'Git Config Default' },
-    { value: 'custom', label: '<Custom>' }
+// Tools auto-detected on the machine (populated onMounted). The lists below combine
+// the meaningful built-in choices with whatever is installed. Dropped the old
+// "<Custom>" (there is no custom-command field, so it did nothing) and redundant
+// "<None>" entries where a clearer default already exists.
+const detectedEditors = ref<{ value: string, label: string }[]>([]);
+const detectedTerminals = ref<{ value: string, label: string }[]>([]);
+const detectedMerge = ref<{ value: string, label: string }[]>([]);
+const detectedDiff = ref<{ value: string, label: string }[]>([]);
+
+const mergeToolOptions = computed(() => [
+    { value: 'gitbox', label: t('settings.tool_gitbox_builtin') },
+    { value: 'git_config_default', label: t('settings.tool_git_default') },
+    ...detectedMerge.value,
 ]);
 
-const mergeToolOptions = ref([
-    { value: 'gitbox', label: 'GitBox (Built-in)' },
-    { value: 'git_config_default', label: 'Git Config Default' },
-    { value: 'none', label: '<None>' },
-    { value: 'custom', label: '<Custom>' }
+const diffToolOptions = computed(() => [
+    { value: 'use_merge_tool', label: t('settings.tool_use_merge') },
+    { value: 'git_config_default', label: t('settings.tool_git_default') },
+    ...detectedDiff.value,
 ]);
 
-const editorOptions = ref([
-    { value: 'none', label: '<None>' },
-    { value: 'custom', label: '<Custom>' }
+const editorOptions = computed(() => [
+    { value: 'none', label: t('settings.tool_none') },
+    ...detectedEditors.value,
 ]);
 
-const terminalOptions = ref([
-    { value: 'none', label: '<None>' },
-    { value: 'custom', label: '<Custom>' }
-]);
+const terminalOptions = computed(() => (
+    // The detected list already leads with "GitBox Integrated Terminal".
+    detectedTerminals.value.length
+        ? detectedTerminals.value
+        : [{ value: 'gitbox', label: 'GitBox Integrated Terminal' }]
+));
 
 onMounted(async () => {
     // @ts-ignore
     if (window.gitbox?.detectExternalTools) {
         // @ts-ignore
         const tools = await window.gitbox.detectExternalTools();
-        if (tools.editors) editorOptions.value.push(...tools.editors);
-        if (tools.terminals) terminalOptions.value.push(...tools.terminals);
-        if (tools.mergeTools) mergeToolOptions.value.push(...tools.mergeTools);
+        if (tools.editors) detectedEditors.value = tools.editors;
+        if (tools.terminals) detectedTerminals.value = tools.terminals;
+        if (tools.mergeTools) detectedMerge.value = tools.mergeTools;
+        if (tools.diffTools) detectedDiff.value = tools.diffTools;
     }
 });
 </script>
@@ -61,46 +71,46 @@ onMounted(async () => {
 
         <!-- Merge Tool -->
         <div>
-          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-content-muted uppercase mb-2">
             {{ t('settings.merge_tool') }}
             <Tooltip :text="t('settings.external_merge_tool')">
-              <Icon icon="lucide:help-circle" class="text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 text-sm cursor-help normal-case" />
+              <Icon icon="lucide:help-circle" class="text-content-muted hover:text-content-strong text-sm cursor-help normal-case" />
             </Tooltip>
           </label>
-          <Select v-model="generalSettings.externalMergeTool" :options="mergeToolOptions" class="w-full" />
+          <Select v-model="generalSettings.externalMergeTool" :options="mergeToolOptions" searchable class="w-full" />
         </div>
 
         <!-- Diff Tool -->
         <div>
-          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-content-muted uppercase mb-2">
             {{ t('settings.diff_tool') }}
             <Tooltip :text="t('settings.external_diff_tool')">
-              <Icon icon="lucide:help-circle" class="text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 text-sm cursor-help normal-case" />
+              <Icon icon="lucide:help-circle" class="text-content-muted hover:text-content-strong text-sm cursor-help normal-case" />
             </Tooltip>
           </label>
-          <Select v-model="generalSettings.externalDiffTool" :options="diffToolOptions" class="w-full" />
+          <Select v-model="generalSettings.externalDiffTool" :options="diffToolOptions" searchable class="w-full" />
         </div>
 
         <!-- Editor -->
         <div>
-          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-content-muted uppercase mb-2">
             {{ t('settings.editor') }}
             <Tooltip :text="t('settings.external_editor')">
-              <Icon icon="lucide:help-circle" class="text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 text-sm cursor-help normal-case" />
+              <Icon icon="lucide:help-circle" class="text-content-muted hover:text-content-strong text-sm cursor-help normal-case" />
             </Tooltip>
           </label>
-          <Select v-model="generalSettings.externalEditor" :options="editorOptions" class="w-full" />
+          <Select v-model="generalSettings.externalEditor" :options="editorOptions" searchable class="w-full" />
         </div>
 
         <!-- Terminal -->
         <div>
-          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-content-muted uppercase mb-2">
             {{ t('settings.terminal') }}
             <Tooltip :text="t('settings.external_terminal')">
-              <Icon icon="lucide:help-circle" class="text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 text-sm cursor-help normal-case" />
+              <Icon icon="lucide:help-circle" class="text-content-muted hover:text-content-strong text-sm cursor-help normal-case" />
             </Tooltip>
           </label>
-          <Select v-model="generalSettings.externalTerminal" :options="terminalOptions" class="w-full" />
+          <Select v-model="generalSettings.externalTerminal" :options="terminalOptions" searchable class="w-full" />
         </div>
 
       </div>
@@ -113,10 +123,10 @@ onMounted(async () => {
       </h2>
       <div class="flex flex-col gap-6">
         <div>
-          <label class="flex items-center gap-1.5 text-xs font-bold text-neutral-500 uppercase mb-2">
+          <label class="flex items-center gap-1.5 text-xs font-bold text-content-muted uppercase mb-2">
             {{ t('settings.merge_layout') }}
           </label>
-          <Select v-model="generalSettings.mergeLayout" :options="mergeLayoutOptions" class="w-full" />
+          <Select v-model="generalSettings.mergeLayout" :options="mergeLayoutOptions" searchable class="w-full" />
           <p class="text-[11px] text-content-muted mt-2">{{ t('settings.merge_layout_hint') }}</p>
         </div>
       </div>

@@ -26,7 +26,7 @@ function onInput(event: Event) {
   <div class="range-slider-wrapper relative w-full flex flex-col min-h-[1.5rem] px-1.5">
     <div class="range-slider-container relative w-full flex items-center h-4">
       <!-- Custom Track Background -->
-      <div class="absolute w-full h-[3px] bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden pointer-events-none">
+      <div class="absolute w-full h-[3px] bg-line rounded-full overflow-hidden pointer-events-none">
           <!-- Progress Bar (color of the dot) -->
           <div class="h-full bg-accent" :style="{ width: `${progressPercent}%` }"></div>
       </div>

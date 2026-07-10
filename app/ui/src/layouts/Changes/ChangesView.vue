@@ -11,6 +11,7 @@ import {
   selectedFile, 
   selectedFiles,
   commitMessage,
+  amendLast,
   stageAll,
   stageFile,
   unstageAll,
@@ -39,7 +40,7 @@ import Tooltip from '../../components/Common/Tooltip.vue';
 import Button from '../../components/Common/Button.vue';
 import { generateCommitMessage, explainChanges, isAIConfigured, aiConfigVersion } from '../../services/ai';
 import { getItem, setItem } from '../../services/storageService';
-import { contextMenu, requestConfirm } from '../../services/modalService';
+import { contextMenu, requestConfirm, requestInput, requestStash } from '../../services/modalService';
 import SubmoduleInfoView from '../../components/Common/SubmoduleInfoView.vue';
 import { submodules } from '../../services/gitService';
 import { useElementHover } from '@vueuse/core';
@@ -120,11 +121,11 @@ async function moveSelected(toStaged: boolean) {
 }
 
 /**
- * Handles discarding changes for specific files or all selected files.
- * @param {string} [path] - Optional specific file path to discard.
+ * Discards all currently selected files. The context menu keeps the clicked
+ * file inside `selectedFiles`, so this always acts on the whole selection.
  */
-async function handleDiscard(path?: string) {
-  const targets = (path ? [path] : [...selectedFiles.value]).filter(Boolean);
+async function handleDiscard() {
+  const targets = [...selectedFiles.value].filter(Boolean);
   if (targets.length === 0) return;
   
   const msg = targets.length === 1 
@@ -133,6 +134,11 @@ async function handleDiscard(path?: string) {
 
   requestConfirm(t('changes.discard_title'), msg + ' ' + t('changes.discard_undo_warning'), true, async () => {
     for (const f of targets) {
+      // Staged files must be unstaged before their working-tree changes can be
+      // discarded — do both, quietly, so the change is removed entirely.
+      if (stagedFiles.value.some(s => s.path === f)) {
+        await unstageFile(f);
+      }
       await discardFile(f);
     }
   });
@@ -156,23 +162,28 @@ async function revealFile() {
   if (selectedFile.value) await window.gitbox.revealInFolder(fullPathOf(selectedFile.value));
 }
 
-/** Stash only the selected file. */
-async function stashSingleFile() {
-  if (!repoPath.value || !selectedFile.value) return;
-  try {
-    await window.gitbox.stashFile(repoPath.value, selectedFile.value);
-    await loadRepoData();
-    showToast(t('common.success'), t('changes.stashed_file'), 'success');
-  } catch (e: any) {
-    showToast(t('common.error'), e?.message || String(e), 'error');
-  }
+/** Stash the current file selection via the stash dialog (message + mode). */
+function stashSelectedFiles() {
+  const paths = selectedFiles.value.length ? [...selectedFiles.value] : (selectedFile.value ? [selectedFile.value] : []);
+  if (!repoPath.value || paths.length === 0) return;
+
+  requestStash(paths.length, async (message, mode) => {
+    try {
+      await window.gitbox.stashFile(repoPath.value, paths, message, mode);
+      await loadRepoData();
+      showToast(t('common.success'), t('changes.stashed_file'), 'success');
+    } catch (e: any) {
+      showToast(t('common.error'), e?.message || String(e), 'error');
+    }
+  });
 }
 
-/** Export the file's diff as a `.patch` via a native save dialog. */
+/** Export the current file selection's diff as a single `.patch` via a save dialog. */
 async function saveFilePatch(staged: boolean) {
-  if (!repoPath.value || !selectedFile.value) return;
+  const paths = selectedFiles.value.length ? [...selectedFiles.value] : (selectedFile.value ? [selectedFile.value] : []);
+  if (!repoPath.value || paths.length === 0) return;
   try {
-    const result = await window.gitbox.savePatch(repoPath.value, selectedFile.value, staged);
+    const result = await window.gitbox.savePatch(repoPath.value, paths, staged);
     if (result.saved) showToast(t('common.success'), t('changes.saved_patch'), 'success');
   } catch (e: any) {
     showToast(t('common.error'), e?.message || String(e), 'error');
@@ -216,8 +227,8 @@ function openContextMenu(e: MouseEvent, panel: 'unstaged' | 'staged', path?: str
       isStaged
         ? { label: t('changes_menu.unstage'), icon: 'lucide:minus', shortcut: 'Enter/Space', action: () => moveSelected(false) }
         : { label: t('changes_menu.stage'), icon: 'lucide:plus', shortcut: 'Enter/Space', action: () => moveSelected(true) },
-      !isStaged ? { label: t('changes_menu.discard'), icon: 'lucide:undo-2', shortcut: 'Back/Delete', action: () => handleDiscard(path) } : null,
-      { label: t('changes_menu.stash'), icon: 'lucide:package', action: () => stashSingleFile() },
+      { label: t('changes_menu.discard'), icon: 'lucide:undo-2', shortcut: 'Back/Delete', action: () => handleDiscard() },
+      { label: t('changes_menu.stash'), icon: 'lucide:package', action: () => stashSelectedFiles() },
       { label: t('changes_menu.save_patch'), icon: 'lucide:file-text', action: () => saveFilePatch(isStaged) },
       !isStaged ? { label: t('changes_menu.assume_unchanged'), icon: 'lucide:eye-off', action: () => toggleAssumeUnchanged() } : null,
       isStaged ? { label: t('changes_menu.generate_commit'), icon: 'lucide:wand-2', action: () => handleGenerateCommit() } : null,
@@ -372,6 +383,16 @@ function openCommitInHistory(sha: string) {
   if (commit) selectedCommits.value = [commit];
 }
 
+/** Rich hover text for a conflict-side commit: author, date and subject, pulled
+ *  from the already-loaded log. Falls back to the "view in history" hint. */
+function commitTooltip(sha: string): string {
+  if (!sha) return t('changes.view_in_history');
+  const c: any = log.value.find((x: any) => x.id === sha || x.id.startsWith(sha) || sha.startsWith(x.id));
+  if (!c) return t('changes.view_in_history');
+  const when = c.timestamp ? new Date(Number(c.timestamp) * 1000).toLocaleString() : '';
+  return [c.author, when, '', c.summary].filter((s) => s !== undefined).join('\n');
+}
+
 // NOTE: the watcher that drives loadConflictType is registered AFTER
 // `allChangedFiles` is declared (below), because watch() evaluates its source
 // once at setup and isSelectedFileConflicted reads allChangedFiles.
@@ -460,6 +481,62 @@ function handleSelect(path: string, event?: MouseEvent) {
 
 }
 
+// --- Ctrl/Cmd+A: select every file in the panel under the cursor ------------
+const unstagedPaneRef = ref<HTMLElement | null>(null);
+const stagedPaneRef = ref<HTMLElement | null>(null);
+const isUnstagedHovered = useElementHover(unstagedPaneRef);
+const isStagedHovered = useElementHover(stagedPaneRef);
+
+/** Selects every file in a panel, keeping the currently open diff active when it
+ *  belongs to this panel; only falls back to the last file when nothing relevant
+ *  is open (so Ctrl+A doesn't yank the viewer away from the file you're reading). */
+function selectAllInPanel(files: { path: string }[]) {
+  if (files.length === 0) return;
+  selectedFiles.value = files.map(f => f.path);
+  const current = selectedFile.value;
+  if (!current || !files.some(f => f.path === current)) {
+    selectedFile.value = files[files.length - 1].path;
+  }
+}
+
+/** True when the pointer sits over either file list (unstaged or staged). */
+const isOverFileList = () => isUnstagedHovered.value || isStagedHovered.value;
+
+/** True when the focused element is a text field, where the key must pass through. */
+function isTypingTarget() {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
+
+/**
+ * Global keyboard handler for the changes panels (only acts while the pointer
+ * is over a file list, and never while typing in an input/textarea):
+ *  - Ctrl/Cmd+A       → select every file in the hovered panel.
+ *  - Delete/Backspace → discard the current selection (staged files are
+ *    unstaged first, then discarded), behind the same confirmation modal.
+ * @param {KeyboardEvent} e - The keydown event.
+ */
+function onPanelKeyDown(e: KeyboardEvent) {
+  if (isTypingTarget()) return;
+
+  if (e.key.toLowerCase() === 'a' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    if (isUnstagedHovered.value) {
+      e.preventDefault();
+      selectAllInPanel(unstagedFiles.value);
+    } else if (isStagedHovered.value) {
+      e.preventDefault();
+      selectAllInPanel(stagedFiles.value);
+    }
+    return;
+  }
+
+  if ((e.key === 'Delete' || e.key === 'Backspace') && isOverFileList()) {
+    if (selectedFiles.value.length === 0) return;
+    e.preventDefault();
+    handleDiscard();
+  }
+}
+
 /**
  * Handles double-click on a file, typically toggling its stage state.
  * @param {string} path - The path of the double-clicked file.
@@ -483,7 +560,8 @@ let rightPanelObs: ResizeObserver | null = null;
 
 onMounted(() => {
   nextTick(loadDiff);
-  
+  window.addEventListener('keydown', onPanelKeyDown);
+
   if (statusContainerRef.value) {
     const h = statusContainerRef.value.clientHeight;
     if (h > 0) {
@@ -505,6 +583,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onPanelKeyDown);
   if (rightPanelObs) { rightPanelObs.disconnect(); rightPanelObs = null; }
 });
 
@@ -627,6 +706,29 @@ watch(commitMessage, (val) => {
   commitDescription.value = nl === -1 ? '' : v.slice(nl + 1).replace(/^\n/, '');
 });
 
+// Toggling "amend last commit" prefills the message box with the previous
+// commit's message (when empty), so the user edits it in place. Turning it back
+// off clears that prefill again.
+let amendPrefilled = false;
+watch(amendLast, (on) => {
+  if (on) {
+    if (!commitSubject.value.trim() && !commitDescription.value.trim()) {
+      const last = log.value?.[0];
+      const full = (last?.message || last?.summary || '').trim();
+      if (full) {
+        const nl = full.indexOf('\n');
+        commitSubject.value = nl === -1 ? full : full.slice(0, nl);
+        commitDescription.value = nl === -1 ? '' : full.slice(nl + 1).replace(/^\n/, '');
+        amendPrefilled = true;
+      }
+    }
+  } else if (amendPrefilled) {
+    commitSubject.value = '';
+    commitDescription.value = '';
+    amendPrefilled = false;
+  }
+});
+
 // Git convention: subject reads best <= 50 chars; 72 is the usual hard guide.
 const subjectLenClass = computed(() => {
   const n = commitSubject.value.length;
@@ -693,14 +795,14 @@ async function handleExplainChanges() {
        <Resizer :target="(layoutRefs.statusWidth as any)" :options="{ min: 150, max: 800, cssVar: '--layout-status-width' }" class="absolute right-0 top-0 bottom-0" />
        
        <!-- Unstaged -->
-       <header :class="cn('bg-neutral-200/50 dark:bg-neutral-800/50 border-b border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
+       <header :class="cn('bg-surface border-b border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
          <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
            <Icon icon="lucide:file-warning" class="text-neutral-500 shrink-0" />
            <span class="truncate">{{ t('changes.unstaged') }} ({{ unstagedFiles.length }})</span>
          </div>
          <div :class="cn('h-stack items-center gap-1 shrink-0')">
            <Tooltip :text="t('changes.include_untracked')">
-             <button @click="toggleUntracked" :class="cn('w-6 h-6 center transition-colors', includeUntracked ? 'text-accent' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white')">
+             <button @click="toggleUntracked" :class="cn('w-6 h-6 center transition-colors', includeUntracked ? 'text-accent' : 'text-content-muted hover:text-content-strong')">
                <Icon :icon="includeUntracked ? 'lucide:eye' : 'lucide:eye-off'" class="text-xs" />
              </button>
            </Tooltip>
@@ -727,15 +829,15 @@ async function handleExplainChanges() {
               height: `var(--layout-unstaged-height, ${layoutRefs.unstagedHeight.value}px)`,
               willChange: 'height'
             }">
-         <div :class="cn('h-full bg-neutral-100/20 dark:bg-neutral-900/20 border-b border-neutral-200/20 dark:border-neutral-800/20 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'unstaged')">
-            <FileTree :files="unstagedFiles" :viewMode="unstagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
+         <div ref="unstagedPaneRef" :class="cn('h-full bg-neutral-100/20 dark:bg-neutral-900/20 border-b border-neutral-200/20 dark:border-neutral-800/20 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'unstaged')">
+            <FileTree :files="unstagedFiles" :viewMode="unstagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles"
                        @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'unstaged', p)" />
          </div>
          <Resizer vertical :target="(layoutRefs.unstagedHeight as any)" :options="{ axis: 'y', min: 100, max: 800, cssVar: '--layout-unstaged-height' }" class="absolute bottom-0 left-0 right-0 h-1.5 z-30" />
        </div>
        
        <!-- Staged -->
-       <header :class="cn('bg-neutral-200/50 dark:bg-neutral-800/50 border-b border-t border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
+       <header :class="cn('bg-surface border-b border-t border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
          <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
            <Icon icon="lucide:check-circle-2" class="text-neutral-500 shrink-0" />
            <span class="truncate">{{ t('changes.staged') }} ({{ stagedFiles.length }})</span>
@@ -759,8 +861,8 @@ async function handleExplainChanges() {
          </div>
        </header>
        
-        <div :class="cn('flex-1 bg-neutral-100/20 dark:bg-neutral-900/20 min-h-0 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'staged')">
-           <FileTree :files="stagedFiles" :viewMode="stagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles" 
+        <div ref="stagedPaneRef" :class="cn('flex-1 bg-neutral-100/20 dark:bg-neutral-900/20 min-h-0 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'staged')">
+           <FileTree :files="stagedFiles" :viewMode="stagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles"
                      @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'staged', p)" />
         </div>
     </div>
@@ -807,7 +909,7 @@ async function handleExplainChanges() {
                       </div>
                       <div class="h-stack items-center justify-between gap-2 mt-1">
                         <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${incomingStatusKey}`) }}</span>
-                        <Tooltip v-if="incomingSha" :text="t('changes.view_in_history')">
+                        <Tooltip v-if="incomingSha" :text="commitTooltip(incomingSha)">
                           <span role="button" tabindex="0" @click.stop="openCommitInHistory(incomingSha)"
                                 class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
                             <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ incomingSha.substring(0,7) }}
@@ -827,7 +929,7 @@ async function handleExplainChanges() {
                       </div>
                       <div class="h-stack items-center justify-between gap-2 mt-1">
                         <span class="text-[10px] text-content-muted uppercase tracking-wide">{{ t(`changes.status_${currentStatusKey}`) }}</span>
-                        <Tooltip v-if="currentSha" :text="t('changes.view_in_history')">
+                        <Tooltip v-if="currentSha" :text="commitTooltip(currentSha)">
                           <span role="button" tabindex="0" @click.stop="openCommitInHistory(currentSha)"
                                 class="inline-flex items-center gap-1 text-[10px] font-mono text-content-muted hover:text-accent cursor-pointer transition-colors">
                             <Icon icon="lucide:git-commit-horizontal" class="w-3 h-3" />{{ currentSha.substring(0,7) }}
@@ -852,7 +954,10 @@ async function handleExplainChanges() {
                   <button @click="resolveSelection" :disabled="!canResolve"
                           class="px-6 py-2 rounded text-[11px] font-bold uppercase tracking-wider bg-accent hover:bg-accent-hover text-accent-fg transition-colors disabled:opacity-40 disabled:cursor-not-allowed h-stack items-center gap-1.5">
                     <Icon :icon="isResolvingConflict ? 'lucide:loader-2' : 'lucide:git-merge'" :class="isResolvingConflict ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
-                    {{ selectedSide === 'both' ? t('changes.use_both') : t('changes.merge') }}
+                    {{ selectedSide === 'both' ? t('changes.use_both')
+                       : selectedSide === 'theirs' ? t('changes.use_theirs')
+                       : selectedSide === 'ours' ? t('changes.use_mine')
+                       : t('changes.merge') }}
                   </button>
                 </div>
               </div>
@@ -876,7 +981,7 @@ async function handleExplainChanges() {
                 <Icon icon="lucide:sparkles" />
                 <span>Explanation</span>
              </div>
-             <button @click="showAiPanel = false" :class="cn('text-neutral-500 hover:text-neutral-900 dark:hover:text-white center transition-colors')">
+             <button @click="showAiPanel = false" :class="cn('text-content-muted hover:text-content-strong center transition-colors')">
                <Icon icon="lucide:x" />
              </button>
           </header>
@@ -932,11 +1037,16 @@ async function handleExplainChanges() {
                       'w-full flex-1 min-h-0 bg-surface border border-line-strong p-3 text-xs text-content outline-none resize-none focus:border-accent rounded transition-all placeholder:text-content-muted leading-relaxed'
                     )"
                     :placeholder="t('changes.commit_desc_placeholder')"></textarea>
-         <Button variant="primary" block icon="lucide:git-commit"
+         <!-- Amend toggle: fold staged changes into the previous commit. -->
+         <label class="h-stack gap-2 text-[11px] text-content-muted cursor-pointer select-none px-0.5">
+           <input type="checkbox" v-model="amendLast" class="accent-accent cursor-pointer" />
+           <span>{{ t('changes.amend_last') }}</span>
+         </label>
+         <Button variant="primary" block :icon="amendLast ? 'lucide:git-commit-vertical' : 'lucide:git-commit'"
                  class="py-2 uppercase tracking-widest font-bold shadow-lg shadow-accent/20"
-                 :disabled="!commitSubject.trim() || stagedFiles.length === 0"
+                 :disabled="amendLast ? (!commitSubject.trim() && stagedFiles.length === 0) : (!commitSubject.trim() || stagedFiles.length === 0)"
                  @click="commitAll">
-           {{ t('changes.commit') }}
+           {{ amendLast ? t('changes.amend_commit') : t('changes.commit') }}
          </Button>
        </div>
     </div>

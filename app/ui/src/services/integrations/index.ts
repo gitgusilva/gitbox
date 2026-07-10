@@ -30,12 +30,13 @@ export function useIntegrations() {
         icon: p.icon,
         color: p.color,
         connected: !!sessions.value[p.id],
-        user: sessions.value[p.id]?.user
+        user: sessions.value[p.id]?.user,
+        comingSoon: p.comingSoon,
     })));
 
     async function connect(providerId: string) {
         const provider = providers.find(p => p.id === providerId);
-        if (!provider) return;
+        if (!provider || provider.comingSoon) return;
 
         if (provider.connectAction) {
             await provider.connectAction((session) => {

@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import { getItem, setItem } from './storageService';
 import type { GitboxTheme, ThemeColors, ThemeTypography, ThemeMeta } from '../types/theme';
-import { COLOR_VARS } from '../types/theme';
+import { COLOR_VARS, DEFAULT_GRAPH_COLORS } from '../types/theme';
 import { BUILTIN_THEMES, DEFAULT_DARK_ID, DEFAULT_LIGHT_ID, DEFAULT_TYPOGRAPHY } from './themes/builtins';
 
 // --- Persistent state -------------------------------------------------------
@@ -88,8 +88,12 @@ function applyGitboxTheme(theme: GitboxTheme) {
     root.classList.add(theme.type);
 
     const style = root.style;
+    // Graph colors are optional per theme — fall back to the shared default palette
+    // so the CSS vars are always defined.
+    const colors: Record<string, string> = { ...DEFAULT_GRAPH_COLORS, ...theme.colors };
     (Object.keys(COLOR_VARS) as (keyof ThemeColors)[]).forEach((key) => {
-        style.setProperty(COLOR_VARS[key], hexToChannels(theme.colors[key]));
+        const hex = colors[key];
+        if (hex) style.setProperty(COLOR_VARS[key], hexToChannels(hex));
     });
 
     const ty = theme.typography;

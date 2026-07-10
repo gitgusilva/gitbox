@@ -16,6 +16,14 @@ function closeMergeWindowsForRepo(repoPath) {
     }
 }
 
+/** Close every open merge window (e.g. the main window is closing). */
+function closeAllMergeWindows() {
+    for (const entry of [...openMergeWindows]) {
+        if (entry.win && !entry.win.isDestroyed()) entry.win.destroy();
+    }
+    openMergeWindows.length = 0;
+}
+
 /**
  * Creates a standalone, resizable window dedicated to resolving merge
  * conflicts for a single file. It loads the same renderer bundle as the main
@@ -80,4 +88,4 @@ function createMergeWindow({ repoPath, filePath }) {
     return win;
 }
 
-module.exports = { createMergeWindow, closeMergeWindowsForRepo };
+module.exports = { createMergeWindow, closeMergeWindowsForRepo, closeAllMergeWindows };

@@ -7,6 +7,9 @@ export class BitbucketProvider extends BaseIntegrationProvider {
     readonly name = 'Bitbucket';
     readonly icon = 'mdi:bitbucket';
     readonly color = '#0052cc';
+    // Provider code is kept in place but not yet verified end-to-end — surface it
+    // as "coming soon" (disabled) instead of letting users connect a broken flow.
+    readonly comingSoon = true;
 
     async getAuthUrl(): Promise<string> {
         const clientId = import.meta.env.VITE_BITBUCKET_CLIENT_ID;

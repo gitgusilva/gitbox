@@ -19,6 +19,8 @@ export interface IntegrationInfo {
     color: string;
     connected: boolean;
     user?: IntegrationUser;
+    /** Provider is wired but not yet verified — shown disabled with a "coming soon" hint. */
+    comingSoon?: boolean;
 }
 
 import { IPRProvider } from '../../pullRequests/providers/IPRProvider';
@@ -28,6 +30,8 @@ export interface IIntegrationProvider {
     readonly name: string;
     readonly icon: string;
     readonly color: string;
+    /** When true the provider is not offered for connection yet (untested). */
+    readonly comingSoon?: boolean;
 
     getAuthUrl?(): Promise<string>;
     handleCallback?(params: URLSearchParams): Promise<IntegrationSession>;

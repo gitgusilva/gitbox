@@ -89,7 +89,7 @@ export function buildTree<T>(items: T[], options: TreeOptions<T>): TreeNode<T>[]
 /**
  * Flattens a tree into a list for virtual scrolling, respecting expansion state.
  */
-export function flattenTree<T>(nodes: TreeNode<T>[], expandedGroups: Record<string, boolean>, currentPath?: string): TreeNode<T>[] {
+export function flattenTree<T>(nodes: TreeNode<T>[], expandedGroups: Record<string, boolean>, currentPath?: string, forceExpandAll = false): TreeNode<T>[] {
     const flat: TreeNode<T>[] = [];
 
     function walk(list: TreeNode<T>[]) {
@@ -97,7 +97,9 @@ export function flattenTree<T>(nodes: TreeNode<T>[], expandedGroups: Record<stri
             // Default: closed. A group is only open when explicitly toggled open
             // (persisted per repo by the caller). Keyed by fullPath so nested
             // groups (feature/foo) don't collide with same-named siblings.
-            const isExpanded = expandedGroups[node.fullPath] === true;
+            // While a filter is active, force every group open so matches nested
+            // inside collapsed folders are actually visible.
+            const isExpanded = forceExpandAll || expandedGroups[node.fullPath] === true;
             if (node.isGroup) node.expanded = isExpanded;
 
             flat.push(node);

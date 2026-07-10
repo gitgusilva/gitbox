@@ -25,7 +25,10 @@ const AI_CLIS = [
     { id: 'aichat',       label: 'AIChat',             vendor: 'sigoden',     bins: ['aichat'],                 runArgs: [] },
     { id: 'mods',         label: 'Mods',               vendor: 'Charm',       bins: ['mods'],                   runArgs: [] },
     { id: 'ollama',       label: 'Ollama (local)',     vendor: 'Ollama',      bins: ['ollama'],                 runArgs: ['run', 'llama3.2'] },
-    { id: 'antigravity',  label: 'Antigravity',        vendor: 'Google',      bins: ['antigravity'],            runArgs: ['-p'] }
+    // Antigravity's headless CLI is `agy` (NOT `antigravity`, which is the IDE
+    // launcher). `agy -p "<prompt>"` runs one prompt and prints the answer — the
+    // prompt is a positional ARGUMENT, not stdin, so promptAsArg is set.
+    { id: 'antigravity',  label: 'Antigravity',        vendor: 'Google',      bins: ['agy'],                    runArgs: ['-p'], promptAsArg: true }
 ];
 
 module.exports = { AI_CLIS };

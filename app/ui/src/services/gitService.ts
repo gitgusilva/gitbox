@@ -66,7 +66,7 @@ export async function loadInitialLog() {
     if (!repoPath.value.trim() || !window.gitbox) return;
     const cap = generalSettings.value.historyCount || LOG_PAGE_SIZE;
     const count = Math.min(LOG_PAGE_SIZE, cap);
-    const page = await window.gitbox.log(repoPath.value, count, selectedLogRef.value || 'ALL', 0);
+    const page = await window.gitbox.log(repoPath.value, count, logRefArg(), 0);
     log.value = page;
     logHasMore.value = page.length === count && page.length < cap;
 }
@@ -80,7 +80,7 @@ export async function loadMoreLog() {
         const skip = log.value.length;
         const count = Math.min(LOG_PAGE_SIZE, cap - skip);
         if (count <= 0) { logHasMore.value = false; return; }
-        const page = await window.gitbox.log(repoPath.value, count, selectedLogRef.value || 'ALL', skip);
+        const page = await window.gitbox.log(repoPath.value, count, logRefArg(), skip);
         if (page.length > 0) log.value = [...log.value, ...page];
         logHasMore.value = page.length === count && log.value.length < cap;
     } catch (e) {
@@ -175,9 +175,73 @@ export const unstagedFiles = computed(() => status.value.filter(s => {
 /** Files that are currently staged. */
 export const stagedFiles = computed(() => status.value.filter(s => s.status.startsWith('staged_')));
 
-/** Specific ref (branch/tag) used to filter the history log. */
-export const selectedLogRef = ref('');
+/**
+ * Branches/tags the history/graph is filtered to (SourceGit-style: a funnel toggle
+ * per ref in the sidebar). Empty = show the WHOLE graph (ALL). The native log takes
+ * them '\n'-joined and yields their sorted union. Persisted per-repo.
+ */
+export const selectedLogRefs = ref<string[]>([]);
 
+/** Alias the badges bar / highlights read — just the active filter set. */
+export const effectiveLogRefs = computed<string[]>(() => selectedLogRefs.value);
+
+/** Back-compat single-value view for read-only consumers (PR branch context). */
+export const selectedLogRef = computed(() => selectedLogRefs.value[0] || currentBranchName.value || '');
+
+/** Value passed to the native log: '\n'-joined refs, or 'ALL' when unfiltered. */
+function logRefArg(): string {
+    return selectedLogRefs.value.length ? selectedLogRefs.value.join('\n') : 'ALL';
+}
+
+/** Toggle a ref in/out of the history filter (sidebar funnel icon). */
+export function toggleLogFilter(name: string) {
+    if (!name) return;
+    selectedLogRefs.value = selectedLogRefs.value.includes(name)
+        ? selectedLogRefs.value.filter(r => r !== name)
+        : [...selectedLogRefs.value, name];
+}
+
+/** Remove one ref from the filter (badge ✕). Empty filter = whole graph. */
+export function removeLogFilter(name: string) {
+    selectedLogRefs.value = selectedLogRefs.value.filter(r => r !== name);
+}
+
+/** Clear the entire filter (show the whole graph). */
+export function clearLogFilter() {
+    selectedLogRefs.value = [];
+}
+
+// --- Per-repo persistence: the history filter is remembered and restored every
+// time the user returns to a repo (like the expanded sidebar folders). ---
+const LOG_FILTER_KEY = 'gitbox_log_filter';
+
+function loadLogFilter(rp: string): { refs: string[] } {
+    if (!rp) return { refs: [] };
+    try {
+        const all = JSON.parse(getItem(LOG_FILTER_KEY) || '{}');
+        const v = all[rp];
+        return { refs: v && Array.isArray(v.refs) ? v.refs : [] };
+    } catch {
+        return { refs: [] };
+    }
+}
+
+function persistLogFilter() {
+    const rp = repoPath.value;
+    if (!rp) return;
+    try {
+        const all = JSON.parse(getItem(LOG_FILTER_KEY) || '{}');
+        all[rp] = { refs: selectedLogRefs.value };
+        setItem(LOG_FILTER_KEY, JSON.stringify(all));
+    } catch {
+        /* ignore persistence errors */
+    }
+}
+
+watch(selectedLogRefs, persistLogFilter, { deep: true });
+
+// One-shot: default the history log to the checked-out branch right after a repo
+// switch (cleared once applied so manual refreshes/polls keep the user's filter).
 // Sync with workspace
 watch(() => {
     const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
@@ -186,8 +250,8 @@ watch(() => {
     if (newPath && newPath !== repoPath.value) {
         repoPath.value = newPath;
 
-        // Reset local repo state
-        selectedLogRef.value = '';
+        // Restore this repo's saved history filter (empty = whole graph, SourceGit-style).
+        selectedLogRefs.value = loadLogFilter(newPath).refs;
         selectedCommit.value = null;
         selectedFile.value = '';
         selectedFiles.value = [];
@@ -241,6 +305,8 @@ export async function loadRepoData(showLoader = false, targetWorkspaceId?: strin
         userName.value = newConfig ? newConfig.userName : '';
         userEmail.value = newConfig ? newConfig.userEmail : '';
 
+        // Right after a repo switch the history focuses the checked-out branch by
+        // default (the implicit current-branch focus in effectiveLogRefs), and any
         // Load only the FIRST page of the log (the rest streams in on scroll).
         // Skip on background polls so we don't reset the loaded pages / jump to top;
         // new commits show on manual refresh or repo/ref switch.
@@ -541,6 +607,89 @@ export const abortMergeAction = async () => {
     }
 };
 
+/** Rebase controls (abort / skip / continue), mirroring the merge-abort flow. */
+const runRebaseAction = async (
+    op: 'rebaseAbort' | 'rebaseSkip' | 'rebaseContinue',
+    okMsg: string,
+) => {
+    if (!repoPath.value || !window.gitbox) return;
+    isLoading.value = true;
+    try {
+        await (window.gitbox as any)[op](repoPath.value);
+        await loadRepoData(true);
+        closeMergeWindowsIfResolved();
+        const { showToast } = await import('./toastService');
+        showToast('Rebase', okMsg, 'info');
+        addLog(okMsg, 'Action', 'info');
+    } catch (err: any) {
+        error.value = String(err?.message || err);
+        const { showToast } = await import('./toastService');
+        showToast('Rebase failed', error.value, 'error');
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+export const rebaseAbortAction = () => runRebaseAction('rebaseAbort', 'Rebase aborted.');
+export const rebaseSkipAction = () => runRebaseAction('rebaseSkip', 'Patch skipped.');
+export const rebaseContinueAction = () => runRebaseAction('rebaseContinue', 'Rebase continued.');
+
+/** Apply a commit onto the current branch. Routes conflicts to the banner. */
+export const cherryPickAction = async (sha: string) => {
+    if (!repoPath.value || !window.gitbox || !sha) return;
+    isLoading.value = true;
+    try {
+        const result = await window.gitbox.cherryPick(repoPath.value, sha);
+        await loadRepoData(true);
+        const { showToast } = await import('./toastService');
+        if (result.status === 'conflicts') {
+            activeTab.value = 'local_changes';
+            showToast('Cherry-pick conflicts', 'Resolve the conflicts, then continue the cherry-pick.', 'error');
+        } else {
+            showToast('Cherry-pick', `Applied ${sha.substring(0, 7)}.`, 'success');
+        }
+        addLog(`Cherry-pick ${sha.substring(0, 7)}: ${result.status}`, 'Action', result.status === 'conflicts' ? 'error' : 'success');
+    } catch (err: any) {
+        error.value = String(err?.message || err);
+        const { showToast } = await import('./toastService');
+        showToast('Cherry-pick failed', error.value, 'error');
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+/** Cherry-pick controls (abort / skip / continue), mirroring the rebase flow. */
+const runCherryPickAction = async (
+    op: 'cherryPickAbort' | 'cherryPickSkip' | 'cherryPickContinue',
+    okMsg: string,
+) => {
+    if (!repoPath.value || !window.gitbox) return;
+    isLoading.value = true;
+    try {
+        const result = await (window.gitbox as any)[op](repoPath.value);
+        await loadRepoData(true);
+        closeMergeWindowsIfResolved();
+        const { showToast } = await import('./toastService');
+        if (result && result.status === 'conflicts') {
+            activeTab.value = 'local_changes';
+            showToast('Cherry-pick conflicts', 'Still conflicts to resolve before continuing.', 'error');
+        } else {
+            showToast('Cherry-pick', okMsg, 'info');
+        }
+        addLog(okMsg, 'Action', 'info');
+    } catch (err: any) {
+        error.value = String(err?.message || err);
+        const { showToast } = await import('./toastService');
+        showToast('Cherry-pick failed', error.value, 'error');
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+export const cherryPickAbortAction = () => runCherryPickAction('cherryPickAbort', 'Cherry-pick aborted.');
+export const cherryPickSkipAction = () => runCherryPickAction('cherryPickSkip', 'Commit skipped.');
+export const cherryPickContinueAction = () => runCherryPickAction('cherryPickContinue', 'Cherry-pick continued.');
+
 /**
  * Open the conflicted file in the configured merge tool. Routes by the
  * `externalMergeTool` setting: the built-in GitBox merge editor (default), or
@@ -628,14 +777,31 @@ async function handleBranchActionFlow(action: 'stash' | 'discard' | 'keep', core
         isLoading.value = false;
     }
 }
+/** When true, the next commit amends the previous one (git commit --amend). */
+export const amendLast = ref(false);
+
 export const commitAll = async () => {
-    if (!commitMessage.value.trim()) return;
-    await runAction(() => window.gitbox.commitAll(repoPath.value, commitMessage.value.trim()), 'full', "Commit changes", true);
+    const msg = commitMessage.value.trim();
+    if (amendLast.value) {
+        // Amend: message optional — empty keeps the previous message (--no-edit).
+        await runAction(() => window.gitbox.commitAmend(repoPath.value, msg || undefined), 'full', "Amend last commit", true);
+    } else {
+        if (!msg) return;
+        await runAction(() => window.gitbox.commitAll(repoPath.value, msg), 'full', "Commit changes", true);
+    }
     commitMessage.value = '';
+    amendLast.value = false;
     closeMergeWindowsIfResolved();
 };
 
 export const deleteBranch = (name: string) => runAction(() => window.gitbox.deleteBranch(repoPath.value, name), 'full', `Delete branch ${name}`, true);
+export const renameBranch = (oldName: string, newName: string) => runAction(() => window.gitbox.renameBranch(repoPath.value, oldName, newName), 'full', `Rename branch ${oldName} → ${newName}`, true);
+export const deleteTag = (name: string) => runAction(() => window.gitbox.deleteTag(repoPath.value, name), 'full', `Delete tag ${name}`, true);
+export const resetToCommit = (sha: string, mode: 'soft' | 'mixed' | 'hard') => runAction(() => window.gitbox.resetToCommit(repoPath.value, sha, mode), 'full', `Reset ${mode} to ${sha.substring(0, 7)}`, true);
+export const addRemote = (name: string, url: string) => runAction(() => window.gitbox.addRemote(repoPath.value, name, url), 'full', `Add remote ${name}`, true);
+export const removeRemote = (name: string) => runAction(() => window.gitbox.removeRemote(repoPath.value, name), 'full', `Remove remote ${name}`, true);
+export const renameRemote = (oldName: string, newName: string) => runAction(() => window.gitbox.renameRemote(repoPath.value, oldName, newName), 'full', `Rename remote ${oldName} → ${newName}`, true);
+export const setRemoteUrl = (name: string, url: string) => runAction(() => window.gitbox.setRemoteUrl(repoPath.value, name, url), 'full', `Set URL for remote ${name}`, true);
 export const stashApply = (stashId?: string) => runAction(() => window.gitbox.stashApply(repoPath.value, stashId), 'full', "Apply stash", true);
 export const stashPop = (stashId?: string) => runAction(() => window.gitbox.stashPop(repoPath.value, stashId), 'full', "Pop stash", true);
 export const dropStash = (stashId?: string) => runAction(() => window.gitbox.stashDrop(repoPath.value, stashId), 'full', "Drop stash", true);

@@ -209,11 +209,14 @@ const isConflicted = (status?: string) => (status || '').toLowerCase().includes(
           />
         </template>
 
-        <div v-if="viewMode === 'flat' && !item.data.isDir" :class="cn('text-xs truncate flex-1 min-w-0 h-stack items-baseline gap-2', selectedPath === item.data.fullPath ? 'font-bold' : '')">
+        <!-- Selection emphasis comes from the row's text-content-strong colour + accent
+             background (set on the row wrapper). No font-weight change on select — bold
+             re-flowed the truncated filename and made the row look like it "grew". -->
+        <div v-if="viewMode === 'flat' && !item.data.isDir" :class="cn('text-xs truncate flex-1 min-w-0 h-stack items-baseline gap-2')">
           <span class="shrink-0">{{ item.data.name }}</span>
           <span class="text-[10px] opacity-40 truncate">{{ item.data.pathPrefix }}</span>
         </div>
-        <div v-else :class="cn('text-xs truncate flex-1 min-w-0', selectedPath === item.data.fullPath ? 'font-bold' : '')">
+        <div v-else :class="cn('text-xs truncate flex-1 min-w-0')">
           {{ item.data.name }}
         </div>
       </div>

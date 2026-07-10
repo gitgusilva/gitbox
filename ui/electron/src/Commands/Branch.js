@@ -26,6 +26,13 @@ class Branch extends Command {
     async delete(repoPath, branchName) {
         try { await this.execGit(repoPath, ['branch', '-D', branchName]); return true; } catch (e) { throw new Error(e.message); }
     }
+
+    /**
+     * Rename a branch (git branch -m <old> <new>)
+     */
+    async rename(repoPath, oldName, newName) {
+        try { await this.execGit(repoPath, ['branch', '-m', oldName, newName]); return true; } catch (e) { throw new Error(e.message); }
+    }
 }
 
 module.exports = Branch;

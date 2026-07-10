@@ -30,27 +30,43 @@ class FileActions extends Command {
         return true;
     }
 
-    /** Stash just one file (keeps the rest of the working tree intact). */
-    async stashFile(repoPath, filePath, message = '') {
+    /**
+     * Stash a specific set of files (keeps the rest of the working tree intact).
+     * @param {string|string[]} filePath one path or a list of paths to stash together
+     * @param {string} message stash message (optional)
+     * @param {{ keepIndex?: boolean, includeUntracked?: boolean }} [options]
+     *   keepIndex → leave staged changes in the index; includeUntracked → also stash untracked files.
+     */
+    async stashFile(repoPath, filePath, message = '', options = {}) {
+        const paths = (Array.isArray(filePath) ? filePath : [filePath]).filter(Boolean);
+        if (paths.length === 0) return false;
         const args = ['stash', 'push'];
+        if (options && options.keepIndex) args.push('--keep-index');
+        if (options && options.includeUntracked) args.push('--include-untracked');
         if (message) args.push('-m', message);
-        args.push('--', filePath);
+        args.push('--', ...paths);
         await this.execGit(repoPath, args);
         return true;
     }
 
     /**
-     * Export a file's diff as a `.patch` via a native save dialog.
+     * Export the diff of one or more files as a single `.patch` via a native save dialog.
+     * @param {string|string[]} filePath one path or a list of paths to include
      * @param {boolean} staged diff the staged version instead of the working tree
      * @returns {{ saved: boolean, path?: string }}
      */
     async savePatch(repoPath, filePath, staged = false) {
+        const paths = (Array.isArray(filePath) ? filePath : [filePath]).filter(Boolean);
+        if (paths.length === 0) return { saved: false };
+
         const args = ['diff'];
         if (staged) args.push('--cached');
-        args.push('--', filePath);
+        args.push('--', ...paths);
         const { stdout } = await this.execGit(repoPath, args);
 
-        const defaultName = `${path.basename(filePath)}.patch`;
+        const defaultName = paths.length === 1
+            ? `${path.basename(paths[0])}.patch`
+            : `${path.basename(repoPath) || 'changes'}-${paths.length}-files.patch`;
         const { getMainWindow } = require('../windows/index');
         const win = getMainWindow();
         const { canceled, filePath: target } = await dialog.showSaveDialog(win, {

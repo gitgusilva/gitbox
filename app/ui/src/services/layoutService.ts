@@ -12,6 +12,7 @@ export const detailsWidth = ref(340);
 export const statusWidth = ref(300);
 export const unstagedHeight = ref(300);
 export const stashFilesHeight = ref(300);
+export const stashPanelWidth = ref(480);
 export const historyAuthorWidth = ref(120);
 export const historyDateWidth = ref(100);
 export const historyDetailTreeWidth = ref(240);
@@ -28,6 +29,7 @@ export const layoutRefs = {
     statusWidth,
     unstagedHeight,
     stashFilesHeight,
+    stashPanelWidth,
     historyAuthorWidth,
     historyDateWidth,
     historyDetailTreeWidth,

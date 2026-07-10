@@ -17,7 +17,6 @@ const props = defineProps<{
   selectedCommits: Commit[];
   commitRefsMap: Map<string, any[]>;
   isLoadingData: boolean;
-  selectedLogRef: string;
   dateFormat: string;
   showTagsInGraph: boolean;
 }>();
@@ -25,7 +24,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select', commit: Commit, event: MouseEvent): void;
   (e: 'contextMenu', event: MouseEvent, commit: Commit): void;
-  (e: 'clearRef'): void;
   (e: 'loadMore'): void;
 }>();
 
@@ -89,10 +87,6 @@ defineExpose({
        <div class="py-2 flex items-center justify-center gap-2 min-w-0 overflow-hidden"
             @mouseenter="startMarquee($event, '.hdr-title')" @mouseleave="stopMarquee($event, '.hdr-title')">
          <span class="truncate hdr-title">{{ t('history.subject') }}</span>
-         <span v-if="selectedLogRef" class="shrink-0 text-accent font-mono text-[9px] bg-accent/15 px-1 rounded truncate normal-case tracking-normal border border-accent/30">
-           {{ selectedLogRef }}
-           <button @click.stop="emit('clearRef')" class="pl-1 hover:text-white">✕</button>
-         </span>
        </div>
         <div class="py-2 relative pl-2 pr-4 overflow-hidden">
           <span class="block truncate">{{ t('history.author') }}</span>
@@ -110,28 +104,6 @@ defineExpose({
       class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 commit-list-scroll"
       @scroll="handleScroll"
     >
-      <!-- Loading Skeleton — mirrors the real commit-row layout -->
-      <div v-if="isLoadingData" class="sticky top-0 left-0 right-0 z-50 bg-app">
-        <div v-for="i in 18" :key="'sk-' + i"
-             class="grid px-3 items-center"
-             :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }">
-          <!-- Subject: graph dot + message bar -->
-          <div class="flex items-center gap-2 animate-pulse" :style="{ animationDelay: (i * 60) + 'ms' }">
-            <div class="w-2.5 h-2.5 rounded-full bg-neutral-300 dark:bg-neutral-700 shrink-0 ml-1.5"></div>
-            <div class="h-2.5 rounded bg-neutral-200 dark:bg-neutral-800" :style="{ width: (35 + (i * 13) % 50) + '%' }"></div>
-          </div>
-          <!-- Author: avatar + name bar -->
-          <div class="flex items-center gap-2 pl-2 animate-pulse" :style="{ animationDelay: (i * 60) + 'ms' }">
-            <div class="w-[18px] h-[18px] rounded bg-neutral-300 dark:bg-neutral-700 shrink-0"></div>
-            <div class="h-2.5 rounded bg-neutral-200 dark:bg-neutral-800" :style="{ width: (40 + (i * 17) % 40) + '%' }"></div>
-          </div>
-          <!-- Date bar -->
-          <div class="pl-2 animate-pulse" :style="{ animationDelay: (i * 60) + 'ms' }">
-            <div class="h-2.5 w-20 rounded bg-neutral-200 dark:bg-neutral-800"></div>
-          </div>
-        </div>
-      </div>
-
       <!-- Virtual Scroll Spacer: total height = n * row height -->
       <div :style="{ height: `${log.length * ROW_HEIGHT}px`, position: 'relative' }">
         <!-- Visible window: positioned at computed Y offset -->
@@ -144,7 +116,7 @@ defineExpose({
             :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }"
             :class="selectedIdSet.has(c.id)
               ? 'bg-accent/20 text-content-strong shadow-inner'
-              : 'hover:bg-neutral-200 dark:hover:bg-neutral-800/50 text-content'"
+              : 'hover:bg-surface-hover text-content'"
             @click="emit('select', c, $event)"
             @contextmenu.prevent="emit('contextMenu', $event, c)"
           >
@@ -164,8 +136,8 @@ defineExpose({
                          : (r.isHead ? 'font-bold' : 'font-medium')"
                        :style="r.type !== 'tag' ? {
                          color: graphOutput.get(c.id)?.color || '#888888',
-                         borderColor: (graphOutput.get(c.id)?.color || '#888888') + (r.isHead ? 'cc' : '66'),
-                         backgroundColor: (graphOutput.get(c.id)?.color || '#888888') + (r.isHead ? '33' : '14')
+                         borderColor: graphOutput.get(c.id)?.color || '#888888',
+                         backgroundColor: (graphOutput.get(c.id)?.color || '#888888') + (r.isHead ? '22' : '14')
                        } : {}">
                     <Icon :icon="r.type === 'tag' ? 'lucide:tag' : (r.type === 'remote' ? 'lucide:cloud' : 'lucide:git-branch')" class="text-[9px]" />
                     {{ r.name.replace('refs/remotes/', '') }}
@@ -176,7 +148,7 @@ defineExpose({
                      @mouseleave="stopMarquee($event, '.truncate')">
                   <span
                     class="block truncate w-full"
-                    :class="selectedIdSet.has(c.id) ? '' : (graphOutput.get(c.id)?.dotLane === 0 ? 'font-medium text-black dark:text-neutral-200' : 'text-neutral-500 dark:text-neutral-500')"
+                    :class="selectedIdSet.has(c.id) ? '' : (graphOutput.get(c.id)?.dimmed ? 'text-content-muted opacity-50' : 'font-semibold text-content-strong')"
                     v-html="renderMessageLinks(c.summary)"
                   />
                 </div>
@@ -187,11 +159,15 @@ defineExpose({
             <div class="flex items-center gap-2 min-w-0 pl-2 pr-1 h-full w-full relative z-0"
                  :class="selectedIdSet.has(c.id)
                    ? 'text-content-strong bg-accent/20'
-                   : (graphOutput.get(c.id)?.dotLane === 0
-                     ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-content-muted group-hover:text-black dark:group-hover:text-neutral-200'
-                     : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400 dark:text-neutral-600')">
-              <img :src="gravatarUrl(c.authorEmail || c.author + '@localhost')"
-                   class="w-[18px] h-[18px] rounded border-2 border-line shadow-sm flex-shrink-0 object-cover" />
+                   : (!graphOutput.get(c.id)?.dimmed
+                     ? 'bg-app group-hover:bg-surface-hover text-content group-hover:text-content-strong'
+                     : 'bg-app group-hover:bg-surface-hover text-content-muted opacity-60')">
+              <div class="relative w-[18px] h-[18px] flex-shrink-0">
+                <img :src="gravatarUrl(c.authorEmail || c.author + '@localhost')"
+                     class="w-full h-full rounded border-2 border-line shadow-sm object-cover" />
+                <!-- Off-branch commits: darken the avatar so on-branch work pops. -->
+                <div v-if="graphOutput.get(c.id)?.dimmed && !selectedIdSet.has(c.id)" class="absolute inset-0 rounded bg-black/55"></div>
+              </div>
               <Tooltip :text="c.author" position="top" class="min-w-0 flex-1 overflow-hidden">
                 <span class="block truncate">{{ c.author }}</span>
               </Tooltip>
@@ -201,9 +177,9 @@ defineExpose({
             <div class="flex items-center min-w-0 pl-2 h-full w-full relative z-0"
                  :class="selectedIdSet.has(c.id)
                    ? 'text-content-muted bg-accent/20'
-                   : (graphOutput.get(c.id)?.dotLane === 0
-                     ? 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-500 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300'
-                     : 'bg-app group-hover:bg-neutral-200 dark:group-hover:bg-neutral-800/50 text-neutral-400/70 dark:text-neutral-600')">
+                   : (!graphOutput.get(c.id)?.dimmed
+                     ? 'bg-app group-hover:bg-surface-hover text-content-muted group-hover:text-content'
+                     : 'bg-app group-hover:bg-surface-hover text-content-muted opacity-50')">
               <Tooltip :text="formatDate(c.timestamp, dateFormat)" position="left" class="min-w-0 w-full overflow-hidden">
                 <span class="block truncate">{{ formatDate(c.timestamp, dateFormat) }}</span>
               </Tooltip>

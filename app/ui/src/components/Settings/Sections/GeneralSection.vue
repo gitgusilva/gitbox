@@ -4,11 +4,17 @@ import { useI18n } from 'vue-i18n';
 import { useLanguage } from '../../../services/languageService';
 import { generalSettings } from '../../../services/settingsService';
 import { formatDate } from '../../../utils/formatters';
+import { Icon } from '@iconify/vue';
 import RangeSlider from '../../Common/RangeSlider.vue';
 import Checkbox from '../../Common/Checkbox.vue';
 import Select from '../../Common/Select.vue';
+import { appVersion, checkForUpdates, updateStatus, latestVersion, releaseUrl } from '../../../services/versionService';
 
 const { t, locale } = useI18n();
+
+function openRelease() {
+  if (releaseUrl.value && (window as any).gitbox?.openExternal) (window as any).gitbox.openExternal(releaseUrl.value);
+}
 const { languages, changeLanguage } = useLanguage();
 
 const emit = defineEmits(['close']);
@@ -58,7 +64,7 @@ const notificationPositionOptions = computed(() => [
     <!-- Appearance & Language -->
     <div class="flex flex-col gap-8">
       <section>
-        <label class="block text-xs font-bold text-neutral-500 uppercase mb-4">{{ t('settings.language') }}</label>
+        <label class="block text-xs font-bold text-content-muted uppercase mb-4">{{ t('settings.language') }}</label>
         <Select :modelValue="locale" @update:modelValue="handleLanguageChange" :options="languageOptions" class="w-full" searchable />
       </section>
     </div>
@@ -67,15 +73,15 @@ const notificationPositionOptions = computed(() => [
     <section class="space-y-6 pt-4 border-t border-line/50">
       <div class="flex items-center justify-between gap-4">
           <div class="flex-1">
-              <label class="block text-xs font-bold text-neutral-500 uppercase mb-2">{{ t('settings.date_format') }}</label>
+              <label class="block text-xs font-bold text-content-muted uppercase mb-2">{{ t('settings.date_format') }}</label>
               <Select v-model="generalSettings.dateFormat" :options="formatOptions" searchable />
           </div>
       </div>
 
       <div>
           <div class="flex items-center justify-between mb-2">
-              <label class="text-xs font-bold text-neutral-500 uppercase">{{ t('settings.auto_fetch_interval') }}</label>
-              <span class="text-[11px] font-mono text-blue-400">{{ generalSettings.autoFetchInterval === 0 ? 'Disabled' : generalSettings.autoFetchInterval + ' min' }}</span>
+              <label class="text-xs font-bold text-content-muted uppercase">{{ t('settings.auto_fetch_interval') }}</label>
+              <span class="text-[11px] font-mono text-accent">{{ generalSettings.autoFetchInterval === 0 ? 'Disabled' : generalSettings.autoFetchInterval + ' min' }}</span>
           </div>
           <div class="flex flex-col gap-2 group/range w-full pt-1">
               <RangeSlider 
@@ -84,12 +90,12 @@ const notificationPositionOptions = computed(() => [
                  :max="60" 
                  :step="1" 
               >
-                  <div class="flex justify-between w-full px-1 text-[8px] text-neutral-700 font-mono pointer-events-none mt-1">
+                  <div class="flex justify-between w-full px-1 text-[8px] text-content-muted font-mono pointer-events-none mt-1">
                       <span>0 (Off)</span>
                       <span>60 min</span>
                   </div>
               </RangeSlider>
-              <p class="text-[10px] text-neutral-500 leading-relaxed">
+              <p class="text-[10px] text-content-muted leading-relaxed">
                   {{ t('settings.auto_fetch_desc') }}
               </p>
           </div>
@@ -97,8 +103,8 @@ const notificationPositionOptions = computed(() => [
 
       <div>
           <div class="flex items-center justify-between mb-2">
-              <label class="text-xs font-bold text-neutral-500 uppercase">{{ t('settings.history_commits') }}</label>
-              <span class="text-[11px] font-mono text-blue-400">{{ generalSettings.historyCount }}</span>
+              <label class="text-xs font-bold text-content-muted uppercase">{{ t('settings.history_commits') }}</label>
+              <span class="text-[11px] font-mono text-accent">{{ generalSettings.historyCount }}</span>
           </div>
           <div class="flex items-center gap-4 group/range w-full pt-1">
               <RangeSlider 
@@ -107,7 +113,7 @@ const notificationPositionOptions = computed(() => [
                  :max="10000" 
                  :step="500" 
               >
-                  <div class="flex justify-between w-full px-1 text-[8px] text-neutral-700 font-mono pointer-events-none mt-1">
+                  <div class="flex justify-between w-full px-1 text-[8px] text-content-muted font-mono pointer-events-none mt-1">
                       <span>500</span>
                       <span>10k</span>
                   </div>
@@ -128,11 +134,29 @@ const notificationPositionOptions = computed(() => [
 
     <!-- Notifications -->
     <section class="space-y-4 pt-4 border-t border-line/50">
-        <label class="block text-xs font-bold text-neutral-500 uppercase">{{ t('settings.notifications') }}</label>
+        <label class="block text-xs font-bold text-content-muted uppercase">{{ t('settings.notifications') }}</label>
         <Checkbox v-model="generalSettings.notificationsEnabled" :label="t('settings.notifications_enabled')" />
         <div :class="generalSettings.notificationsEnabled ? '' : 'opacity-40 pointer-events-none'">
-            <label class="block text-[11px] font-medium text-neutral-500 mb-2">{{ t('settings.notification_position') }}</label>
-            <Select v-model="generalSettings.notificationPosition" :options="notificationPositionOptions" class="w-full" />
+            <label class="block text-[11px] font-medium text-content-muted mb-2">{{ t('settings.notification_position') }}</label>
+            <Select v-model="generalSettings.notificationPosition" :options="notificationPositionOptions" searchable class="w-full" />
+        </div>
+    </section>
+
+    <!-- Updates (kept last) -->
+    <section class="space-y-3 pt-4 border-t border-line/50">
+        <label class="block text-xs font-bold text-content-muted uppercase">{{ t('settings.updates') }}</label>
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col gap-0.5 min-w-0">
+                <span class="text-xs text-content">{{ t('settings.current_version') }} <span class="font-mono text-content-strong">v{{ appVersion }}</span></span>
+                <span v-if="updateStatus === 'up-to-date'" class="text-[11px] text-green-500 flex items-center gap-1"><Icon icon="lucide:check-circle" class="w-3 h-3" /> {{ t('settings.up_to_date') }}</span>
+                <span v-else-if="updateStatus === 'available'" role="button" @click="openRelease" class="text-[11px] text-accent flex items-center gap-1 cursor-pointer hover:underline"><Icon icon="lucide:download" class="w-3 h-3" /> {{ t('settings.update_available', { version: latestVersion }) }}</span>
+                <span v-else-if="updateStatus === 'error'" class="text-[11px] text-red-400 flex items-center gap-1"><Icon icon="lucide:alert-circle" class="w-3 h-3" /> {{ t('settings.update_check_failed') }}</span>
+            </div>
+            <button @click="checkForUpdates()" :disabled="updateStatus === 'checking'"
+                    class="shrink-0 h-8 px-3 rounded bg-accent hover:bg-accent-hover text-accent-fg text-[11px] font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50">
+                <Icon :icon="updateStatus === 'checking' ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="updateStatus === 'checking' ? 'animate-spin' : ''" class="w-3.5 h-3.5" />
+                {{ t('settings.check_updates') }}
+            </button>
         </div>
     </section>
 

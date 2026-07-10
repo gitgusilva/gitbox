@@ -1,8 +1,25 @@
 import { Commit, GraphLine, GraphNode } from './types/git';
 
-const COLORS = [
-    '#1E88E5', '#ffab00', '#00e676', '#d500f9', '#ff3d00', '#00b0ff', '#1de9b6', '#f50057', '#ffea00'
+const FALLBACK_COLORS = [
+    '#1E88E5', '#FFAB00', '#00E676', '#D500F9', '#FF3D00', '#00B0FF', '#1DE9B6', '#F50057'
 ];
+
+/**
+ * Reads the themeable commit-graph palette from CSS vars (--gb-graph-1..8),
+ * resolving each "r g b" channel triplet into an `rgb()` string usable directly
+ * as an SVG stroke/fill. Falls back to the built-in palette if unavailable.
+ * Read per build so theme switches recolor the graph.
+ */
+function readPalette(): string[] {
+    if (typeof document === 'undefined' || !document.documentElement) return FALLBACK_COLORS;
+    const cs = getComputedStyle(document.documentElement);
+    const out: string[] = [];
+    for (let i = 1; i <= 8; i++) {
+        const v = cs.getPropertyValue(`--gb-graph-${i}`).trim();
+        out.push(v ? `rgb(${v})` : FALLBACK_COLORS[i - 1]);
+    }
+    return out;
+}
 
 /**
  * Carry-over lane state so history pages can be laid out incrementally. The
@@ -16,10 +33,14 @@ export interface GraphState {
     // down (SourceGit-style) instead of recoloring by lane index.
     laneColors: string[];
     nextColor: number;
+    // Commit ids reachable from HEAD, grown newest→oldest: when a reachable commit
+    // is laid out its parents are added, so the whole current-branch ancestry gets
+    // marked. Anything left unmarked is off-branch and drawn dim (SourceGit-style).
+    reachable: Set<string>;
 }
 
 export function createGraphState(): GraphState {
-    return { lanes: [], laneColors: [], nextColor: 0 };
+    return { lanes: [], laneColors: [], nextColor: 0, reachable: new Set() };
 }
 
 /**
@@ -28,11 +49,17 @@ export function createGraphState(): GraphState {
  * its absolute position in the log — so appended pages cost O(Δ) instead of the
  * O(n) full rebuild that made infinite scroll O(n²).
  */
-export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState, commits: Commit[]): void {
+export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState, commits: Commit[], headId: string | null = null): void {
     if (!commits || commits.length === 0) return;
 
     const { lanes, laneColors } = state;
-    const allocColor = () => COLORS[state.nextColor++ % COLORS.length];
+    // Current-branch highlighting: only when we know HEAD. Seed HEAD as reachable;
+    // reachability then flows to parents as reachable commits are laid out.
+    const dimEnabled = !!headId;
+    if (headId) state.reachable.add(headId);
+    const reach = (id: string | null) => !dimEnabled || (id != null && state.reachable.has(id));
+    const palette = readPalette();
+    const allocColor = () => palette[state.nextColor++ % palette.length];
     const colorFor = (lane: number) => {
         if (!laneColors[lane]) laneColors[lane] = allocColor();
         return laneColors[lane];
@@ -52,7 +79,17 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
     const x = (l: number) => l * laneW + offset;
 
     for (const c of commits) {
+        // Reachable-from-HEAD is settled by now (all children precede a commit in
+        // topological order); propagate to parents so the ancestry keeps its color.
+        const cReach = reach(c.id);
+        if (dimEnabled && cReach && c.parents) for (const p of c.parents) state.reachable.add(p.id);
+
         const inLanes = [...lanes];
+        // Snapshot lane colours BEFORE this row reassigns any (a merge can reuse a
+        // just-freed lane for its 2nd parent, changing that lane's colour). Lines
+        // coming from ABOVE must keep the colour the lane had above — otherwise a
+        // branch converging into a merge suddenly repaints to the reused colour.
+        const inColors = [...laneColors];
         let dotLane = -1;
         for (let j = 0; j < inLanes.length; j++) {
             if (inLanes[j] === c.id) {
@@ -97,21 +134,23 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
         const lines: GraphLine[] = [];
 
         for (let k = 0; k < inLanes.length; k++) {
+            // Lines entering from ABOVE use the colour the lane had above (inColors),
+            // not the post-reassignment colour, so a converging branch keeps its hue.
+            const inColor = inColors[k] ?? colorFor(k);
             if (inLanes[k] === c.id) {
-                const color = colorFor(k);
                 if (k === dotLane) {
-                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY}`, color });
+                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY}`, color: inColor, dimmed: !cReach });
                 } else {
                     // Converging branch: straight down its own lane, a rounded
                     // corner at the middle, then a horizontal run into the dot —
                     // so multi-lane jumps read as clean L-bends, not wide swoops.
                     const sgn = dotLane > k ? 1 : -1;
                     const r = Math.min(cornerR, Math.abs(x(dotLane) - x(k)));
-                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY - r} Q ${x(k)} ${midY}, ${x(k) + sgn * r} ${midY} L ${x(dotLane)} ${midY}`, color });
+                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY - r} Q ${x(k)} ${midY}, ${x(k) + sgn * r} ${midY} L ${x(dotLane)} ${midY}`, color: inColor, dimmed: !cReach });
                 }
             } else if (inLanes[k] !== null) {
                 // Line just passing straight through this row keeps its lane color
-                lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${cellH}`, color: colorFor(k) });
+                lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${cellH}`, color: inColor, dimmed: !reach(inLanes[k]) });
             }
         }
 
@@ -119,7 +158,11 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
         // row" check) so nodes never change when more pages load — the last row
         // of a page connects seamlessly to the first row of the next.
         if (p0) {
-            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(dotLane)} ${cellH}`, color: dotColor });
+            // Dim the continuation when THIS commit is off-branch — not just when
+            // its parent is. A merge can make the parent reachable while this
+            // (off-branch) commit stays dimmed, which otherwise left a bright line
+            // hanging off a greyed-out dot.
+            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(dotLane)} ${cellH}`, color: dotColor, dimmed: !cReach || !reach(p0) });
         }
 
         for (const mL of mergeTargets) {
@@ -127,8 +170,20 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
             // corner, then straight down the target lane.
             const sgn = mL > dotLane ? 1 : -1;
             const r = Math.min(cornerR, Math.abs(x(mL) - x(dotLane)));
-            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(mL) - sgn * r} ${midY} Q ${x(mL)} ${midY}, ${x(mL)} ${midY + r} L ${x(mL)} ${cellH}`, color: colorFor(mL) });
+            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(mL) - sgn * r} ${midY} Q ${x(mL)} ${midY}, ${x(mL)} ${midY + r} L ${x(mL)} ${cellH}`, color: colorFor(mL), dimmed: !cReach || !reach(lanes[mL]) });
         }
+
+        // Widest lane index ANY line on this row actually touches. Must be computed
+        // from the lines' real endpoints — the incoming (inLanes) pass-through lines
+        // and merge targets can sit on lanes past the current lanes[] length, so
+        // sizing the column off lanes.length alone let those lines overflow to the
+        // right and paint over the commit text. This bounds the column to the lines.
+        let maxLane = dotLane;
+        for (const mL of mergeTargets) if (mL > maxLane) maxLane = mL;
+        for (let k = 0; k < inLanes.length; k++)
+            if (inLanes[k] !== null && k > maxLane) maxLane = k;
+        for (let k = 0; k < lanes.length; k++)
+            if (lanes[k] !== null && k > maxLane) maxLane = k;
 
         // Drop trailing empty lanes so the graph width tracks the lanes that are
         // actually active on this row instead of the historical peak.
@@ -141,16 +196,18 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
             dotLane,
             color: dotColor,
             lines,
-            width: Math.max(lanes.length * laneW + 20, (dotLane + 1) * laneW + 20),
-            isMerge: !!(c.parents && c.parents.length > 1)
+            width: (maxLane + 1) * laneW + 20,
+            isMerge: !!(c.parents && c.parents.length > 1),
+            dimmed: !cReach,
+            isHead: !!headId && c.id === headId
         });
     }
 }
 
 /** Full (non-incremental) build — used on a fresh log / repo or ref switch. */
-export function buildCommitGraph(log: Commit[], _headCommitId: string | null = null): Map<string, GraphNode> {
+export function buildCommitGraph(log: Commit[], headCommitId: string | null = null): Map<string, GraphNode> {
     const map = new Map<string, GraphNode>();
     if (!log || log.length === 0) return map;
-    appendCommitGraph(map, createGraphState(), log);
+    appendCommitGraph(map, createGraphState(), log, headCommitId);
     return map;
 }

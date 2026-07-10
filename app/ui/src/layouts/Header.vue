@@ -12,6 +12,7 @@ import {
   isTerminalOpen,
   repoPath,
   branches,
+  repoState,
   checkoutBranch,
   createBranchAction
 } from '../services/gitService';
@@ -53,6 +54,8 @@ const repoDisplayName = computed(() => {
 
 const currentBranch = computed(() => {
     const branch = branches.value.find(b => b.is_head);
+    // During a rebase HEAD is detached — surface the state instead of "no branch".
+    if (!branch && repoState.value === 'rebase') return t('ui.rebasing');
     return branch ? branch.name : t('ui.no_branch');
 });
 const repoMenuOpen = ref<{ x: number, y: number, items: any[] } | null>(null);

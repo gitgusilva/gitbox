@@ -80,6 +80,18 @@ textarea,
   --gb-removed: 239 68 68;
   --gb-modified: 87 176 255;
 
+  /* Commit-graph lane palette + merge marker (themeable; .light inherits these
+     unless a theme overrides them). */
+  --gb-graph-1: 30 136 229;
+  --gb-graph-2: 255 171 0;
+  --gb-graph-3: 0 230 118;
+  --gb-graph-4: 213 0 249;
+  --gb-graph-5: 255 61 0;
+  --gb-graph-6: 0 176 255;
+  --gb-graph-7: 29 233 182;
+  --gb-graph-8: 245 0 87;
+  --gb-graph-marker: 255 255 255;
+
   --gb-font-ui: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --gb-ui-font-size: 13px;
   --gb-font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
@@ -170,4 +182,50 @@ body.resizing-row * {
   user-select: none !important;
   cursor: row-resize !important;
   pointer-events: none !important;
+}
+
+/* "Our" line numbers: one shared Monaco config (see monacoService) drives colour,
+   active-line weight and the surface gutter across every editor. This just pins
+   the numerals to tabular figures so they stay aligned in all editors. */
+.monaco-editor .margin-view-overlays .line-numbers {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Monaco "only changes" collapses unchanged regions, but its default widget is a
+   noisy, interactive strip ("N hidden lines | <enclosing symbol>") that lets you
+   drag/expand the fold and jump to symbols. Keep the regions collapsed, but hide
+   the widget's chrome entirely and make it fully non-interactive — no "N hidden
+   lines" text, no enclosing-symbol breadcrumb, no expand/drag affordances. */
+.monaco-editor .diff-hidden-lines {
+  pointer-events: none !important;
+}
+.monaco-editor .diff-hidden-lines .top,
+.monaco-editor .diff-hidden-lines .bottom {
+  cursor: default !important;
+  background: none !important;
+}
+.monaco-editor .diff-hidden-lines .center {
+  /* Keeps the collapsed-region height, hides every child (icon, count, symbol). */
+  visibility: hidden !important;
+  cursor: default !important;
+}
+
+/* A diff is read-only, so clicking it must not surface an editing prompt: kill the
+   "Cannot edit in read-only editor" balloon everywhere. The text caret itself is
+   left visible (harmless — it just marks where you clicked). */
+.monaco-editor .monaco-editor-overlaymessage {
+  display: none !important;
+}
+
+/* Monaco diff-editor resize divider (sash): match GitBox's own resizers — a thin
+   themed line that turns accent while hovered/dragged, instead of Monaco's blue. */
+.monaco-sash.vertical::before,
+.monaco-sash.horizontal::before {
+  background: rgb(var(--gb-border)) !important;
+}
+.monaco-sash.vertical:hover::before,
+.monaco-sash.horizontal:hover::before,
+.monaco-sash.active::before {
+  background: rgb(var(--gb-accent)) !important;
 }

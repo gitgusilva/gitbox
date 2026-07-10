@@ -51,7 +51,7 @@ function handleClose() {
       <!-- Sidebar Header -->
       <template #sidebar-header>
         <div class="px-5 py-6">
-          <h2 class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest opacity-80">{{ t('settings.title') }}</h2>
+          <h2 class="text-[10px] font-bold text-content-muted uppercase tracking-widest opacity-80">{{ t('settings.title') }}</h2>
         </div>
       </template>
 
@@ -60,7 +60,7 @@ function handleClose() {
         <div class="flex flex-col h-full bg-app">
             <header class="h-14 border-b border-line flex items-center justify-between px-8 bg-surface flex-shrink-0">
                 <h1 class="font-bold text-sm text-content uppercase tracking-tight">{{ activeTabLabel }}</h1>
-                <button @click="handleClose()" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors p-2 bg-white/0 hover:bg-white/5 rounded-full">
+                <button @click="handleClose()" class="text-content-muted hover:text-content-strong transition-colors p-2 hover:bg-surface-hover rounded-full">
                     <Icon icon="lucide:x" class="text-lg" />
                 </button>
             </header>
@@ -74,12 +74,9 @@ function handleClose() {
                         <AppearanceSection />
                     </Tab>
 
-                    <Tab id="preferences" :label="t('settings.preferences')" icon="lucide:sliders">
-                        <PreferencesSection />
-                    </Tab>
-                    
                     <Tab id="git" :label="t('settings.git')" icon="lucide:git-branch">
                         <GitSection />
+                        <PreferencesSection />
                     </Tab>
                     
                     <Tab id="integrations" :label="t('settings.integrations')" icon="lucide:link">
@@ -93,7 +90,7 @@ function handleClose() {
       <!-- Sidebar Footer -->
       <template #sidebar-footer>
           <div class="p-4 border-t border-line/20 bg-black/5">
-              <div class="text-[9px] text-neutral-600 font-mono tracking-tighter opacity-70">GITBOX v{{ appVersion }}</div>
+              <div class="text-[9px] text-content-muted font-mono tracking-tighter opacity-70">GITBOX v{{ appVersion }}</div>
           </div>
       </template>
     </Tabs>

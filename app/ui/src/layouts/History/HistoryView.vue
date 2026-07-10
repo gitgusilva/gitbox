@@ -2,17 +2,21 @@
 import { ref, watch, shallowRef, onMounted, onUnmounted, computed, triggerRef, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { cn } from '../../utils/cn';
-import { 
-  log, 
-  selectedCommit, 
+import {
+  log,
+  selectedCommit,
   selectedCommits,
-  selectedLogRef, 
+  effectiveLogRefs,
+  removeLogFilter,
+  loadInitialLog,
   loadRepoData,
   loadMoreLog,
+  isLoadingMoreLog,
   isLoadingData,
   repoPath,
   branches,
-  tags
+  tags,
+  cherryPickAction
 } from '../../services/gitService';
 import { 
   historyAuthorWidth, 
@@ -23,11 +27,13 @@ import {
 import { appendCommitGraph, createGraphState, GraphState } from '../../GraphBuilder';
 import { GraphNode, Commit } from '../../types/git';
 import { generalSettings } from '../../services/settingsService';
+import { currentTheme } from '../../services/themeService';
 import { contextMenu, requestConfirm, requestInput } from '../../services/modalService';
 import { showToast } from '../../services/toastService';
 
 // Components
 import HistoryCommitList from './components/HistoryCommitList.vue';
+import HistoryFilterBar from './components/HistoryFilterBar.vue';
 import HistoryDetailPanel from './components/HistoryDetailPanel.vue';
 import Modal from '../../components/Common/Modal.vue';
 import { Icon } from '@iconify/vue';
@@ -265,19 +271,27 @@ watch(log, (newLog, oldLog) => {
       return;
   }
 
-  // Appended page during infinite scroll (same top commit, longer list): lay out
-  // ONLY the new commits and extend the existing graph — no full O(n) rebuild.
-  const isAppend = oldLog && oldLog.length > 0 && newLog.length > oldLog.length
-      && newLog[0]?.id === oldLog[0]?.id;
+  // HEAD-reachability highlighting (SourceGit-style): dim commits not on the
+  // current branch. Only enable when HEAD is actually in this view, else a
+  // ref-filtered log with no HEAD would gray out entirely.
+  const headId = branches.value.find(b => b.is_head)?.target || null;
+  const effHead = headId && newLog.some(c => c.id === headId) ? headId : null;
+
+  // Appended page during infinite scroll: lay out ONLY the new commits and extend
+  // the existing graph — no full O(n) rebuild. Gated on isLoadingMoreLog so a
+  // FILTER change (which can also grow the list while keeping the same top commit)
+  // always falls through to a full rebuild instead of corrupting the graph.
+  const isAppend = isLoadingMoreLog.value && oldLog && oldLog.length > 0
+      && newLog.length > oldLog.length && newLog[0]?.id === oldLog[0]?.id;
 
   if (isAppend) {
-      appendCommitGraph(graphOutput.value, graphState, newLog.slice(oldLog.length));
+      appendCommitGraph(graphOutput.value, graphState, newLog.slice(oldLog.length), effHead);
       triggerRef(graphOutput);
   } else {
       // Fresh log (repo/ref switch or first load) → rebuild from scratch.
       graphState = createGraphState();
       const map = new Map<string, GraphNode>();
-      appendCommitGraph(map, graphState, newLog);
+      appendCommitGraph(map, graphState, newLog, effHead);
       graphOutput.value = map;
       // Jump to top only on a genuine reset (top commit changed / first load).
       if (!oldLog || oldLog.length === 0 || newLog[0]?.id !== oldLog[0]?.id) {
@@ -285,6 +299,19 @@ watch(log, (newLog, oldLog) => {
       }
   }
 }, { immediate: true });
+
+// Recolor the whole graph when the theme changes (lane colors are read from the
+// CSS palette at build time, so a switch needs a rebuild).
+watch(currentTheme, () => {
+  const l = log.value;
+  if (!l || l.length === 0) return;
+  graphState = createGraphState();
+  const map = new Map<string, GraphNode>();
+  const headId = branches.value.find(b => b.is_head)?.target || null;
+  const effHead = headId && l.some(c => c.id === headId) ? headId : null;
+  appendCommitGraph(map, graphState, l, effHead);
+  graphOutput.value = map;
+});
 
 const commitRefsMap = computed(() => {
   const map = new Map<string, { name: string, type: 'branch' | 'tag' | 'remote', isHead?: boolean }[]>();
@@ -382,15 +409,26 @@ async function createTagFromCommit(sha: string) {
 async function rewordCommitAction(sha: string, oldMsg: string) {
   requestInput(t('history_menu.reword'), t('history_menu.new_message_placeholder'), '', oldMsg, 'OK', async (newMsg: string) => {
     if (newMsg && newMsg !== oldMsg) {
-       showToast(t('history_detail.toast_wip'), t('history_detail.reword_pending'), 'info');
+       await gitAction(() => window.gitbox.rewordCommit(repoPath.value, sha, newMsg), t('history_detail.commit_reworded'));
     }
   });
 }
 
 async function squashCommitAction(sha: string) {
   requestConfirm(t('history_menu.squash'), t('history_detail.squash_confirm'), true, async () => {
-    showToast(t('history_detail.toast_wip'), t('history_detail.squash_pending'), 'info');
+    await gitAction(() => window.gitbox.squashCommit(repoPath.value, sha), t('history_detail.commit_squashed'));
   });
+}
+
+async function resetToCommitAction(sha: string, mode: 'soft' | 'mixed' | 'hard') {
+  requestConfirm(
+    t(`history_menu.reset_${mode}`),
+    t(`history_detail.reset_confirm_${mode}`, { sha: sha.substring(0, 7) }),
+    mode === 'hard',
+    async () => {
+      await gitAction(() => window.gitbox.resetToCommit(repoPath.value, sha, mode), t('history_detail.reset_done', { sha: sha.substring(0, 7) }));
+    }
+  );
 }
 
 async function revertCommitAction(sha: string, summary: string) {
@@ -417,41 +455,60 @@ function openContextMenu(e: MouseEvent, c: Commit) {
     { label: t('history_menu.create_branch'), icon: 'lucide:git-branch', action: () => createBranchFromCommit(c.id) },
     { label: t('history_menu.create_tag'), icon: 'lucide:tag', action: () => createTagFromCommit(c.id) },
     { type: 'separator' },
-    { label: t('history_menu.reword'), icon: 'lucide:edit-3', action: () => rewordCommitAction(c.id, c.summary || '') },
+    { label: t('history_menu.reword'), icon: 'lucide:edit-3', action: () => rewordCommitAction(c.id, c.message || c.summary || '') },
     { label: t('history_menu.squash'), icon: 'lucide:minimize-2', action: () => squashCommitAction(c.id) },
+    { label: t('history_menu.cherry_pick'), icon: 'lucide:git-cherry', action: () => cherryPickAction(c.id) },
     { label: t('history_menu.revert'), icon: 'lucide:undo-2', action: () => revertCommitAction(c.id, c.summary || '') },
+    { label: t('history_menu.reset'), icon: 'lucide:rotate-ccw', subItems: [
+        { label: t('history_menu.reset_soft'), icon: 'lucide:chevron-up', action: () => resetToCommitAction(c.id, 'soft') },
+        { label: t('history_menu.reset_mixed'), icon: 'lucide:equal', action: () => resetToCommitAction(c.id, 'mixed') },
+        { label: t('history_menu.reset_hard'), icon: 'lucide:alert-triangle', danger: true, action: () => resetToCommitAction(c.id, 'hard') },
+    ]},
     { type: 'separator' },
     { label: t('history_menu.copy_sha'), icon: 'lucide:copy', action: () => navigator.clipboard.writeText(c.id) }
   );
 
   contextMenu.value = { x: e.clientX, y: e.clientY, items };
 }
+
+/** Remove a branch/tag from the history filter (badge ✕), then reload the log. */
+async function onRemoveFilter(name: string) {
+  removeLogFilter(name);
+  await loadInitialLog();
+}
 </script>
 
 <template>
   <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden bg-app">
-    <HistoryCommitList
-      ref="commitListRef"
-      class="flex-1 min-w-0"
-      :log="log"
-      :graphOutput="graphOutput"
-      :selectedCommits="selectedCommits"
-      :commitRefsMap="commitRefsMap"
-      :isLoadingData="isLoadingData"
-      :selectedLogRef="selectedLogRef"
-      :dateFormat="generalSettings.dateFormat"
-      :showTagsInGraph="generalSettings.showTagsInGraph"
-      @select="selectCommit"
-      @contextMenu="openContextMenu"
-      @clearRef="selectedLogRef = ''; loadRepoData(true)"
-      @loadMore="loadMoreLog"
-    />
+    <div class="flex-1 min-w-0 flex flex-col min-h-0">
+      <!-- Active history filter badges (branches/tags). Shown only when filtering;
+           hidden when viewing the whole graph (ALL). -->
+      <HistoryFilterBar
+        v-if="effectiveLogRefs.length"
+        :refs="effectiveLogRefs"
+        @remove="onRemoveFilter" />
+      <HistoryCommitList
+        ref="commitListRef"
+        class="flex-1 min-w-0 min-h-0"
+        :log="log"
+        :graphOutput="graphOutput"
+        :selectedCommits="selectedCommits"
+        :commitRefsMap="commitRefsMap"
+        :isLoadingData="isLoadingData"
+        :dateFormat="generalSettings.dateFormat"
+        :showTagsInGraph="generalSettings.showTagsInGraph"
+        @select="selectCommit"
+        @contextMenu="openContextMenu"
+        @loadMore="loadMoreLog"
+      />
+    </div>
 
     <HistoryDetailPanel
       v-if="selectedCommits.length > 0"
       :requestedTab="detailRequestedTab"
       :selectedCommits="selectedCommits"
       :commitRefs="commitRefsMap.get(selectedCommit?.id) || []"
+      :graphColor="graphOutput.get(selectedCommit?.id)?.color"
       :commitFilesList="commitFilesList"
       :selectedCommitFile="selectedCommitFile"
       :commitOriginal="commitOriginal"

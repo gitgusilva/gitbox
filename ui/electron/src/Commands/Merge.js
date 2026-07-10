@@ -73,6 +73,67 @@ class Merge extends Command {
         return this.addon.repoState(repoPath);
     }
 
+    /** Abort an in-progress rebase: restore the branch to its pre-rebase state. */
+    async rebaseAbort(repoPath) {
+        return this.addon.rebaseAbort(repoPath);
+    }
+
+    /** Skip the current (stopped) patch and continue the rebase. */
+    async rebaseSkip(repoPath) {
+        return this.addon.rebaseSkip(repoPath);
+    }
+
+    /** Commit the resolved patch and continue the rebase. */
+    async rebaseContinue(repoPath) {
+        return this.addon.rebaseContinue(repoPath);
+    }
+
+    /**
+     * Cherry-pick a commit onto the current branch.
+     * Returns { status: 'done' | 'conflicts' }. On conflict, git leaves
+     * CHERRY_PICK_HEAD + conflicts in the working tree; the caller drives the
+     * banner (resolve → continue / skip / abort), reusing the merge-conflict UI.
+     */
+    async cherryPick(repoPath, commitSha) {
+        try {
+            await this.execGit(repoPath, ['cherry-pick', commitSha]);
+            return { status: 'done' };
+        } catch (e) {
+            if (this.addon.repoState(repoPath) === 'cherrypick') return { status: 'conflicts' };
+            throw new Error(e.message);
+        }
+    }
+
+    /** Abort an in-progress cherry-pick: restore the pre-cherry-pick state. */
+    async cherryPickAbort(repoPath) {
+        try { await this.execGit(repoPath, ['cherry-pick', '--abort']); return true; } catch (e) { throw new Error(e.message); }
+    }
+
+    /**
+     * Commit the resolved conflicts and finish the cherry-pick. `core.editor=true`
+     * suppresses the commit-message editor so it never hangs headless.
+     */
+    async cherryPickContinue(repoPath) {
+        try {
+            await this.execGit(repoPath, ['-c', 'core.editor=true', 'cherry-pick', '--continue']);
+            return { status: this.addon.repoState(repoPath) === 'cherrypick' ? 'conflicts' : 'done' };
+        } catch (e) {
+            if (this.addon.repoState(repoPath) === 'cherrypick') return { status: 'conflicts' };
+            throw new Error(e.message);
+        }
+    }
+
+    /** Skip the current commit (e.g. it became empty) and continue the cherry-pick. */
+    async cherryPickSkip(repoPath) {
+        try {
+            await this.execGit(repoPath, ['cherry-pick', '--skip']);
+            return { status: this.addon.repoState(repoPath) === 'cherrypick' ? 'conflicts' : 'done' };
+        } catch (e) {
+            if (this.addon.repoState(repoPath) === 'cherrypick') return { status: 'conflicts' };
+            throw new Error(e.message);
+        }
+    }
+
     /** Two-letter porcelain codes that mark an unmerged (conflicted) path. */
     static UNMERGED = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU']);
 

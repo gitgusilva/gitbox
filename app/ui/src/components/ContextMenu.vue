@@ -184,7 +184,8 @@ onBeforeUnmount(() => {
                 <button v-else @click.stop="handleItemClick(subItem)"
                         class="flex items-center justify-between px-4 py-1.5 w-full text-left"
                         :class="[
-                          subItem.disabled ? 'opacity-50 cursor-not-allowed text-neutral-500' : 'hover:bg-neutral-200 dark:hover:bg-[#4A4A4A] cursor-pointer text-content'
+                          subItem.disabled ? 'opacity-50 cursor-not-allowed text-neutral-500' : 'hover:bg-neutral-200 dark:hover:bg-[#4A4A4A] cursor-pointer text-content',
+                          subItem.danger && !subItem.disabled ? 'text-red-400 hover:text-red-300' : ''
                         ]">
                   <div class="flex items-center gap-2 flex-1">
                     <span v-if="subItem.icon" class="w-4 text-center text-sm flex items-center justify-center"><Icon :icon="subItem.icon" /></span>

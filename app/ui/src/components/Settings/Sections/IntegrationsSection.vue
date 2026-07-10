@@ -80,28 +80,28 @@ watch([aiProvider, aiApiKey], () => {
   <div class="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
     <!-- AI Section -->
     <section class="space-y-4">
-      <label class="block text-xs font-bold text-neutral-500 uppercase flex items-center gap-2">
-        <Icon icon="lucide:sparkles" class="text-blue-500" />
+      <label class="block text-xs font-bold text-content-muted uppercase flex items-center gap-2">
+        <Icon icon="lucide:sparkles" class="text-accent" />
         {{ t('settings.ai') }}
       </label>
       <div class="bg-surface border border-line rounded-xl p-6 space-y-6">
         <div>
-          <label class="block text-[10px] font-bold text-neutral-500 uppercase mb-2">{{ t('settings.ai_provider') }}</label>
+          <label class="block text-[10px] font-bold text-content-muted uppercase mb-2">{{ t('settings.ai_provider') }}</label>
           <Select v-model="aiProvider" :options="providerOptions" searchable />
         </div>
         <!-- API key: only for providers that authenticate with one. -->
         <div v-if="requiresKey">
-          <label class="block text-[10px] font-bold text-neutral-500 uppercase mb-2">{{ t('settings.api_key') }}</label>
+          <label class="block text-[10px] font-bold text-content-muted uppercase mb-2">{{ t('settings.api_key') }}</label>
           <div class="relative">
             <input v-model="aiApiKey" type="password" :placeholder="t('settings.api_key_placeholder')" class="w-full bg-app border border-line rounded px-3 py-2 text-xs text-content-strong outline-none focus:border-accent transition-colors shadow-sm pr-10" />
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <Icon v-if="isSavingAI" icon="lucide:loader-2" class="w-3.5 h-3.5 animate-spin text-blue-500" />
-              <Icon v-else icon="lucide:key" class="text-[10px] text-neutral-600" />
+              <Icon v-if="isSavingAI" icon="lucide:loader-2" class="w-3.5 h-3.5 animate-spin text-accent" />
+              <Icon v-else icon="lucide:key" class="text-[10px] text-content-muted" />
             </div>
           </div>
         </div>
         <!-- CLI providers use their own local login. -->
-        <p v-else class="flex items-center gap-1.5 text-[10px] text-neutral-500">
+        <p v-else class="flex items-center gap-1.5 text-[10px] text-content-muted">
           <Icon icon="lucide:terminal" class="text-xs shrink-0" />
           {{ t('settings.ai_cli_no_key') }}
         </p>
@@ -110,17 +110,18 @@ watch([aiProvider, aiApiKey], () => {
 
     <!-- External Providers Section -->
     <section class="space-y-4">
-      <label class="block text-xs font-bold text-neutral-500 uppercase flex items-center gap-2">
-        <Icon icon="lucide:link" class="text-neutral-500" />
+      <label class="block text-xs font-bold text-content-muted uppercase flex items-center gap-2">
+        <Icon icon="lucide:link" class="text-content-muted" />
         {{ t('settings.integrations') }}
       </label>
-      <p class="text-[10px] text-neutral-500 leading-relaxed px-1">
+      <p class="text-[10px] text-content-muted leading-relaxed px-1">
         {{ t('settings.integrations_description') }}
       </p>
       
       <div class="grid grid-cols-1 gap-3">
-        <div v-for="item in integrationsList" :key="item.id" 
-             class="bg-surface border border-line rounded-xl p-4 flex items-center justify-between group hover:border-accent/40 hover:bg-surface-hover transition-all shadow-sm">
+        <div v-for="item in integrationsList" :key="item.id"
+             class="bg-surface border border-line rounded-xl p-4 flex items-center justify-between group transition-all shadow-sm"
+             :class="item.comingSoon ? 'opacity-60' : 'hover:border-accent/40 hover:bg-surface-hover'">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-2xl border border-line bg-surface-hover relative overflow-hidden flex-shrink-0" :style="{ color: item.color }">
               <div class="absolute inset-0 opacity-10" :style="{ background: `radial-gradient(circle at center, ${item.color}, transparent)` }"></div>
@@ -135,20 +136,25 @@ watch([aiProvider, aiApiKey], () => {
                  <img v-if="item.user?.avatar_url" :src="item.user.avatar_url" class="w-3.5 h-3.5 rounded-full border border-white/10" />
                  <span class="text-[9px] text-content-muted font-medium truncate">@{{ item.user?.login || 'User' }}</span>
               </div>
-              <p v-else class="text-[9px] text-neutral-500 leading-tight pr-4 truncate">
+              <p v-else class="text-[9px] text-content-muted leading-tight pr-4 truncate">
                 {{ t('settings.integrations_desc_short') }}
               </p>
             </div>
           </div>
           
-          <button v-if="!item.connected" 
+          <span v-if="item.comingSoon"
+                class="px-4 py-2 bg-surface-hover text-content-muted rounded text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border border-line flex-shrink-0 cursor-not-allowed select-none">
+            <Icon icon="lucide:clock" class="w-3 h-3" />
+            {{ t('settings.coming_soon') }}
+          </span>
+          <button v-else-if="!item.connected"
                   @click="connectProvider(item.id)"
                   class="px-4 py-2 bg-accent/10 hover:bg-accent text-accent hover:text-accent-fg rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-accent/20 flex-shrink-0">
             <Icon icon="lucide:link-2" class="w-3 h-3" />
             {{ t('settings.connect') }}
           </button>
           <button v-else @click="handleDisconnect(item.id, item.name)"
-                  class="px-4 py-2 hover:bg-red-900/40 text-neutral-500 hover:text-red-400 rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-red-900/50 flex-shrink-0">
+                  class="px-4 py-2 hover:bg-red-900/40 text-content-muted hover:text-red-400 rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-red-900/50 flex-shrink-0">
                <Icon icon="lucide:log-out" class="w-3 h-3" />
                {{ t('settings.disconnect') }}
           </button>

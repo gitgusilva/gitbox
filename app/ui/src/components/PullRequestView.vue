@@ -289,12 +289,12 @@ async function handleConvertToDraft() {
       </div>
       <div class="flex items-center gap-2">
         <Tooltip :text="t('view.open_in_browser')" position="left">
-          <button @click="openExternal(pr.url)" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800">
+          <button @click="openExternal(pr.url)" class="text-content-muted hover:text-content-strong transition-colors p-1 rounded hover:bg-surface-hover">
             <Icon icon="lucide:external-link" class="text-sm" />
           </button>
         </Tooltip>
         <Tooltip :text="t('view.close')" position="left">
-          <button @click="close" class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors outline-none">
+          <button @click="close" class="text-content-muted hover:text-content-strong transition-colors outline-none">
             <Icon icon="lucide:x" class="text-lg" />
           </button>
         </Tooltip>
@@ -307,17 +307,17 @@ async function handleConvertToDraft() {
         
         <!-- PR Title Header -->
         <div class="flex flex-col gap-3 pb-6 border-b border-line">
-           <div class="text-xs text-neutral-500 font-mono">#{{ pr.number }}</div>
+           <div class="text-xs text-content-muted font-mono">#{{ pr.number }}</div>
            <h1 class="text-2xl text-content-strong font-medium flex items-center gap-3 w-full">
              <template v-if="!isEditingTitle">
                 <span class="break-words">{{ pr.title }}</span>
-                <button @click="isEditingTitle = true" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white p-1 opacity-0 hover:opacity-100 transition-opacity">
+                <button @click="isEditingTitle = true" class="text-content-muted hover:text-content-strong p-1 opacity-0 hover:opacity-100 transition-opacity">
                   <Icon icon="lucide:edit-2" class="text-sm" />
                 </button>
              </template>
              <template v-else>
                 <div class="flex items-center gap-2 w-full my-1">
-                    <input v-model="editableTitle" @keyup.enter="saveTitle" :disabled="isSavingTitle" class="flex-1 bg-black/50 border border-neutral-300/80 dark:border-neutral-700/80 rounded px-3 py-1.5 text-content-strong text-xl focus:border-accent outline-none w-full shadow-inner" />
+                    <input v-model="editableTitle" @keyup.enter="saveTitle" :disabled="isSavingTitle" class="flex-1 bg-surface border border-line-strong rounded px-3 py-1.5 text-content-strong text-xl focus:border-accent outline-none w-full shadow-inner" />
                     <Button variant="primary" :loading="isSavingTitle" @click="saveTitle">{{ t('common.save') }}</Button>
                     <Button variant="ghost" @click="isEditingTitle = false; editableTitle = pr.title">{{ t('common.cancel') }}</Button>
                 </div>
@@ -325,7 +325,7 @@ async function handleConvertToDraft() {
            </h1>
            <div class="flex items-center gap-3 text-sm text-content-muted">
              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ring-1 transition-colors capitalize"
-                  :class="pr.state === 'closed' ? 'bg-red-900/40 text-red-400 ring-red-500/50' : (pr.draft ? 'bg-neutral-200 dark:bg-neutral-800 text-content-muted ring-neutral-600/50' : 'bg-green-900/40 text-green-400 ring-green-500/50')">
+                  :class="pr.state === 'closed' ? 'bg-red-900/40 text-red-400 ring-red-500/50' : (pr.draft ? 'bg-surface-hover text-content-muted ring-line-strong' : 'bg-green-900/40 text-green-400 ring-green-500/50')">
                 {{ pr.state === 'closed' ? pr.state : (pr.draft ? $t('pr_view.draft') || 'Draft' : pr.state) }}
              </div>
              <div class="flex items-center gap-2">
@@ -347,17 +347,17 @@ async function handleConvertToDraft() {
              <div class="flex flex-col gap-2 relative group/desc">
                 <div class="flex items-center justify-between text-xs font-medium text-content">
                    {{ $t('settings.create_pr.description') || 'Description' }}
-                   <button v-if="!isEditingDescription" @click="isEditingDescription = true" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white opacity-0 group-hover/desc:opacity-100 transition-opacity"><Icon icon="lucide:edit-2" /></button>
+                   <button v-if="!isEditingDescription" @click="isEditingDescription = true" class="text-content-muted hover:text-content-strong opacity-0 group-hover/desc:opacity-100 transition-opacity"><Icon icon="lucide:edit-2" /></button>
                 </div>
                 <!-- Markdown Content -->
                 <div v-if="!isEditingDescription" class="bg-app text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2 p-4 rounded-lg border border-line" @click="handleMarkdownClick">
                    <div v-if="pr.body" v-html="renderMd(pr.body)"></div>
-                   <div v-else class="text-neutral-500 italic">{{ $t('pr_view.no_description') || 'No description provided.' }}</div>
+                   <div v-else class="text-content-muted italic">{{ $t('pr_view.no_description') || 'No description provided.' }}</div>
                    <!-- Main Reactions -->
                    <div v-if="pr.reactions && pr.reactions.total_count > 0" class="mt-4 flex flex-wrap gap-2">
                      <template v-for="(count, key) in pr.reactions" :key="key">
                        <Tooltip v-if="typeof count === 'number' && count > 0 && String(key) !== 'total_count' && String(key) !== 'url'" :text="String(key)">
-                         <div class="flex items-center gap-1.5 bg-neutral-200/80 dark:bg-neutral-800/80 border border-neutral-300/50 dark:border-neutral-700/50 rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-default">
+                         <div class="flex items-center gap-1.5 bg-surface-hover border border-line rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-content-strong transition-colors cursor-default">
                            <Icon :icon="getReactionIcon(String(key))" class="text-[12px]" />
                            <span class="font-medium">{{ count }}</span>
                          </div>
@@ -367,7 +367,7 @@ async function handleConvertToDraft() {
                 </div>
                 <!-- Edit Mode -->
                 <div v-else class="flex flex-col gap-2">
-                    <textarea v-model="editableDescription" :disabled="isSavingDescription" class="w-full min-h-[150px] bg-black/50 border border-line-strong rounded-lg p-3 text-sm text-content focus:border-accent outline-none resize-y font-mono shadow-inner"></textarea>
+                    <textarea v-model="editableDescription" :disabled="isSavingDescription" class="w-full min-h-[150px] bg-surface border border-line-strong rounded-lg p-3 text-sm text-content focus:border-accent outline-none resize-y font-mono shadow-inner"></textarea>
                     <div class="flex items-center justify-end gap-2 mt-1">
                         <Button variant="ghost" @click="isEditingDescription = false; editableDescription = pr.body || ''">{{ $t('common.cancel') }}</Button>
                         <Button variant="primary" :loading="isSavingDescription" @click="saveDescription">{{ $t('pr_view.save') || 'Save' }}</Button>
@@ -379,28 +379,28 @@ async function handleConvertToDraft() {
              <div class="flex flex-col gap-4 mt-6">
                 <div class="flex items-center justify-between text-xs font-medium text-content">
                    {{ $t('pr_view.comments') || 'Comments' }}
-                   <button @click="loadComments" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white" :class="{'animate-spin text-accent': isLoadingComments}"><Icon icon="lucide:refresh-cw" /></button>
+                   <button @click="loadComments" class="text-content-muted hover:text-content-strong" :class="{'animate-spin text-accent': isLoadingComments}"><Icon icon="lucide:refresh-cw" /></button>
                 </div>
                 
-                <div v-if="comments.length === 0 && !isLoadingComments" class="text-xs text-neutral-600 italic">{{ $t('pr_view.no_comments') || 'No comments yet.' }}</div>
+                <div v-if="comments.length === 0 && !isLoadingComments" class="text-xs text-content-muted italic">{{ $t('pr_view.no_comments') || 'No comments yet.' }}</div>
                 
                 <!-- Comments List -->
                 <div class="relative flex flex-col gap-6">
                    <!-- Vertical connection line -->
-                   <div v-if="comments.length > 0" class="absolute left-[15px] top-6 bottom-8 w-[2px] bg-neutral-200 dark:bg-neutral-800 z-0 rounded-full"></div>
+                   <div v-if="comments.length > 0" class="absolute left-[15px] top-6 bottom-8 w-[2px] bg-surface-hover z-0 rounded-full"></div>
                    
                    <div v-for="comment in comments" :key="comment.id" class="flex items-start gap-3 relative z-10">
                       <Tooltip :text="comment.user?.login">
                         <img :src="comment.user?.avatar_url" class="w-8 h-8 rounded-full border-2 border-line bg-app flex-shrink-0" />
                       </Tooltip>
                       <div class="flex-1 bg-surface rounded-lg border border-line overflow-hidden">
-                         <div class="bg-neutral-200/50 dark:bg-neutral-800/50 px-3 py-2 border-b border-line text-xs flex items-center justify-between group">
+                         <div class="bg-surface-hover px-3 py-2 border-b border-line text-xs flex items-center justify-between group">
                             <div class="flex items-center gap-2">
                                 <span class="font-bold text-content">{{ comment.user?.login }}</span>
-                                <span class="text-neutral-500">{{ formatDate(comment.createdAt) }}</span>
+                                <span class="text-content-muted">{{ formatDate(comment.createdAt) }}</span>
                             </div>
                              <Tooltip :text="t('view.open_in_browser')" position="left">
-                               <button @click="openExternal(comment.url)" class="text-neutral-500 hover:text-neutral-900 dark:hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"><Icon icon="lucide:external-link" /></button>
+                               <button @click="openExternal(comment.url)" class="text-content-muted hover:text-content-strong opacity-0 group-hover:opacity-100 transition-opacity"><Icon icon="lucide:external-link" /></button>
                              </Tooltip>
                          </div>
                          <div class="p-4 text-sm text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2" v-html="renderMd(comment.body)" @click="handleMarkdownClick">
@@ -409,7 +409,7 @@ async function handleConvertToDraft() {
                           <div v-if="comment.reactions && comment.reactions.total_count > 0" class="px-4 pb-3 flex flex-wrap gap-2">
                             <template v-for="(count, key) in comment.reactions" :key="key">
                                <Tooltip v-if="typeof count === 'number' && count > 0 && String(key) !== 'total_count' && String(key) !== 'url'" :text="String(key)">
-                                 <div class="flex items-center gap-1.5 bg-neutral-200/80 dark:bg-neutral-800/80 border border-neutral-300/50 dark:border-neutral-700/50 rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-default">
+                                 <div class="flex items-center gap-1.5 bg-surface-hover border border-line rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-content-strong transition-colors cursor-default">
                                    <Icon :icon="getReactionIcon(String(key))" class="text-[12px]" />
                                    <span class="font-medium">{{ count }}</span>
                                  </div>
@@ -423,8 +423,8 @@ async function handleConvertToDraft() {
                 <!-- Add Comment Input Box -->
                 <div class="flex gap-3 mt-4 relative z-10 w-full">
                   <div class="flex-1 bg-surface border border-line-strong focus-within:border-accent rounded-lg overflow-hidden transition-colors flex flex-col shadow-inner">
-                     <textarea v-model="newComment" :disabled="isSubmittingComment" class="w-full bg-transparent border-none outline-none resize-none min-h-[80px] p-3 text-sm text-content placeholder:text-neutral-600 disabled:opacity-50" :placeholder="$t('pr_view.add_comment') || 'Add a comment...'"></textarea>
-                     <div class="bg-surface/60 border-t border-neutral-200/50 dark:border-neutral-800/50 p-2 flex justify-end gap-2">
+                     <textarea v-model="newComment" :disabled="isSubmittingComment" class="w-full bg-transparent border-none outline-none resize-none min-h-[80px] p-3 text-sm text-content placeholder:text-content-muted disabled:opacity-50" :placeholder="$t('pr_view.add_comment') || 'Add a comment...'"></textarea>
+                     <div class="bg-surface/60 border-t border-line p-2 flex justify-end gap-2">
                         <Button variant="success" :loading="isSubmittingComment" :disabled="!newComment.trim()" @click="submitComment">{{ $t('pr_view.comment') || 'Comment' }}</Button>
                      </div>
                   </div>
@@ -440,7 +440,7 @@ async function handleConvertToDraft() {
               <div class="flex flex-col gap-2 pb-6 border-b border-line">
                  <div class="text-xs text-content-muted font-medium mb-1">
                      {{ $t('pr_view.files_changed', { count: pr.changed_files || 0 }) || (pr.changed_files || 0) + ' files changed' }}
-                     <span v-if="pr.changed_files === undefined" class="text-neutral-600">{{ $t('pr_view.not_fetched') || '(Not fetched)' }}</span>
+                     <span v-if="pr.changed_files === undefined" class="text-content-muted">{{ $t('pr_view.not_fetched') || '(Not fetched)' }}</span>
                  </div>
                  <!-- Review actions: only a non-author (reviewer) can approve / request
                       changes — GitHub forbids reviewing your own PR. -->
@@ -471,9 +471,9 @@ async function handleConvertToDraft() {
                    <div v-if="selectedReviewers.length === 0" class="flex flex-col gap-1 text-[11px] mb-1">
                       <div class="text-content font-medium">{{ $t('pr_view.no_reviews') || 'No reviews' }}</div>
                       <div v-if="pr.state !== 'closed'">
-                          <div v-if="!pr.draft" class="text-neutral-500">
-                             {{ $t('pr_view.still_in_progress') || 'Still in progress?' }} 
-                             <button @click="handleConvertToDraft" :disabled="isConvertingDraft" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors underline hover:no-underline disabled:opacity-50 inline-flex items-center gap-1">
+                          <div v-if="!pr.draft" class="text-content-muted">
+                             {{ $t('pr_view.still_in_progress') || 'Still in progress?' }}
+                             <button @click="handleConvertToDraft" :disabled="isConvertingDraft" class="text-content-muted hover:text-content-strong transition-colors underline hover:no-underline disabled:opacity-50 inline-flex items-center gap-1">
                                  <Icon v-if="isConvertingDraft" icon="lucide:loader-2" class="animate-spin text-xs" />
                                  {{ $t('pr_view.convert_to_draft') || 'Convert to draft' }}
                              </button>
@@ -498,12 +498,12 @@ async function handleConvertToDraft() {
                    </div>
                    <div v-if="selectedLabels.length > 0" class="flex flex-wrap gap-1.5 mb-1">
                       <div v-for="label in selectedLabels" :key="label" 
-                           class="px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 border border-line-strong bg-neutral-200 dark:bg-neutral-800 text-content">
+                           class="px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1.5 border border-line-strong bg-surface-hover text-content">
                           <div class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: '#' + (availableLabels.find(l => l.name === label)?.color || '666') }"></div>
                           {{ label }}
                       </div>
                    </div>
-                   <div v-else class="text-[11px] text-neutral-500 mb-1">{{ $t('pr_view.none_yet') || 'None yet' }}</div>
+                   <div v-else class="text-[11px] text-content-muted mb-1">{{ $t('pr_view.none_yet') || 'None yet' }}</div>
                    <MultiSelect v-model="selectedLabels" :options="labelOptions" :placeholder="$t('settings.create_pr.select_labels') || 'Select labels...'" />
                 </div>
 
@@ -524,7 +524,7 @@ async function handleConvertToDraft() {
                 <div class="flex flex-col gap-2 mt-4 border-t border-line pt-4">
                    <div class="text-xs text-content-muted font-medium">{{ $t('pr_view.branch') || 'Branch' }}</div>
                     <Tooltip :text="pr.sourceBranch">
-                      <div class="bg-blue-900/20 text-blue-400 px-2.5 py-1 rounded font-mono text-xs border border-blue-900/50 truncate">
+                      <div class="bg-accent/15 text-accent px-2.5 py-1 rounded font-mono text-xs border border-accent/30 truncate">
                         {{ pr.sourceBranch }}
                       </div>
                     </Tooltip>

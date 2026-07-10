@@ -22,7 +22,9 @@ class Clone extends Command {
             const name = (String(url).split('/').pop() || 'repo').replace(/\.git$/i, '');
             const dest = path.join(targetDir, name);
             const token = getTokenForUrl(url) || '';
-            this.addon.clone(url, dest, token);
+            // addon.clone now returns a Promise (runs off the main thread) — await
+            // so the folder only reports success once the clone actually finishes.
+            await this.addon.clone(url, dest, token);
             return { path: dest, name };
         } catch (e) {
             throw new Error(e.message);

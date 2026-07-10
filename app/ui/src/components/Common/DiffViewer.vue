@@ -158,10 +158,14 @@ const viewMode = ref<'visual' | 'code'>(isImage.value ? 'visual' : 'code');
 // Side-by-side text diffs always use the two-editor custom viewer (no Monaco
 // diff-editor middle gutter/arrows). The connectors toggle only controls whether
 // the ribbon gutter is shown. Inline mode keeps Monaco's unified diff editor.
+// Exception: "only changes" (collapse unchanged regions) is not supported by the
+// custom ribbon viewer, so fall back to Monaco's diff editor — which renders
+// side-by-side AND collapses the unchanged regions (hideUnchangedRegions).
 const isCustomDiff = computed(() =>
     viewType.value === 'diff'
     && renderSideBySide.value
     && viewMode.value === 'code'
+    && !onlyChanges.value
     && !isImage.value
     && !isMarkdown.value,
 );
@@ -183,11 +187,18 @@ async function setupEditor() {
       originalModel = monaco.value.editor.createModel(props.original, language);
       modifiedModel = monaco.value.editor.createModel(props.modified, language);
 
+      const ro = props.readOnly ?? true;
       editor = monaco.value.editor.createDiffEditor(container.value, {
         ...monacoOptions,
         theme: getMonacoTheme(currentTheme.value),
         renderSideBySide: renderSideBySide.value,
-        readOnly: props.readOnly ?? true,
+        readOnly: ro,
+        // A diff is for reading, never editing: block the caret/typing at the DOM
+        // level, keep the original side read-only too, and drop the middle
+        // "revert / send this change to the other pane" arrows entirely.
+        domReadOnly: ro,
+        originalEditable: false,
+        renderMarginRevertIcon: false,
         diffWordWrap: isWordWrap.value ? 'on' : 'off',
         wordWrap: isWordWrap.value ? 'on' : 'off',
         ignoreTrimWhitespace: ignoreWhitespace.value,
@@ -369,6 +380,12 @@ onMounted(async () => {
     });
     resizeObserver.observe(container.value);
   }
+  // Safety net for the "Monaco created before its flex container had a real height"
+  // race, which otherwise leaves the diff collapsed to ~0px. Force a relayout once
+  // the size is available (next frame, and again shortly after for slow layouts).
+  const relayout = () => { editor?.layout(); fileEditor?.layout(); };
+  requestAnimationFrame(() => requestAnimationFrame(relayout));
+  setTimeout(relayout, 150);
 });
 onBeforeUnmount(() => {
   if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
@@ -399,8 +416,8 @@ function onToolbarWheel(e: WheelEvent) {
       <div class="h-stack gap-3 min-w-0 flex-1 pr-2">
         <div class="min-w-0 overflow-hidden flex items-center gap-2"
              @mouseenter="startMarquee($event, '.diff-filename')" @mouseleave="stopMarquee($event, '.diff-filename')">
-          <Icon icon="lucide:file-code" class="text-xs text-neutral-600 shrink-0" />
-          <span class="diff-filename text-[10px] font-bold text-neutral-500 uppercase tracking-widest truncate block">
+          <Icon icon="lucide:file-code" class="text-xs text-content-muted shrink-0" />
+          <span class="diff-filename text-[10px] font-bold text-content-muted uppercase tracking-widest truncate block">
             {{ filename || t('history.changes') }}
           </span>
         </div>
@@ -410,7 +427,7 @@ function onToolbarWheel(e: WheelEvent) {
       <!-- Right: Centralized Controls -->
       <div class="h-stack gap-2 min-w-0 shrink overflow-x-auto [&::-webkit-scrollbar]:hidden" @wheel="onToolbarWheel">
         <!-- Group 1: Formatting & Diff Options (Word Wrap, Whitespace, Split, Hunks) -->
-        <div v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)" class="h-stack items-center gap-1 bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9 shrink-0">
+        <div v-if="viewMode === 'code' || (viewMode === 'visual' && isMarkdown)" class="h-stack items-center gap-1 p-1 h-9 shrink-0">
             <IconButton direction="row"
                          :showLabel="false"
                          icon="lucide:wrap-text"
@@ -457,7 +474,7 @@ function onToolbarWheel(e: WheelEvent) {
         </div>
 
         <!-- Group 2: Blame -->
-        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded border border-line h-9 shrink-0">
+        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center p-1 h-9 shrink-0">
             <IconButton direction="row"
                          :showLabel="displayLabels"
                          icon="lucide:git-commit-vertical"
@@ -467,7 +484,7 @@ function onToolbarWheel(e: WheelEvent) {
         </div>
 
         <!-- Group 3: Main View Mode Toggle -->
-        <div class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-line p-1 ml-1 h-9 gap-1 shrink-0">
+        <div class="h-stack items-center p-1 ml-1 h-9 gap-1 shrink-0">
            <IconButton direction="row"
                         :showLabel="displayLabels"
                         icon="lucide:file-text"
@@ -483,7 +500,7 @@ function onToolbarWheel(e: WheelEvent) {
         </div>
 
         <!-- Group 4: Navigation (Diff only) -->
-        <div v-if="viewType === 'diff' && viewMode === 'code'" class="h-stack items-center bg-neutral-100/50 dark:bg-neutral-900/50 rounded border border-line p-1 h-9 shrink-0">
+        <div v-if="viewType === 'diff' && viewMode === 'code'" class="h-stack items-center p-1 h-9 shrink-0">
            <IconButton direction="row"
                         :showLabel="false"
                         icon="lucide:chevron-up"
@@ -560,13 +577,15 @@ function onToolbarWheel(e: WheelEvent) {
 
 <style>
 .monaco-editor .scroll-decoration { box-shadow: none !important; }
+/* Theme-driven scrollbar thumb: text-muted adapts to light/dark, so the thumb
+   stays visible in every theme (the old hardcoded white was invisible on light). */
 .monaco-editor .scrollbar .slider {
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: rgb(var(--gb-text-muted) / 0.35) !important;
   border-radius: 10px !important;
   transition: background 0.2s;
 }
 .monaco-editor .scrollbar .slider:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
+  background: rgb(var(--gb-text-muted) / 0.55) !important;
   border-radius: 10px !important;
 }
 </style>

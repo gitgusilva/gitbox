@@ -34,6 +34,18 @@ export interface ThemeColors {
     removed: string;
     /** Git modified / current. */
     modified: string;
+    // Commit-graph lane colors (cycled across branches) + the merge/dot glyph.
+    // Optional so existing themes fall back to DEFAULT_GRAPH_COLORS.
+    graph1?: string;
+    graph2?: string;
+    graph3?: string;
+    graph4?: string;
+    graph5?: string;
+    graph6?: string;
+    graph7?: string;
+    graph8?: string;
+    /** Color of the '+' drawn on merge dots (defaults to white). */
+    graphMarker?: string;
 }
 
 export interface ThemeTypography {
@@ -92,6 +104,22 @@ export const COLOR_VARS: Record<keyof ThemeColors, string> = {
     added: '--gb-added',
     removed: '--gb-removed',
     modified: '--gb-modified',
+    graph1: '--gb-graph-1',
+    graph2: '--gb-graph-2',
+    graph3: '--gb-graph-3',
+    graph4: '--gb-graph-4',
+    graph5: '--gb-graph-5',
+    graph6: '--gb-graph-6',
+    graph7: '--gb-graph-7',
+    graph8: '--gb-graph-8',
+    graphMarker: '--gb-graph-marker',
+};
+
+/** Fallback commit-graph palette + marker used when a theme omits them. */
+export const DEFAULT_GRAPH_COLORS: Record<string, string> = {
+    graph1: '#1E88E5', graph2: '#FFAB00', graph3: '#00E676', graph4: '#D500F9',
+    graph5: '#FF3D00', graph6: '#00B0FF', graph7: '#1DE9B6', graph8: '#F50057',
+    graphMarker: '#FFFFFF',
 };
 
 /** Human-friendly grouping/labels for the color editor UI. */
@@ -101,4 +129,5 @@ export const COLOR_GROUPS: { label: string; keys: (keyof ThemeColors)[] }[] = [
     { label: 'Text', keys: ['textStrong', 'text', 'textMuted'] },
     { label: 'Accent', keys: ['accent', 'accentHover', 'accentFg'] },
     { label: 'Git', keys: ['added', 'removed', 'modified'] },
+    { label: 'Commit Graph', keys: ['graph1', 'graph2', 'graph3', 'graph4', 'graph5', 'graph6', 'graph7', 'graph8', 'graphMarker'] },
 ];

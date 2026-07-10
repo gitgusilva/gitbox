@@ -33,43 +33,23 @@ function copyError() {
     }
 }
 
-function startMarquee(e: MouseEvent) {
-  const container = e.currentTarget as HTMLElement;
-  const textEl = container.querySelector('.truncate') as HTMLElement;
-  if (textEl && textEl.scrollWidth > textEl.clientWidth) {
-    const distance = textEl.scrollWidth - textEl.clientWidth + 20;
-    textEl.style.textOverflow = 'clip';
-    textEl.style.overflow = 'visible';
-    textEl.style.transitionProperty = 'transform';
-    textEl.style.transitionTimingFunction = 'linear';
-    textEl.style.transitionDuration = `${Math.max(1000, distance * 20)}ms`;
-    textEl.style.transform = `translateX(-${distance}px)`;
-  }
-}
-
-function stopMarquee(e: MouseEvent) {
-  const container = e.currentTarget as HTMLElement;
-  const textEl = container.querySelector('.truncate') as HTMLElement;
-  if (textEl) {
-    textEl.style.transitionDuration = '200ms';
-    textEl.style.transform = 'translateX(0)';
-    setTimeout(() => {
-        textEl.style.textOverflow = '';
-        textEl.style.overflow = '';
-    }, 200);
-  }
-}
 </script>
 
 <template>
   <div class="flex-1 flex flex-col min-w-0 min-h-0 bg-app">
-    <div v-if="error" class="bg-red-900/50 border-b border-red-800 text-red-100 text-xs p-2 flex items-center justify-between group overflow-hidden" @mouseenter="startMarquee" @mouseleave="stopMarquee">
-       <div class="truncate flex-1 relative z-0 transition-transform">{{ error }}</div>
+    <!-- Global error banner: themed (removed/red token). The message truncates so a
+         long error never runs under the copy button; the button stays pinned right. -->
+    <div v-if="error" class="shrink-0 h-stack items-center gap-2 px-3 py-2 bg-removed/15 border-b border-removed/40 text-xs overflow-hidden">
+       <Icon icon="lucide:alert-circle" class="text-removed shrink-0 text-sm" />
+       <div class="flex-1 min-w-0 truncate text-content-strong">{{ error }}</div>
        <Tooltip :text="t('common.copy') || 'Copy'" position="left">
-         <button @click="copyError" class="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1 hover:bg-red-800 rounded transition-colors text-red-300 hover:text-white ml-2 relative z-10 bg-red-900/50 backdrop-blur">
-             <Icon icon="lucide:copy" />
+         <button @click="copyError" class="shrink-0 p-1 rounded text-removed hover:text-content-strong hover:bg-removed/25 transition-colors">
+             <Icon icon="lucide:copy" class="text-sm" />
          </button>
        </Tooltip>
+       <button @click="error = ''" class="shrink-0 p-1 rounded text-removed hover:text-content-strong hover:bg-removed/25 transition-colors">
+         <Icon icon="lucide:x" class="text-sm" />
+       </button>
     </div>
 
     <!-- Merge-in-progress banner: shown on every tab while a merge is active. -->

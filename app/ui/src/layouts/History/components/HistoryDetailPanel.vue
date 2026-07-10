@@ -17,6 +17,8 @@ import { submodules } from '../../../services/gitService';
 const props = defineProps<{
   selectedCommits: Commit[];
   commitRefs: { name: string, type: 'branch' | 'tag' | 'remote', isHead?: boolean }[];
+  /** Lane colour of the selected commit — forwarded to the ref badges. */
+  graphColor?: string;
   commitFilesList: any[];
   selectedCommitFile: string;
   commitOriginal: string;
@@ -108,16 +110,17 @@ function onSetTab(tab: string) {
             <template #tab-actions>
                  <Tooltip :text="t('history_detail.close_details')" position="bottom">
                    <button @click="emit('close')"
-                           class="h-7 w-7 flex items-center justify-center rounded text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors outline-none">
+                           class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none">
                       <Icon icon="lucide:x" class="text-base" />
                    </button>
                  </Tooltip>
             </template>
 
             <Tab id="information" :label="t('history_detail.tab_information')">
-                <CommitInfoView 
-                    :commit="selectedCommits[0]" 
+                <CommitInfoView
+                    :commit="selectedCommits[0]"
                     :commitRefs="commitRefs"
+                    :graphColor="graphColor"
                     :changedFiles="commitFilesList"
                     @navigate="emit('navigate', $event)"
                     @selectFile="onSetTab('changes'); emit('selectChange', $event)"

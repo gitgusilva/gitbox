@@ -16,7 +16,8 @@ class Push extends Command {
             try {
                 const remote = remoteName || 'origin';
                 const token = getTokenForRemote(this.addon, repoPath, remote);
-                return this.addon.push(repoPath, remote, token, branchName || '', !!force, !!pushTags, !!setUpstream);
+                // addon.push now returns a Promise (runs off the main thread).
+                return await this.addon.push(repoPath, remote, token, branchName || '', !!force, !!pushTags, !!setUpstream);
             } catch (e) {
                 throw new Error(e.message);
             }

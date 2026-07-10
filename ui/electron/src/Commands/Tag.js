@@ -22,6 +22,13 @@ class Tag extends Command {
         const target = commitSha ? commitSha : 'HEAD';
             await this.execGit(repoPath, ['tag', tagName, target]);
     }
+
+    /**
+     * Delete a tag (git tag -d)
+     */
+    async delete(repoPath, tagName) {
+        try { await this.execGit(repoPath, ['tag', '-d', tagName]); return true; } catch (e) { throw new Error(e.message); }
+    }
 }
 
 module.exports = Tag;

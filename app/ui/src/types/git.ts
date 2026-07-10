@@ -51,6 +51,8 @@ export interface GraphLine {
     path: string;
     color: string;
     isPrimary?: boolean;
+    /** Line belongs to a commit not reachable from HEAD → drawn dim gray. */
+    dimmed?: boolean;
 }
 
 export interface GraphNode {
@@ -59,6 +61,10 @@ export interface GraphNode {
     lines: GraphLine[];
     width: number;
     isMerge?: boolean;
+    /** Commit is NOT reachable from the current branch (HEAD) → dim gray dot. */
+    dimmed?: boolean;
+    /** Commit is the current branch tip (HEAD). */
+    isHead?: boolean;
 }
 
 export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr' | 'output_log' | 'statistics';
@@ -157,6 +163,7 @@ export interface GitboxAPI {
     init: (targetDir: string, name?: string, defaultBranch?: string) => Promise<{ path: string; name: string }>;
     createBranch: (repoPath: string, branchName: string, startPoint?: string) => Promise<boolean>;
     deleteBranch: (repoPath: string, branchName: string) => Promise<boolean>;
+    renameBranch: (repoPath: string, oldName: string, newName: string) => Promise<boolean>;
     diffFile: (repoPath: string, filePath: string) => Promise<FileDiff>;
     getStagedDiff: (repoPath: string) => Promise<string>;
     getFileDiff: (repoPath: string, filePath: string) => Promise<string>;
@@ -176,13 +183,20 @@ export interface GitboxAPI {
     mergeBranch: (repoPath: string, branchName: string, noFastForward?: boolean) => Promise<MergeResult>;
     mergeContinue: (repoPath: string, message?: string) => Promise<string>;
     mergeAbort: (repoPath: string) => Promise<boolean>;
+    rebaseAbort: (repoPath: string) => Promise<boolean>;
+    rebaseSkip: (repoPath: string) => Promise<{ done: boolean; conflicts: boolean }>;
+    rebaseContinue: (repoPath: string) => Promise<{ done: boolean; conflicts: boolean }>;
+    cherryPick: (repoPath: string, commitSha: string) => Promise<{ status: 'done' | 'conflicts' }>;
+    cherryPickAbort: (repoPath: string) => Promise<boolean>;
+    cherryPickContinue: (repoPath: string) => Promise<{ status: 'done' | 'conflicts' }>;
+    cherryPickSkip: (repoPath: string) => Promise<{ status: 'done' | 'conflicts' }>;
     repoState: (repoPath: string) => Promise<RepoState>;
     statistics: (repoPath: string, sinceMonths?: number) => Promise<GitStatistics>;
     openPath: (fullPath: string) => Promise<boolean>;
     revealInFolder: (fullPath: string) => Promise<boolean>;
     assumeUnchanged: (repoPath: string, filePath: string, assume: boolean) => Promise<boolean>;
-    stashFile: (repoPath: string, filePath: string, message?: string) => Promise<boolean>;
-    savePatch: (repoPath: string, filePath: string, staged?: boolean) => Promise<{ saved: boolean; path?: string }>;
+    stashFile: (repoPath: string, filePath: string | string[], message?: string, options?: { keepIndex?: boolean; includeUntracked?: boolean }) => Promise<boolean>;
+    savePatch: (repoPath: string, filePath: string | string[], staged?: boolean) => Promise<{ saved: boolean; path?: string }>;
     fileHistory: (repoPath: string, filePath: string, maxCount?: number) => Promise<FileHistoryEntry[]>;
     saveTextFile: (defaultName: string, content: string) => Promise<{ saved: boolean; path?: string }>;
     openTextFile: () => Promise<{ content: string; path: string } | null>;
@@ -200,13 +214,20 @@ export interface GitboxAPI {
     saveFile: (repoPath: string, filePath: string, content: string) => Promise<void>;
     getAppChangelog: () => Promise<string>;
     getAppVersion: () => Promise<string>;
-    detectExternalTools: () => Promise<{ editors: { value: string, label: string }[], terminals: { value: string, label: string }[], mergeTools: { value: string, label: string }[] }>;
+    detectExternalTools: () => Promise<{ editors: { value: string, label: string }[], terminals: { value: string, label: string }[], mergeTools: { value: string, label: string }[], diffTools: { value: string, label: string }[] }>;
     detectAiClis: () => Promise<{ id: string, label: string }[]>;
     aiRunCli: (cliId: string, prompt: string) => Promise<{ text: string, error?: string }>;
     createTag: (repoPath: string, tagName: string, commitSha?: string) => Promise<void>;
+    deleteTag: (repoPath: string, tagName: string) => Promise<boolean>;
     rewordCommit: (repoPath: string, commitSha: string, newMessage: string) => Promise<void>;
     squashCommit: (repoPath: string, commitSha: string) => Promise<void>;
     revertCommit: (repoPath: string, commitSha: string) => Promise<void>;
+    commitAmend: (repoPath: string, message?: string) => Promise<void>;
+    resetToCommit: (repoPath: string, commitSha: string, mode: 'soft' | 'mixed' | 'hard') => Promise<boolean>;
+    addRemote: (repoPath: string, name: string, url: string) => Promise<boolean>;
+    removeRemote: (repoPath: string, name: string) => Promise<boolean>;
+    renameRemote: (repoPath: string, oldName: string, newName: string) => Promise<boolean>;
+    setRemoteUrl: (repoPath: string, name: string, url: string) => Promise<boolean>;
     storeGet: (key: string) => any;
     storeSet?: (key: string, value: any) => void;
     storeDelete?: (key: string) => void;
