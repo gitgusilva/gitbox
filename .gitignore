@@ -19,6 +19,7 @@ release/
 build/
 Release/
 *.node
+*.tsbuildinfo
 
 # Electron
 out/
