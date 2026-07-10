@@ -11,6 +11,7 @@ import ConfirmModal from '../components/ConfirmModal.vue';
 import InputModal from '../components/InputModal.vue';
 import DeviceFlowModal from '../components/DeviceFlowModal.vue';
 import ToastContainer from '../components/ToastContainer.vue';
+import UpdateModal from '../components/UpdateModal.vue';
 import BranchActionModal from '../components/BranchActionModal.vue';
 import StashModal from '../components/StashModal.vue';
 import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
@@ -71,6 +72,7 @@ const { t } = useI18n();
     <DeviceFlowModal v-if="deviceFlowModal" />
     <BranchActionModal v-if="branchActionModal" />
     <StashModal />
+    <UpdateModal />
     <ToastContainer />
 
     <ConfirmModal v-if="confirmModal"

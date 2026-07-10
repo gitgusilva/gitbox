@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { showToast } from './toastService';
+import { getItem, setItem } from './storageService';
 
 /** App version — single source of truth, read from the Electron app (package.json). */
 export const appVersion = ref('1.0.0');
@@ -41,6 +42,24 @@ export const updaterSupported = ref(false);
 export const downloadProgress = ref(0);
 /** Version that finished downloading and is ready to install. */
 export const downloadedVersion = ref('');
+
+/**
+ * Drives the "update available" modal shown for builds that can't self-update
+ * (deb/rpm/pacman/msi) — an in-app notice with a manual-download button. Opened
+ * once per new version (dismissals are remembered so we don't nag).
+ */
+export const showUpdateModal = ref(false);
+const DISMISS_KEY = 'gitbox_update_dismissed';
+
+export function closeUpdateModal() {
+    showUpdateModal.value = false;
+}
+
+/** Dismiss and remember this version so the modal won't reappear for it. */
+export function dismissUpdate() {
+    if (latestVersion.value) setItem(DISMISS_KEY, latestVersion.value);
+    showUpdateModal.value = false;
+}
 
 interface NativeUpdaterStatus {
     state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
@@ -171,7 +190,12 @@ async function legacyCheck(): Promise<void> {
         if (!tag) { updateStatus.value = 'error'; return; }
         latestVersion.value = tag;
         releaseUrl.value = data.html_url || RELEASES_PAGE;
-        updateStatus.value = compareVersions(tag, appVersion.value) > 0 ? 'available' : 'up-to-date';
+        const isNewer = compareVersions(tag, appVersion.value) > 0;
+        updateStatus.value = isNewer ? 'available' : 'up-to-date';
+        // Surface the in-app notice once per version (skip if already dismissed).
+        if (isNewer && getItem(DISMISS_KEY) !== tag) {
+            showUpdateModal.value = true;
+        }
     } catch (err) {
         console.error('Update check failed:', err);
         updateStatus.value = 'error';

@@ -392,7 +392,11 @@
     "check_updates": "Check",
     "downloading_update": "Downloading {version}… {percent}%",
     "update_ready": "Version {version} ready to install",
-    "restart_install": "Restart & Install"
+    "restart_install": "Restart & Install",
+    "update_modal_title": "Update available",
+    "update_modal_body": "A new version of GitBox is available. Download it from the releases page and run the installer to update.",
+    "update_download": "Download",
+    "update_later": "Later"
   },
   "history_menu": {
     "visibility_graph": "Visibility in Graph",

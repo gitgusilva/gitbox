@@ -426,7 +426,11 @@
     "check_updates": "Verificar",
     "downloading_update": "Baixando {version}… {percent}%",
     "update_ready": "Versão {version} pronta para instalar",
-    "restart_install": "Reiniciar e instalar"
+    "restart_install": "Reiniciar e instalar",
+    "update_modal_title": "Atualização disponível",
+    "update_modal_body": "Uma nova versão do GitBox está disponível. Baixe na página de releases e execute o instalador para atualizar.",
+    "update_download": "Baixar",
+    "update_later": "Depois"
   },
   "time": {
     "just_now": "Agora mesmo",
