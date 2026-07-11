@@ -34,6 +34,16 @@ const tree = computed(() => {
   const root: TreeNode = { name: 'root', fullPath: '', isDir: true, children: {} };
   if (!props.files) return root;
   props.files.forEach(f => {
+    // A nested/embedded git repo comes from libgit2 as a single entry whose path
+    // ends in '/' (git won't descend into another repo). Splitting it would make a
+    // blank "+"-only leaf under phantom folders, so render it SourceGit-style: one
+    // leaf row showing the whole folder path. Keep fullPath (trailing slash intact)
+    // so stage/discard/diff still match the exact status path. Works for staged too.
+    if (f.path.endsWith('/')) {
+      const clean = f.path.replace(/\/+$/, '');
+      root.children[clean] = { name: clean, fullPath: f.path, isDir: false, status: f.status, children: {} };
+      return;
+    }
     const parts = f.path.split('/');
     let current = root;
     let currentPath = '';
@@ -88,14 +98,19 @@ const listData = ref<any[]>([]);
 
 function updateListData() {
   if (props.viewMode && props.viewMode !== 'tree') {
-    listData.value = (props.files || []).map(f => ({
-      name: props.viewMode === 'list' ? f.path : f.path.split('/').pop()!,
-      fullPath: f.path,
-      isDir: false,
-      status: f.status,
-      level: 0,
-      pathPrefix: f.path.split('/').slice(0, -1).join('/')
-    }));
+    listData.value = (props.files || []).map(f => {
+      // Strip the trailing slash of an embedded-repo entry so list/flat modes show
+      // the folder path cleanly instead of a blank last segment.
+      const clean = f.path.replace(/\/+$/, '');
+      return {
+        name: props.viewMode === 'list' ? clean : clean.split('/').pop()!,
+        fullPath: f.path,
+        isDir: false,
+        status: f.status,
+        level: 0,
+        pathPrefix: clean.split('/').slice(0, -1).join('/')
+      };
+    });
     return;
   }
 
