@@ -3,6 +3,33 @@ import loader from '@monaco-editor/loader';
 import type { GitboxTheme, ThemeTypography } from '../types/theme';
 import { activeTheme, registerMonacoThemeApplier } from './themeService';
 
+// Bundle Monaco LOCALLY instead of letting @monaco-editor/loader fetch it from
+// its default CDN (cdn.jsdelivr.net). In the packaged app the production CSP
+// (`script-src 'self'`) blocks that CDN script, so the editor never loaded and
+// diffs wouldn't open (it only worked in dev, where the CSP is disabled). We ship
+// the installed `monaco-editor` (0.45) and its web workers via Vite's `?worker`.
+import * as monaco from 'monaco-editor';
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+
+// Route Monaco's language workers to the Vite-bundled ones (worker-src 'self'
+// blob: in the CSP covers them). Set before loader.init() runs.
+(self as any).MonacoEnvironment = {
+    getWorker(_workerId: string, label: string) {
+        if (label === 'json') return new JsonWorker();
+        if (label === 'css' || label === 'scss' || label === 'less') return new CssWorker();
+        if (label === 'html' || label === 'handlebars' || label === 'razor') return new HtmlWorker();
+        if (label === 'typescript' || label === 'javascript') return new TsWorker();
+        return new EditorWorker();
+    },
+};
+
+// Hand the loader our bundled instance so init() resolves locally (no network).
+loader.config({ monaco });
+
 export function getLanguage(path: string = '') {
     const parts = path.split('.');
     const ext = parts.length > 1 ? parts.pop()?.toLowerCase() : '';
