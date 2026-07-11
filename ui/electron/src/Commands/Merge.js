@@ -178,10 +178,34 @@ class Merge extends Command {
 
     /**
      * Open external merge tool for a conflicted file.
+     *
+     * VS Code and its forks (VSCodium, Cursor, Windsurf, Insiders, Antigravity)
+     * are NOT git built-in mergetools — `git mergetool -t code` fails with
+     * "mergetool.code.cmd not set". We inject the launch command inline via
+     * `-c mergetool.<id>.cmd=...` so it works regardless of the user's git config.
+     * All of these accept `--wait --merge <remote> <local> <base> <merged>`.
+     * Other tools (meld, kdiff3, …) keep using git's own built-in definition.
      */
     async openTool(repoPath, filePath, toolName) {
         const hasCustomTool = toolName && toolName !== 'git_config_default';
-        const args = ['mergetool', '--no-prompt'];
+        // Tool id -> launch binary for the VS Code family (id and binary differ
+        // only for VSCodium). Mirrors the vscodeFamily list in handlers/system.js.
+        const VSCODE_FAMILY = {
+            code: 'code',
+            'code-insiders': 'code-insiders',
+            vscodium: 'codium',
+            cursor: 'cursor',
+            windsurf: 'windsurf',
+            antigravity: 'antigravity',
+        };
+        const args = [];
+        if (hasCustomTool && VSCODE_FAMILY[toolName]) {
+            const cmd = `${VSCODE_FAMILY[toolName]} --wait --merge "$REMOTE" "$LOCAL" "$BASE" "$MERGED"`;
+            args.push('-c', `mergetool.${toolName}.cmd=${cmd}`);
+            // GUI editor exits 0 on close; trust that instead of prompting the user.
+            args.push('-c', `mergetool.${toolName}.trustExitCode=true`);
+        }
+        args.push('mergetool', '--no-prompt');
         if (hasCustomTool) args.push('-t', toolName);
         args.push(filePath);
         await this.execGit(repoPath, args, { maxBuffer: 1024 * 1024 * 15 });
