@@ -77,11 +77,26 @@ export const generalSettings = ref<GeneralSettings>(loadSettings());
 let applyingExternal = false;
 const gitbox = (): any => (typeof window !== 'undefined' ? (window as any).gitbox : undefined);
 
-watch(generalSettings, (val) => {
-    setItem('gitbox_general_settings', JSON.stringify(val));
-    if (!applyingExternal) {
-        try { gitbox()?.broadcastSettings?.(JSON.parse(JSON.stringify(val))); } catch { /* ignore */ }
-    }
+// Persist is debounced: each mutation used to fire a synchronous store IPC +
+// broadcast, so dragging a slider (dozens of updates) stuttered. Coalesce into
+// one write ~250ms after the last change. `pendingSkipBroadcast` preserves the
+// anti-echo guard across the debounce window — a change that originated from
+// another window's broadcast persists locally but is not re-broadcast.
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSkipBroadcast = false;
+watch(generalSettings, () => {
+    if (applyingExternal) pendingSkipBroadcast = true;
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+        persistTimer = null;
+        const skipBroadcast = pendingSkipBroadcast;
+        pendingSkipBroadcast = false;
+        const val = generalSettings.value;
+        setItem('gitbox_general_settings', JSON.stringify(val));
+        if (!skipBroadcast) {
+            try { gitbox()?.broadcastSettings?.(JSON.parse(JSON.stringify(val))); } catch { /* ignore */ }
+        }
+    }, 250);
 }, { deep: true, flush: 'post' });
 
 // Receive settings changed in another window (e.g. the main Settings) and apply

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, onMounted, onUnmounted, computed, watch, unref, Ref } from 'vue';
+import { inject, onMounted, onUnmounted, computed, watch, unref, ref, Ref } from 'vue';
 import { cn } from '../../utils/cn';
 
 const props = defineProps({
@@ -43,11 +43,18 @@ watch(() => [props.label, props.icon], () => {
 }, { deep: true });
 
 const isActive = computed(() => unref(context.activeTab) === props.id);
+
+// Lazy-mount: don't render (and run onMounted side effects of) a tab's content
+// until it is first activated. Once shown, keep it mounted (v-show) so switching
+// back is instant and in-tab state survives. This stops every Settings section
+// — including the heavy AI-CLI discovery — from mounting on every modal open.
+const hasBeenActive = ref(false);
+watch(isActive, (v) => { if (v) hasBeenActive.value = true; }, { immediate: true });
 </script>
 
 <template>
   <div v-show="isActive" :class="cn('h-full w-full overflow-hidden content-tab')">
-    <slot></slot>
+    <slot v-if="hasBeenActive"></slot>
   </div>
 </template>
 

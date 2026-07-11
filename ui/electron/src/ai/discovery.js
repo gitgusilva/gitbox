@@ -1,8 +1,12 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
+const { promisify } = require('util');
 const { AI_CLIS } = require('./registry');
+
+const execFileAsync = promisify(execFile);
+const fsp = fs.promises;
 
 /** Resolve a command via the OS PATH (which/where). Returns the first hit. */
 function whichPath(cmd) {
@@ -81,7 +85,7 @@ function findBinary(bins) {
     return null;
 }
 
-/** Discover every registered AI CLI that's actually installed. */
+/** Discover every registered AI CLI that's actually installed (synchronous). */
 function discoverAiClis() {
     const found = [];
     for (const entry of AI_CLIS) {
@@ -93,6 +97,57 @@ function discoverAiClis() {
     return found;
 }
 
+/** Async, non-blocking `which` — resolves a command via the OS PATH. */
+async function whichPathAsync(cmd) {
+    try {
+        const finder = process.platform === 'win32' ? 'where' : 'which';
+        const { stdout } = await execFileAsync(finder, [cmd], { windowsHide: true });
+        return stdout.toString().trim().split(/\r?\n/)[0] || null;
+    } catch {
+        return null;
+    }
+}
+
+/** Async twin of findBinary: PATH first, then the common install dirs. */
+async function findBinaryAsync(bins) {
+    for (const cmd of bins) {
+        const w = await whichPathAsync(cmd);
+        if (w) return w;
+    }
+    const exts = process.platform === 'win32' ? WIN_EXTS : [''];
+    for (const dir of candidateDirs()) {
+        for (const cmd of bins) {
+            for (const ext of exts) {
+                const p = path.join(dir, cmd + ext);
+                try {
+                    const st = await fsp.stat(p);
+                    if (st.isFile()) return p;
+                } catch {
+                    /* ignore */
+                }
+            }
+        }
+    }
+    return null;
+}
+
+// The discovery result is stable for a session (CLIs don't get installed while
+// the app runs, in practice), and the scan spawns ~16 `which` processes — so
+// memoize it. The Settings > Integrations tab called this on every open, blocking
+// the main process each time; now it runs once, off the event loop.
+let discoverCache = null;
+
+/** Async, cached discovery of installed AI CLIs. Pass force=true to rescan. */
+async function discoverAiClisAsync(force = false) {
+    if (discoverCache && !force) return discoverCache;
+    const results = await Promise.all(AI_CLIS.map(async (entry) => {
+        const bin = await findBinaryAsync(entry.bins);
+        return bin ? { id: entry.id, label: entry.label, vendor: entry.vendor, path: bin } : null;
+    }));
+    discoverCache = results.filter(Boolean);
+    return discoverCache;
+}
+
 /** Resolve the executable path + run args for a given CLI id, or null. */
 function resolveAiCli(id) {
     const entry = AI_CLIS.find(c => c.id === id);
@@ -102,4 +157,4 @@ function resolveAiCli(id) {
     return { path: bin, runArgs: entry.runArgs, promptAsArg: !!entry.promptAsArg };
 }
 
-module.exports = { discoverAiClis, resolveAiCli, findBinary };
+module.exports = { discoverAiClis, discoverAiClisAsync, resolveAiCli, findBinary };

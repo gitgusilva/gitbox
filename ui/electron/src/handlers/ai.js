@@ -1,5 +1,5 @@
 const { ipcMain } = require('electron');
-const { discoverAiClis } = require('../ai/discovery');
+const { discoverAiClisAsync } = require('../ai/discovery');
 const { runAiCli } = require('../ai/runner');
 
 /**
@@ -8,7 +8,8 @@ const { runAiCli } = require('../ai/runner');
  */
 module.exports = function registerAiHandlers() {
     ipcMain.handle('gitbox:detectAiClis', async () => {
-        return discoverAiClis().map(c => ({ id: c.id, label: c.label, vendor: c.vendor }));
+        const clis = await discoverAiClisAsync();
+        return clis.map(c => ({ id: c.id, label: c.label, vendor: c.vendor }));
     });
 
     ipcMain.handle('gitbox:aiRunCli', async (_, cliId, prompt) => runAiCli(cliId, prompt));
