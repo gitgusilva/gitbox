@@ -182,6 +182,12 @@ export const stagedFiles = computed(() => status.value.filter(s => s.status.star
  */
 export const selectedLogRefs = ref<string[]>([]);
 
+// Whether the filter is the automatic "follow the checked-out branch" default
+// (true) or a selection the user deliberately made (false). In auto mode the
+// filter is re-seeded to the current branch on repo open and after a checkout;
+// once the user toggles/clears a ref it becomes custom and is left untouched.
+const logFilterAuto = ref(true);
+
 /** Alias the badges bar / highlights read — just the active filter set. */
 export const effectiveLogRefs = computed<string[]>(() => selectedLogRefs.value);
 
@@ -196,6 +202,7 @@ function logRefArg(): string {
 /** Toggle a ref in/out of the history filter (sidebar funnel icon). */
 export function toggleLogFilter(name: string) {
     if (!name) return;
+    logFilterAuto.value = false; // any manual toggle makes the filter user-owned
     selectedLogRefs.value = selectedLogRefs.value.includes(name)
         ? selectedLogRefs.value.filter(r => r !== name)
         : [...selectedLogRefs.value, name];
@@ -203,26 +210,50 @@ export function toggleLogFilter(name: string) {
 
 /** Remove one ref from the filter (badge ✕). Empty filter = whole graph. */
 export function removeLogFilter(name: string) {
+    logFilterAuto.value = false;
     selectedLogRefs.value = selectedLogRefs.value.filter(r => r !== name);
 }
 
 /** Clear the entire filter (show the whole graph). */
 export function clearLogFilter() {
+    logFilterAuto.value = false;
     selectedLogRefs.value = [];
+}
+
+/**
+ * In auto mode, keep the history filter focused on the checked-out branch. Called
+ * from loadRepoData once branches are loaded, so it runs on first repo open and
+ * after every checkout. No-op when the user has customized the filter, when the
+ * branch is unknown (detached HEAD), or when it already matches (avoids a needless
+ * log reload). Returns true if it changed the filter.
+ */
+function syncAutoLogFilter(): boolean {
+    if (!logFilterAuto.value) return false;
+    const cur = currentBranchName.value;
+    if (!cur) return false;
+    if (selectedLogRefs.value.length === 1 && selectedLogRefs.value[0] === cur) return false;
+    selectedLogRefs.value = [cur];
+    return true;
 }
 
 // --- Per-repo persistence: the history filter is remembered and restored every
 // time the user returns to a repo (like the expanded sidebar folders). ---
 const LOG_FILTER_KEY = 'gitbox_log_filter';
 
-function loadLogFilter(rp: string): { refs: string[] } {
-    if (!rp) return { refs: [] };
+function loadLogFilter(rp: string): { refs: string[]; auto: boolean } {
+    // No saved entry → auto mode (defaults to the checked-out branch). `auto`
+    // defaults to true for older saved entries that predate the flag.
+    if (!rp) return { refs: [], auto: true };
     try {
         const all = JSON.parse(getItem(LOG_FILTER_KEY) || '{}');
         const v = all[rp];
-        return { refs: v && Array.isArray(v.refs) ? v.refs : [] };
+        if (!v) return { refs: [], auto: true };
+        return {
+            refs: Array.isArray(v.refs) ? v.refs : [],
+            auto: v.auto !== false,
+        };
     } catch {
-        return { refs: [] };
+        return { refs: [], auto: true };
     }
 }
 
@@ -231,7 +262,7 @@ function persistLogFilter() {
     if (!rp) return;
     try {
         const all = JSON.parse(getItem(LOG_FILTER_KEY) || '{}');
-        all[rp] = { refs: selectedLogRefs.value };
+        all[rp] = { refs: selectedLogRefs.value, auto: logFilterAuto.value };
         setItem(LOG_FILTER_KEY, JSON.stringify(all));
     } catch {
         /* ignore persistence errors */
@@ -240,9 +271,9 @@ function persistLogFilter() {
 
 watch(selectedLogRefs, persistLogFilter, { deep: true });
 
-// One-shot: default the history log to the checked-out branch right after a repo
-// switch (cleared once applied so manual refreshes/polls keep the user's filter).
-// Sync with workspace
+// Sync with workspace: on repo switch, restore that repo's saved history filter.
+// The actual current-branch seeding (auto mode) happens in loadRepoData once the
+// branch list is available — here we only restore refs + the auto/custom flag.
 watch(() => {
     const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
     return ws ? ws.path : null;
@@ -250,8 +281,11 @@ watch(() => {
     if (newPath && newPath !== repoPath.value) {
         repoPath.value = newPath;
 
-        // Restore this repo's saved history filter (empty = whole graph, SourceGit-style).
-        selectedLogRefs.value = loadLogFilter(newPath).refs;
+        // Restore this repo's saved history filter. Auto mode (default / no saved
+        // entry) is re-focused to the checked-out branch in loadRepoData.
+        const savedFilter = loadLogFilter(newPath);
+        logFilterAuto.value = savedFilter.auto;
+        selectedLogRefs.value = savedFilter.refs;
         selectedCommit.value = null;
         selectedFile.value = '';
         selectedFiles.value = [];
@@ -305,8 +339,12 @@ export async function loadRepoData(showLoader = false, targetWorkspaceId?: strin
         userName.value = newConfig ? newConfig.userName : '';
         userEmail.value = newConfig ? newConfig.userEmail : '';
 
-        // Right after a repo switch the history focuses the checked-out branch by
-        // default (the implicit current-branch focus in effectiveLogRefs), and any
+        // In auto mode, focus the history on the just-loaded checked-out branch.
+        // Runs on first open (seeds the current branch) and after a checkout
+        // (follows to the new branch). No-op when the user customized the filter.
+        // Done before loadInitialLog so the first page already reflects the filter.
+        syncAutoLogFilter();
+
         // Load only the FIRST page of the log (the rest streams in on scroll).
         // Skip on background polls so we don't reset the loaded pages / jump to top;
         // new commits show on manual refresh or repo/ref switch.
