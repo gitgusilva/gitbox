@@ -77,9 +77,17 @@ jobs:
         working-directory: app/ui
         run: npm ci
 
+      # Vite inlines import.meta.env.VITE_* at build time. The OAuth client IDs
+      # live in repo Actions variables (public identifiers, kept out of source),
+      # so inject them here or the packaged app ships empty client_ids and the
+      # GitHub/GitLab/Bitbucket sign-in flows silently fail.
       - name: Build UI
         working-directory: app/ui
         run: npm run build
+        env:
+          VITE_GITHUB_CLIENT_ID: ${{ vars.VITE_GITHUB_CLIENT_ID }}
+          VITE_GITLAB_CLIENT_ID: ${{ vars.VITE_GITLAB_CLIENT_ID }}
+          VITE_BITBUCKET_CLIENT_ID: ${{ vars.VITE_BITBUCKET_CLIENT_ID }}
 
       # --ignore-scripts skips the redundant node-targeted node-gyp build of the
       # gitbox-addon file: dep here; electron-builder's @electron/rebuild step
