@@ -597,7 +597,9 @@
     "local_changes_label": "Cambios locales",
     "stash_reapply": "Stash y reaplicar",
     "discard": "Descartar",
-    "checkout_branch": "Cambiar de rama"
+    "checkout_branch": "Cambiar de rama",
+    "checkout_index_conflict_text": "Hay un {op} en curso con conflictos sin resolver, lo que impide cambiar a <b class=\"text-blue-400\">{branch}</b>. Aborta el {op} para descartarlo y cambiar — puedes reiniciarlo después.",
+    "abort_and_switch": "Abortar {op} y cambiar"
   },
   "view": {
     "github_pull_request": "Pull Request de GitHub",

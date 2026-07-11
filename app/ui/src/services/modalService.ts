@@ -57,10 +57,12 @@ export const activePullRequest = ref<any>(null);
 export const settingsActiveSection = ref('general');
 
 export const branchActionModal = ref<{
-    type: 'checkout_conflict' | 'create_branch';
+    type: 'checkout_conflict' | 'create_branch' | 'checkout_index_conflict';
     targetBranch?: string;
     hasChanges?: boolean;
-    onConfirm: (action: 'stash' | 'discard' | 'keep', newBranchName?: string) => void;
+    /** For 'checkout_index_conflict': the in-progress op label (merge/rebase/…). */
+    operation?: string;
+    onConfirm: (action: 'stash' | 'discard' | 'keep' | 'abort', newBranchName?: string) => void;
 } | null>(null);
 
 /**

@@ -55,7 +55,7 @@ watch(() => branchActionModal.value, (newVal) => {
     }
 }, { immediate: true });
 
-function handleAction(action: 'stash' | 'discard' | 'keep') {
+function handleAction(action: 'stash' | 'discard' | 'keep' | 'abort') {
     if (branchActionModal.value) {
         branchActionModal.value.onConfirm(action, inputValue.value.trim());
         branchActionModal.value = null;
@@ -98,6 +98,19 @@ function handleCancel() {
         <div class="flex justify-end gap-3">
           <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
           <button @click="handleAction('keep')" :disabled="confirmDisabled" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest text-accent-fg bg-accent hover:bg-accent-hover shadow-lg transition-all outline-none disabled:opacity-30 disabled:cursor-not-allowed">{{ t('common.create') }}</button>
+        </div>
+      </template>
+
+      <!-- Checkout blocked by an in-progress operation's unresolved index conflicts -->
+      <template v-else-if="branchActionModal.type === 'checkout_index_conflict'">
+        <div class="flex flex-col gap-4 mb-6 text-xs">
+          <p class="text-content leading-relaxed" v-html="t('modal.checkout_index_conflict_text', { op: branchActionModal.operation, branch: escapeHtml(branchActionModal.targetBranch || '') })"></p>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
+          <button @click="handleAction('abort')" class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest shadow-lg transition-all outline-none bg-red-600 hover:bg-red-500 text-white shadow-red-900/20">
+            {{ t('modal.abort_and_switch', { op: branchActionModal.operation }) }}
+          </button>
         </div>
       </template>
 

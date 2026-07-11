@@ -655,7 +655,9 @@
     "local_changes_label": "Local Changes",
     "stash_reapply": "Stash & Reapply",
     "discard": "Discard",
-    "checkout_branch": "Checkout Branch"
+    "checkout_branch": "Checkout Branch",
+    "checkout_index_conflict_text": "An in-progress {op} has unresolved conflicts, which blocks switching to <b class=\"text-blue-400\">{branch}</b>. Abort the {op} to discard it and switch — you can start it over afterwards.",
+    "abort_and_switch": "Abort {op} & Switch"
   },
   "view": {
     "github_pull_request": "GitHub Pull Request",

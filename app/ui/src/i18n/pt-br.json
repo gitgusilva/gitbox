@@ -655,7 +655,9 @@
     "local_changes_label": "Alterações locais",
     "stash_reapply": "Stash e reaplicar",
     "discard": "Descartar",
-    "checkout_branch": "Trocar de branch"
+    "checkout_branch": "Trocar de branch",
+    "checkout_index_conflict_text": "Há um {op} em andamento com conflitos não resolvidos, o que impede trocar para <b class=\"text-blue-400\">{branch}</b>. Aborte o {op} para descartá-lo e trocar — você pode recomeçá-lo depois.",
+    "abort_and_switch": "Abortar {op} e trocar"
   },
   "view": {
     "github_pull_request": "Pull Request do GitHub",

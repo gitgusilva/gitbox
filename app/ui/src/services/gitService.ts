@@ -555,6 +555,24 @@ export const checkoutBranch = async (name: string) => {
                     });
                 }
             };
+        } else if (err.message && /unresolved conflicts|conflicts exist in the index/i.test(err.message)) {
+            // An in-progress merge/rebase/cherry-pick left conflict entries in the
+            // index; git/libgit2 refuse the checkout (and stash can't save an
+            // unmerged index). Offer to abort that operation, which clears the
+            // conflicts, then switch. The user can restart the operation later.
+            const state = repoState.value;
+            const opLabel = state === 'rebase' ? 'rebase'
+                : state === 'cherrypick' ? 'cherry-pick'
+                : state === 'revert' ? 'revert'
+                : 'merge';
+            branchActionModal.value = {
+                type: 'checkout_index_conflict',
+                targetBranch: name,
+                operation: opLabel,
+                onConfirm: async (action) => {
+                    if (action === 'abort') await abortInProgressAndCheckout(name, state);
+                }
+            };
         } else {
             error.value = String(err);
         }
@@ -562,6 +580,33 @@ export const checkoutBranch = async (name: string) => {
         isLoading.value = false;
     }
 };
+
+/**
+ * Abort the in-progress operation (whose unresolved index conflicts block a
+ * checkout), then switch to `name`. Delegates the actual switch back to
+ * checkoutBranch so remote/local resolution and its own error handling run.
+ */
+async function abortInProgressAndCheckout(name: string, state: import('../types/git').RepoState) {
+    if (!repoPath.value || !window.gitbox) return;
+    isLoading.value = true;
+    try {
+        if (state === 'rebase') await window.gitbox.rebaseAbort(repoPath.value);
+        else if (state === 'cherrypick') await window.gitbox.cherryPickAbort(repoPath.value);
+        else await window.gitbox.mergeAbort(repoPath.value); // merge / revert / other: hard-reset clears the conflicted index
+        closeMergeWindowsIfResolved();
+        addLog(`Aborted ${state} to switch branch`, 'Action', 'info');
+    } catch (e: any) {
+        error.value = String(e?.message || e);
+        const { showToast } = await import('./toastService');
+        showToast('Abort failed', error.value, 'error');
+        return;
+    } finally {
+        isLoading.value = false;
+    }
+    // Index is clean now — run the full checkout (handles remote tracking, and
+    // surfaces any further modal such as dirty-tree conflicts).
+    await checkoutBranch(name);
+}
 
 /**
  * Merge a branch into the current branch via libgit2. On conflicts, switches to
@@ -786,7 +831,7 @@ export const createBranchAction = () => {
     };
 };
 
-async function handleBranchActionFlow(action: 'stash' | 'discard' | 'keep', coreTask: () => Promise<void>) {
+async function handleBranchActionFlow(action: 'stash' | 'discard' | 'keep' | 'abort', coreTask: () => Promise<void>) {
     isLoading.value = true;
     try {
         if (action === 'discard') {
