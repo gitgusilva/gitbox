@@ -16,6 +16,12 @@ on:
     tags:
       - "v*"
 
+# Needed for electron-builder to upload artifacts to the GitHub Release on a
+# tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
+# "403 Resource not accessible by integration" without this.
+permissions:
+  contents: write
+
 jobs:
   windows:
     # Pinned to 2022 (VS 2022 / v17). windows-latest moved to 2025 which ships

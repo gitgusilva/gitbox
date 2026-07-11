@@ -15,6 +15,12 @@ on:
     tags:
       - "v*"
 
+# Needed for electron-builder to upload artifacts to the GitHub Release on a
+# tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
+# "403 Resource not accessible by integration" without this.
+permissions:
+  contents: write
+
 jobs:
   linux:
     # Pinned to 22.04 for a widely-compatible glibc so the AppImage/deb/rpm run
