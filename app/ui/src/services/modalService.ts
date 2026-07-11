@@ -49,6 +49,8 @@ export const isSettingsOpen = ref(false);
 export const isShortcutsModalOpen = ref(false);
 export const isCreatePROpen = ref(false);
 export const isPushModalOpen = ref(false);
+/** Non-fast-forward pull: ask the user to integrate via merge or rebase. */
+export const isPullModalOpen = ref(false);
 export const isAddSubmoduleOpen = ref(false);
 export const isEditSubmoduleOpen = ref(false);
 export const activeSubmodule = ref<any>(null);

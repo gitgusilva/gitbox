@@ -56,7 +56,10 @@ watch(() => isPushModalOpen.value, (isOpen) => {
 });
 
 function onConfirm() {
-    const doPush = () => confirmPush(selectedRemote.value, targetBranch.value, setUpstream.value, forcePush.value, pushTags.value);
+    // "Force push" uses --force-with-lease (safer, standard in modern clients):
+    // it aborts if the remote branch moved since your last fetch. Pass force=false
+    // and forceWithLease=forcePush so we never do an unconditional --force.
+    const doPush = () => confirmPush(selectedRemote.value, targetBranch.value, setUpstream.value, false, pushTags.value, forcePush.value);
     // Force push can rewrite remote history — make the user confirm explicitly.
     if (forcePush.value) {
         requestConfirm(

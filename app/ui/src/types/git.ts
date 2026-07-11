@@ -167,7 +167,7 @@ export interface GitboxAPI {
     checkoutBranch: (repoPath: string, branchName: string) => Promise<boolean>;
     fetch: (repoPath: string, remoteName?: string) => Promise<boolean>;
     pull: (repoPath: string, remoteName?: string) => Promise<boolean>;
-    push: (repoPath: string, remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean) => Promise<boolean>;
+    push: (repoPath: string, remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean, forceWithLease?: boolean) => Promise<boolean>;
     clone: (url: string, targetDir: string) => Promise<{ path: string; name: string }>;
     init: (targetDir: string, name?: string, defaultBranch?: string) => Promise<{ path: string; name: string }>;
     createBranch: (repoPath: string, branchName: string, startPoint?: string) => Promise<boolean>;
@@ -195,6 +195,7 @@ export interface GitboxAPI {
     rebaseAbort: (repoPath: string) => Promise<boolean>;
     rebaseSkip: (repoPath: string) => Promise<{ done: boolean; conflicts: boolean }>;
     rebaseContinue: (repoPath: string) => Promise<{ done: boolean; conflicts: boolean }>;
+    rebaseOnto: (repoPath: string, upstream: string) => Promise<{ status: 'rebased' | 'conflicts'; done: boolean }>;
     cherryPick: (repoPath: string, commitSha: string) => Promise<{ status: 'done' | 'conflicts' }>;
     cherryPickAbort: (repoPath: string) => Promise<boolean>;
     cherryPickContinue: (repoPath: string) => Promise<{ status: 'done' | 'conflicts' }>;

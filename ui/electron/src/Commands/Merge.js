@@ -89,6 +89,15 @@ class Merge extends Command {
     }
 
     /**
+     * Rebase the current branch onto `upstream` (e.g. 'origin/main') — the
+     * "rebase" strategy of a non-fast-forward pull. Caller fetches first.
+     * Returns { status: 'rebased' | 'conflicts', done }.
+     */
+    async rebaseOnto(repoPath, upstream) {
+        return this.addon.rebaseOnto(repoPath, upstream);
+    }
+
+    /**
      * Cherry-pick a commit onto the current branch.
      * Returns { status: 'done' | 'conflicts' }. On conflict, git leaves
      * CHERRY_PICK_HEAD + conflicts in the working tree; the caller drives the

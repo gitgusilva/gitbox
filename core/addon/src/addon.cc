@@ -1146,11 +1146,45 @@ Napi::Value Stashes(const Napi::CallbackInfo &info) {
   return result;
 }
 
+// --force-with-lease: only overwrite the remote branch if it still points where
+// our last fetch left it (refs/remotes/<remote>/<branch>). The push_negotiation
+// callback runs after libgit2 learns the remote's current tip but before the
+// update, so we compare and abort if someone else pushed in the meantime.
+// The callback shares opts.callbacks.payload with the credentials callback, so
+// the lease data is passed out-of-band via a thread_local (each PushWorker runs
+// its push synchronously on one worker thread).
+struct LeaseData {
+  git_oid expected;
+  bool have = false;       // false when we have no remote-tracking ref to lease on
+  std::string dstRef;      // "refs/heads/<target>"
+  bool violated = false;   // set by the callback when the lease check fails
+};
+static thread_local LeaseData *tlLease = nullptr;
+
+static int LeaseNegotiationCb(const git_push_update **updates, size_t len,
+                              void * /*payload*/) {
+  LeaseData *p = tlLease;
+  if (p == nullptr)
+    return 0;
+  for (size_t i = 0; i < len; ++i) {
+    if (updates[i]->dst_refname != nullptr && p->dstRef == updates[i]->dst_refname) {
+      // Only enforce the lease when we actually have a remote-tracking ref to
+      // compare against (otherwise it's a new branch / never fetched — let the
+      // force proceed). Abort if the remote's tip differs from our lease.
+      if (p->have && git_oid_cmp(&updates[i]->src, &p->expected) != 0) {
+        p->violated = true;
+        return -1;  // abort the push; Execute() reports the lease violation
+      }
+    }
+  }
+  return 0;
+}
+
 class PushWorker : public BoolPromiseWorker {
  public:
   PushWorker(Napi::Env env, std::string repoPath, std::string remoteName,
              std::string token, std::string target, bool force, bool pushTags,
-             bool setUpstream)
+             bool setUpstream, bool forceWithLease)
       : BoolPromiseWorker(env),
         repoPath_(std::move(repoPath)),
         remoteName_(std::move(remoteName)),
@@ -1158,7 +1192,8 @@ class PushWorker : public BoolPromiseWorker {
         target_(std::move(target)),
         force_(force),
         pushTags_(pushTags),
-        setUpstream_(setUpstream) {}
+        setUpstream_(setUpstream),
+        forceWithLease_(forceWithLease) {}
 
   void Execute() override {
     git_repository *repo = nullptr;
@@ -1181,8 +1216,9 @@ class PushWorker : public BoolPromiseWorker {
       return;
     }
     // A leading '+' forces the update (moves the ref even when it isn't a
-    // fast-forward), matching `git push --force`.
-    std::string lead = force_ ? "+" : "";
+    // fast-forward). Both --force and --force-with-lease need it; lease adds the
+    // safety check installed below.
+    std::string lead = (force_ || forceWithLease_) ? "+" : "";
     std::string branchSpec =
         lead + "refs/heads/" + branch + ":refs/heads/" + target;
     std::string tagSpec = lead + "refs/tags/*:refs/tags/*";
@@ -1200,10 +1236,42 @@ class PushWorker : public BoolPromiseWorker {
       opts.callbacks.credentials = CredentialsCb;
       opts.callbacks.payload = &cred_;
     }
-    if (git_remote_push(remote, &refspecs, &opts) != 0) {
+
+    // force-with-lease: lease on our remote-tracking ref; the negotiation
+    // callback aborts if the remote's actual tip differs (someone pushed).
+    LeaseData lease;
+    if (forceWithLease_) {
+      lease.dstRef = "refs/heads/" + target;
+      std::string trackingRef = "refs/remotes/" + remoteName_ + "/" + branch;
+      git_reference *tr = nullptr;
+      if (git_reference_lookup(&tr, repo, trackingRef.c_str()) == 0) {
+        git_reference *resolved = nullptr;
+        if (git_reference_resolve(&resolved, tr) == 0) {
+          const git_oid *oid = git_reference_target(resolved);
+          if (oid != nullptr) {
+            git_oid_cpy(&lease.expected, oid);
+            lease.have = true;
+          }
+          git_reference_free(resolved);
+        }
+        git_reference_free(tr);
+      }
+      opts.callbacks.push_negotiation = LeaseNegotiationCb;
+      tlLease = &lease;
+    }
+
+    int pushRc = git_remote_push(remote, &refspecs, &opts);
+    tlLease = nullptr;
+    if (pushRc != 0) {
       git_remote_free(remote);
       git_repository_free(repo);
-      SetError(LastGitErrorOr("push failed"));
+      if (forceWithLease_ && lease.violated) {
+        SetError(
+            "force-with-lease aborted: the remote branch moved since your last "
+            "fetch. Fetch and review the new commits before force-pushing.");
+      } else {
+        SetError(LastGitErrorOr("push failed"));
+      }
       return;
     }
     git_remote_free(remote);
@@ -1228,6 +1296,7 @@ class PushWorker : public BoolPromiseWorker {
   bool force_;
   bool pushTags_;
   bool setUpstream_;
+  bool forceWithLease_;
 };
 
 Napi::Value Push(const Napi::CallbackInfo &info) {
@@ -1257,9 +1326,12 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
                   info[5].As<Napi::Boolean>().Value();
   bool setUpstream = info.Length() > 6 && info[6].IsBoolean() &&
                      info[6].As<Napi::Boolean>().Value();
+  bool forceWithLease = info.Length() > 7 && info[7].IsBoolean() &&
+                        info[7].As<Napi::Boolean>().Value();
 
   PushWorker *worker = new PushWorker(env, path, remoteName, token, target,
-                                      force, pushTags, setUpstream);
+                                      force, pushTags, setUpstream,
+                                      forceWithLease);
   Napi::Promise promise = worker->GetPromise();
   worker->Queue();
   return promise;
@@ -2110,6 +2182,118 @@ Napi::Value RebaseContinue(const Napi::CallbackInfo &info) {
   return RebaseAdvance(info, false);
 }
 
+// pull --rebase: replay the current branch's commits onto `upstream` (typically
+// a remote-tracking ref like "origin/main"). Starts the rebase (git_rebase_init)
+// and drives it like RebaseAdvance; stops at the first conflict so the existing
+// rebaseContinue / rebaseSkip / rebaseAbort flow can finish it. The caller must
+// have fetched first so the remote-tracking ref is current.
+// Returns { status: "rebased" | "conflicts", done }.
+Napi::Value RebaseOnto(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "upstream"))
+    return env.Null();
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string upstreamName = info[1].As<Napi::String>().Utf8Value();
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo))
+    return env.Null();
+
+  // Resolve the upstream (remote-tracking first, then a local branch).
+  git_reference *upstreamRef = nullptr;
+  if (git_branch_lookup(&upstreamRef, repo, upstreamName.c_str(),
+                        GIT_BRANCH_REMOTE) != 0 &&
+      git_branch_lookup(&upstreamRef, repo, upstreamName.c_str(),
+                        GIT_BRANCH_LOCAL) != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to find upstream to rebase onto"),
+           env.Null();
+  }
+  git_annotated_commit *upstream = nullptr;
+  if (git_annotated_commit_from_ref(&upstream, repo, upstreamRef) != 0) {
+    git_reference_free(upstreamRef);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to read upstream head"), env.Null();
+  }
+
+  git_rebase *rebase = nullptr;
+  git_rebase_options ropts = GIT_REBASE_OPTIONS_INIT;
+  int rc = git_rebase_init(&rebase, repo, nullptr /* branch = HEAD */, upstream,
+                           nullptr /* onto == upstream */, &ropts);
+  git_annotated_commit_free(upstream);
+  git_reference_free(upstreamRef);
+  if (rc != 0) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to start rebase"), env.Null();
+  }
+
+  git_signature *sig = nullptr;
+  if (!SignatureFromConfig(repo, &sig)) {
+    git_rebase_free(rebase);
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to build committer signature"), env.Null();
+  }
+
+  auto hasConflicts = [&]() -> bool {
+    git_index *idx = nullptr;
+    if (git_repository_index(&idx, repo) != 0)
+      return false;
+    bool c = git_index_has_conflicts(idx) != 0;
+    git_index_free(idx);
+    return c;
+  };
+
+  bool stoppedAtConflict = false;
+  while (true) {
+    git_rebase_operation *op = nullptr;
+    int nrc = git_rebase_next(&op, rebase);
+    if (nrc == GIT_ITEROVER)
+      break;
+    if (nrc != 0) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "rebase step failed"), env.Null();
+    }
+    if (hasConflicts()) {
+      stoppedAtConflict = true;
+      break;  // hand control back to the user (rebaseContinue/Skip/Abort)
+    }
+    git_oid cid;
+    int crc = git_rebase_commit(&cid, rebase, nullptr, sig, nullptr, nullptr);
+    if (crc != 0 && crc != GIT_EAPPLIED) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to commit rebased change"), env.Null();
+    }
+  }
+
+  bool done = false;
+  if (!stoppedAtConflict) {
+    if (git_rebase_finish(rebase, sig) != 0) {
+      git_signature_free(sig);
+      git_rebase_free(rebase);
+      git_repository_free(repo);
+      return ThrowGitError(env, "failed to finish rebase"), env.Null();
+    }
+    done = true;
+  }
+
+  git_signature_free(sig);
+  git_rebase_free(rebase);
+  git_repository_free(repo);
+
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("status",
+             Napi::String::New(env, stoppedAtConflict ? "conflicts" : "rebased"));
+  result.Set("done", Napi::Boolean::New(env, done));
+  return result;
+}
+
 Napi::Array CollectConflictPaths(Napi::Env env, git_index *index) {
   Napi::Array arr = Napi::Array::New(env);
   git_index_conflict_iterator *it = nullptr;
@@ -2666,6 +2850,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("rebaseAbort", Napi::Function::New(env, RebaseAbort));
   exports.Set("rebaseSkip", Napi::Function::New(env, RebaseSkip));
   exports.Set("rebaseContinue", Napi::Function::New(env, RebaseContinue));
+  exports.Set("rebaseOnto", Napi::Function::New(env, RebaseOnto));
   exports.Set("repoState", Napi::Function::New(env, RepoState));
   exports.Set("diffFile", Napi::Function::New(env, DiffFile));
   exports.Set("stashChanges", Napi::Function::New(env, StashChanges));

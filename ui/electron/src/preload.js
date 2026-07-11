@@ -26,7 +26,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   // ==========================================
   fetch: (repoPath, remoteName = 'origin') => ipcRenderer.invoke('gitbox:fetch', repoPath, remoteName),
   pull: (repoPath, remoteName) => ipcRenderer.invoke('gitbox:pull', repoPath, remoteName),
-  push: (repoPath, remoteName, branchName, setUpstream, force, pushTags) => ipcRenderer.invoke('gitbox:push', repoPath, remoteName, branchName, setUpstream, force, pushTags),
+  push: (repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease) => ipcRenderer.invoke('gitbox:push', repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease),
   clone: (url, targetDir) => ipcRenderer.invoke('gitbox:clone', url, targetDir),
   init: (targetDir, name, defaultBranch) => ipcRenderer.invoke('gitbox:init', targetDir, name, defaultBranch),
   checkoutBranch: (repoPath, branchName) => ipcRenderer.invoke('gitbox:checkoutBranch', repoPath, branchName),
@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   rebaseAbort: (repoPath) => ipcRenderer.invoke('gitbox:rebaseAbort', repoPath),
   rebaseSkip: (repoPath) => ipcRenderer.invoke('gitbox:rebaseSkip', repoPath),
   rebaseContinue: (repoPath) => ipcRenderer.invoke('gitbox:rebaseContinue', repoPath),
+  rebaseOnto: (repoPath, upstream) => ipcRenderer.invoke('gitbox:rebaseOnto', repoPath, upstream),
   cherryPick: (repoPath, commitSha) => ipcRenderer.invoke('gitbox:cherryPick', repoPath, commitSha),
   cherryPickAbort: (repoPath) => ipcRenderer.invoke('gitbox:cherryPickAbort', repoPath),
   cherryPickContinue: (repoPath) => ipcRenderer.invoke('gitbox:cherryPickContinue', repoPath),

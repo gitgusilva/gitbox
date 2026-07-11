@@ -525,6 +525,14 @@
     "copy_path": "Copy Path",
     "copy_full_path": "Copy Full Path"
   },
+  "pull_modal": {
+    "title": "Pull — Diverged Branch",
+    "diverged_text": "Your branch <b class=\"text-blue-400\">{branch}</b> and its upstream have diverged. Choose how to integrate the upstream commits:",
+    "merge": "Merge",
+    "merge_desc": "Create a merge commit joining both histories. Preserves the exact history.",
+    "rebase": "Rebase",
+    "rebase_desc": "Replay your local commits on top of the upstream. Keeps a linear history."
+  },
   "push_modal": {
     "title": "Push Changes To Remote",
     "local_branch": "Local Branch:",

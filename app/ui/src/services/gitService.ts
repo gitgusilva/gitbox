@@ -491,18 +491,72 @@ export const unstageFile = (path: string) => runAction(() => window.gitbox.unsta
 export const discardAll = () => runAction(() => window.gitbox.discardAll(repoPath.value), 'status', "Discard all changes");
 export const discardFile = (path: string) => runAction(() => window.gitbox.discardFile(repoPath.value, path), 'status', `Discard file ${path}`);
 export const doFetch = () => runAction(() => window.gitbox.fetch(repoPath.value), 'full', "Fetch from remote", true);
-export const doPull = () => runAction(() => window.gitbox.pull(repoPath.value), 'full', "Pull from remote", true);
+import { isPushModalOpen, isPullModalOpen } from './modalService';
 
-import { isPushModalOpen } from './modalService';
+export const doPull = async () => {
+    if (!repoPath.value || !window.gitbox) return;
+    isLoading.value = true;
+    error.value = '';
+    try {
+        await window.gitbox.pull(repoPath.value);
+        await loadRepoData(true);
+        addLog('Pulled from remote', 'Action', 'success');
+    } catch (err: any) {
+        const msg = String(err?.message || err);
+        if (/non-fast-forward/i.test(msg)) {
+            // Diverged from upstream. The fast pull already fetched, so ask the
+            // user how to integrate — merge or rebase (SourceGit-style).
+            isPullModalOpen.value = true;
+        } else {
+            error.value = msg;
+            const { showToast } = await import('./toastService');
+            showToast('Pull failed', msg, 'error');
+        }
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+/** Integrate a diverged upstream via merge or rebase (the pull-mode modal). */
+export const confirmPull = (mode: 'merge' | 'rebase') => {
+    return runAction(async () => {
+        isPullModalOpen.value = false;
+        const remote = (remotes.value && remotes.value[0]) || 'origin';
+        const branch = currentBranchName.value;
+        if (!branch) throw new Error('detached HEAD is not supported for pull');
+        const upstream = `${remote}/${branch}`;
+        // Refresh the remote-tracking ref (the failed FF pull already fetched,
+        // but re-fetch so merge/rebase sees the latest).
+        await window.gitbox.fetch(repoPath.value, remote);
+        const { showToast } = await import('./toastService');
+        if (mode === 'rebase') {
+            const res = await window.gitbox.rebaseOnto(repoPath.value, upstream);
+            if (res?.status === 'conflicts') {
+                activeTab.value = 'local_changes';
+                showToast('Rebase conflicts', 'Resolve the conflicts, then continue the rebase.', 'error');
+            } else {
+                showToast('Pull', `Rebased onto ${upstream}.`, 'success');
+            }
+        } else {
+            const res = await window.gitbox.mergeBranch(repoPath.value, upstream);
+            if (res?.status === 'conflicts') {
+                activeTab.value = 'local_changes';
+                showToast('Merge conflicts', 'Resolve the conflicts, then complete the merge.', 'error');
+            } else {
+                showToast('Pull', `Merged ${upstream}.`, 'success');
+            }
+        }
+    }, 'full', `Pull (${mode}) from origin`, true);
+};
 
 export const doPush = () => {
     isPushModalOpen.value = true;
 };
 
-export const confirmPush = (remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean) => {
+export const confirmPush = (remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean, forceWithLease?: boolean) => {
     return runAction(async () => {
         isPushModalOpen.value = false;
-        await window.gitbox.push(repoPath.value, remoteName, branchName, setUpstream, force, pushTags);
+        await window.gitbox.push(repoPath.value, remoteName, branchName, setUpstream, force, pushTags, forceWithLease);
     }, 'full', `Push to ${remoteName || 'origin'}/${branchName || ''}`, true);
 };
 

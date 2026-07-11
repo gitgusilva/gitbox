@@ -525,6 +525,14 @@
     "copy_path": "Copiar Caminho",
     "copy_full_path": "Copiar Caminho Completo"
   },
+  "pull_modal": {
+    "title": "Pull — Branch divergente",
+    "diverged_text": "Seu branch <b class=\"text-blue-400\">{branch}</b> e o upstream divergiram. Escolha como integrar os commits do upstream:",
+    "merge": "Merge",
+    "merge_desc": "Cria um commit de merge unindo os dois históricos. Preserva o histórico exato.",
+    "rebase": "Rebase",
+    "rebase_desc": "Reaplica seus commits locais sobre o upstream. Mantém o histórico linear."
+  },
   "push_modal": {
     "title": "Enviar Alterações ao Remoto",
     "local_branch": "Branch Local:",

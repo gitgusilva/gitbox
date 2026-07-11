@@ -126,7 +126,7 @@ module.exports = function (addon) {
     // Sync
     ipcMain.handle('gitbox:fetch', async (_, repoPath, remoteName) => fetchCmd.execute(repoPath, remoteName));
     ipcMain.handle('gitbox:pull', async (_, repoPath, remoteName) => pullCmd.execute(repoPath, remoteName));
-    ipcMain.handle('gitbox:push', async (_, repoPath, remoteName, branchName, setUpstream, force, pushTags) => pushCmd.execute(repoPath, remoteName, branchName, setUpstream, force, pushTags));
+    ipcMain.handle('gitbox:push', async (_, repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease) => pushCmd.execute(repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease));
     ipcMain.handle('gitbox:clone', async (_, url, targetDir) => cloneCmd.execute(url, targetDir));
     ipcMain.handle('gitbox:init', async (_, targetDir, name, defaultBranch) => initCmd.execute(targetDir, name, defaultBranch));
 
@@ -154,6 +154,7 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:rebaseAbort', async (_, repoPath) => mergeCmd.rebaseAbort(repoPath));
     ipcMain.handle('gitbox:rebaseSkip', async (_, repoPath) => mergeCmd.rebaseSkip(repoPath));
     ipcMain.handle('gitbox:rebaseContinue', async (_, repoPath) => mergeCmd.rebaseContinue(repoPath));
+    ipcMain.handle('gitbox:rebaseOnto', async (_, repoPath, upstream) => mergeCmd.rebaseOnto(repoPath, upstream));
     ipcMain.handle('gitbox:cherryPick', async (_, repoPath, commitSha) => mergeCmd.cherryPick(repoPath, commitSha));
     ipcMain.handle('gitbox:cherryPickAbort', async (_, repoPath) => mergeCmd.cherryPickAbort(repoPath));
     ipcMain.handle('gitbox:cherryPickContinue', async (_, repoPath) => mergeCmd.cherryPickContinue(repoPath));

@@ -25,6 +25,7 @@ import { toggleTerminal } from '../services/gitService';
 import ChangelogView from './ChangelogView.vue';
 import CreatePRModal from '../components/CreatePRModal.vue';
 import PushModal from '../components/PushModal.vue';
+import PullModal from '../components/PullModal.vue';
 import AddSubmoduleModal from '../components/AddSubmoduleModal.vue';
 import EditSubmoduleModal from '../components/EditSubmoduleModal.vue';
 import { registerShortcut } from '../services/shortcutService';
@@ -66,6 +67,7 @@ const { t } = useI18n();
     
     <CreatePRModal />
     <PushModal />
+    <PullModal />
     <AddSubmoduleModal />
     <EditSubmoduleModal />
     <ContextMenu v-if="contextMenu" :x="contextMenu.x" :y="contextMenu.y" :items="contextMenu.items" @close="contextMenu = null" />

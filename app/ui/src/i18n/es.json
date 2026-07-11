@@ -467,6 +467,14 @@
     "copy_path": "Copiar Ruta",
     "copy_full_path": "Copiar Ruta Completa"
   },
+  "pull_modal": {
+    "title": "Pull — Rama divergente",
+    "diverged_text": "Tu rama <b class=\"text-blue-400\">{branch}</b> y su upstream han divergido. Elige cómo integrar los commits del upstream:",
+    "merge": "Merge",
+    "merge_desc": "Crea un commit de fusión uniendo ambos historiales. Conserva el historial exacto.",
+    "rebase": "Rebase",
+    "rebase_desc": "Reaplica tus commits locales sobre el upstream. Mantiene un historial lineal."
+  },
   "push_modal": {
     "title": "Enviar Cambios a Remoto",
     "local_branch": "Rama Local:",
