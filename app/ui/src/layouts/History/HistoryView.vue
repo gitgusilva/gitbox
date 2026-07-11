@@ -479,14 +479,16 @@ async function onRemoveFilter(name: string) {
 </script>
 
 <template>
-  <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden bg-app">
+  <div class="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden bg-app">
+    <!-- Active history filter badges (branches/tags). Full-width bar across the
+         top so it sits above BOTH the commit list and the detail panel — not just
+         the list column. Shown only when filtering; hidden on the whole graph. -->
+    <HistoryFilterBar
+      v-if="effectiveLogRefs.length"
+      :refs="effectiveLogRefs"
+      @remove="onRemoveFilter" />
+    <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden">
     <div class="flex-1 min-w-0 flex flex-col min-h-0">
-      <!-- Active history filter badges (branches/tags). Shown only when filtering;
-           hidden when viewing the whole graph (ALL). -->
-      <HistoryFilterBar
-        v-if="effectiveLogRefs.length"
-        :refs="effectiveLogRefs"
-        @remove="onRemoveFilter" />
       <HistoryCommitList
         ref="commitListRef"
         class="flex-1 min-w-0 min-h-0"
@@ -524,6 +526,7 @@ async function onRemoveFilter(name: string) {
       @selectFile="selectedFilesTabPath = $event"
       @setTab="activeDetailTab = $event"
     />
+    </div>
 
     <!-- AI commit analysis -->
     <Modal v-model="aiModalOpen" :title="t('history_detail.ai_explain_title')" width="760px">
