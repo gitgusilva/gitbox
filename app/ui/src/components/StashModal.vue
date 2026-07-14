@@ -1,30 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { stashModal } from '../services/modalService';
+import { stashIncludeUntracked } from '../services/gitService';
 import Modal from './Common/Modal.vue';
-import Select from './Common/Select.vue';
+import Checkbox from './Common/Checkbox.vue';
 
 const { t } = useI18n();
 
 const message = ref('');
-const mode = ref<'default' | 'keep_index' | 'include_untracked'>('default');
+// Keep-index is a per-invocation choice (defaults off); "include untracked" is
+// bound directly to the persistent setting so its state survives restarts.
+const keepIndex = ref(false);
 const inputRef = ref<HTMLInputElement | null>(null);
-
-// git-accurate presets for `git stash push`. Mutually exclusive in the dropdown
-// to keep it simple (the common cases); each maps to real stash flags.
-const modeOptions = computed(() => [
-  { value: 'default', label: t('changes.stash_mode_default') },
-  { value: 'keep_index', label: t('changes.stash_mode_keep_index') },
-  { value: 'include_untracked', label: t('changes.stash_mode_include_untracked') },
-]);
-
-const modeHint = computed(() => t(`changes.stash_mode_${mode.value}_hint`));
 
 watch(() => stashModal.value, (v) => {
   if (v) {
     message.value = '';
-    mode.value = 'default';
+    keepIndex.value = false;
     nextTick(() => inputRef.value?.focus());
   }
 }, { immediate: true });
@@ -33,8 +26,8 @@ function confirm() {
   const m = stashModal.value;
   if (!m) return;
   m.onConfirm(message.value.trim(), {
-    keepIndex: mode.value === 'keep_index',
-    includeUntracked: mode.value === 'include_untracked',
+    keepIndex: keepIndex.value,
+    includeUntracked: stashIncludeUntracked.value,
   });
   stashModal.value = null;
 }
@@ -47,14 +40,6 @@ function cancel() {
 <template>
   <Modal v-if="stashModal" :modelValue="true" @update:modelValue="!$event && cancel()" :title="t('changes.stash_title')" width="480px">
     <div class="p-6 space-y-5">
-      <!-- Mode -->
-      <div class="flex items-center gap-3">
-        <span class="w-24 shrink-0 text-right text-xs text-content-muted">{{ t('changes.stash_mode') }}</span>
-        <div class="flex-1 min-w-0">
-          <Select v-model="mode" :options="modeOptions" searchable class="w-full" />
-        </div>
-      </div>
-
       <!-- Message -->
       <div class="flex items-center gap-3">
         <span class="w-24 shrink-0 text-right text-xs text-content-muted">{{ t('changes.stash_message_label') }}</span>
@@ -64,9 +49,16 @@ function cancel() {
                @keydown.enter="confirm" />
       </div>
 
+      <!-- Options -->
+      <div class="v-stack gap-3 pl-[6.75rem]">
+        <Checkbox v-model="keepIndex" :label="t('changes.stash_mode_keep_index')" />
+        <!-- Persisted across restarts (matches git's default: off). -->
+        <Checkbox v-model="stashIncludeUntracked" :label="t('changes.stash_mode_include_untracked')" />
+      </div>
+
       <!-- Footer note -->
       <p class="text-[11px] text-content-muted leading-relaxed pl-[6.75rem]">
-        {{ modeHint }}<br />
+        <template v-if="stashIncludeUntracked">{{ t('changes.stash_mode_include_untracked_hint') }}<br /></template>
         {{ t('changes.stash_files_note', { count: stashModal.fileCount }) }}
       </p>
 

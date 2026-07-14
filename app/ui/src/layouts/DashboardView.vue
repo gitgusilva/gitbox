@@ -13,12 +13,10 @@ import HistoryView from './History/HistoryView.vue';
 import ChangesView from './Changes/ChangesView.vue';
 import StashView from './Stashes/StashView.vue';
 import FilesView from './Files/FilesView.vue';
-import ChangelogView from './ChangelogView.vue';
 import PullRequestView from '../components/PullRequestView.vue';
 import OutputLogView from './OutputLogView.vue';
 import StatisticsView from './StatisticsView.vue';
 import MergeBanner from '../components/MergeBanner.vue';
-import { appVersion } from '../services/versionService';
 import { Icon } from '@iconify/vue';
 import { showToast } from '../services/toastService';
 import { useI18n } from 'vue-i18n';
@@ -59,7 +57,6 @@ function copyError() {
     <ChangesView v-else-if="activeTab === 'local_changes'" />
     <StashView v-else-if="activeTab === 'stashes'" />
     <FilesView v-else-if="activeTab === 'files'" />
-    <ChangelogView v-else-if="activeTab === 'changelog'" :version="appVersion" />
     <PullRequestView v-else-if="activeTab === 'pull_request'" />
     <OutputLogView v-else-if="activeTab === 'output_log'" />
     <StatisticsView v-else-if="activeTab === 'statistics'" />

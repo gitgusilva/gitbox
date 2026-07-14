@@ -218,6 +218,15 @@ body.resizing-row * {
   display: none !important;
 }
 
+/* Monaco's inline-diff deleted-code margin renders a lightbulb glyph whose menu
+   offers "Copy changed/deleted lines" and "Revert this change". Our diffs are for
+   reading only, so drop that affordance entirely. This class is unique to that
+   diff feature — the code-action (quick-fix) lightbulb uses `.lightBulbWidget`,
+   so hiding it here doesn't touch anything else. */
+.lightbulb-glyph {
+  display: none !important;
+}
+
 /* Monaco diff-editor resize divider (sash): match GitBox's own resizers — a thin
    themed line that turns accent while hovered/dragged, instead of Monaco's blue. */
 .monaco-sash.vertical::before,

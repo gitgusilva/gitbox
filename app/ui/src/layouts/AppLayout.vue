@@ -15,14 +15,12 @@ import UpdateModal from '../components/UpdateModal.vue';
 import BranchActionModal from '../components/BranchActionModal.vue';
 import StashModal from '../components/StashModal.vue';
 import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
-import { activeWorkspaceId, workspaces, isChangelogVisible } from '../services/workspaceService';
+import { activeWorkspaceId, workspaces } from '../services/workspaceService';
 import TerminalPanel from './TerminalPanel.vue';
 import AppFooter from './Footer.vue';
 import { initGlobalShortcuts } from '../services/shortcutService';
 import { computed, onMounted } from 'vue';
-import { getItem, setItem } from '../services/storageService';
 import { toggleTerminal } from '../services/gitService';
-import ChangelogView from './ChangelogView.vue';
 import CreatePRModal from '../components/CreatePRModal.vue';
 import PushModal from '../components/PushModal.vue';
 import PullModal from '../components/PullModal.vue';
@@ -38,21 +36,10 @@ const activeWorkspacePath = computed(() => {
     return ws ? ws.path : null;
 });
 
-const currentVersion = '1.0.0';
-
 onMounted(() => {
     registerShortcut('ctrl+j', () => toggleTerminal(), { descriptionKey: 'Toggle Terminal', category: 'global' });
     registerShortcut('ctrl+,', () => isSettingsOpen.value = true, { descriptionKey: 'Settings', category: 'global' });
     registerShortcut('ctrl+/', () => isShortcutsModalOpen.value = true, { descriptionKey: 'Keyboard Shortcuts', category: 'global' });
-    
-    const lastVersion = getItem('gitbox_last_version');
-    if (lastVersion !== currentVersion) {
-        setTimeout(() => {
-            isChangelogVisible.value = true;
-            activeWorkspaceId.value = 'changelog';
-            setItem('gitbox_last_version', currentVersion);
-        }, 1000); // Small delay before switching
-    }
 
     initProtocolHandler();
 });
@@ -113,8 +100,7 @@ const { t } = useI18n();
       </div>
     </div>
     <div v-else class="flex-1 overflow-hidden">
-      <ChangelogView v-if="activeWorkspaceId === 'changelog'" :version="currentVersion" />
-      <WelcomeView v-else />
+      <WelcomeView />
     </div>
 
     <!-- Application Footer -->

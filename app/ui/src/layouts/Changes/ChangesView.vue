@@ -4,11 +4,12 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import ScrollArea from '../../components/Common/ScrollArea.vue';
 import { cn } from '../../utils/cn';
-import { 
+import {
   repoPath,
-  unstagedFiles, 
-  stagedFiles, 
-  selectedFile, 
+  status,
+  unstagedFiles,
+  stagedFiles,
+  selectedFile,
   selectedFiles,
   commitMessage,
   amendLast,
@@ -20,6 +21,7 @@ import {
   discardFile,
   commitAll,
   includeUntracked,
+  reportError,
   stashes,
   loadRepoData,
   currentBranchName,
@@ -38,6 +40,7 @@ import FileTree from '../../components/Common/FileTree.vue';
 import Resizer from '../../components/Common/Resizer.vue';
 import Tooltip from '../../components/Common/Tooltip.vue';
 import Button from '../../components/Common/Button.vue';
+import Checkbox from '../../components/Common/Checkbox.vue';
 import { generateCommitMessage, explainChanges, isAIConfigured, aiConfigVersion } from '../../services/ai';
 import { getItem, setItem } from '../../services/storageService';
 import { contextMenu, requestConfirm, requestInput, requestStash } from '../../services/modalService';
@@ -57,6 +60,11 @@ const stagedViewMode = ref(getItem('gitbox_staged_view_mode') || 'tree');
 const commitPanelHeight = ref(Number(getItem('gitbox_commit_panel_height')) || 220);
 const commitRefs = { commitPanelHeight };
 watch(commitPanelHeight, (h) => setItem('gitbox_commit_panel_height', String(Math.round(h))));
+
+// Each view mode maps to the same glyph used in its menu entry, so the toolbar
+// button mirrors the active mode at a glance instead of a generic icon.
+const VIEW_MODE_ICONS: Record<string, string> = { list: 'lucide:menu', flat: 'lucide:layout-grid', tree: 'lucide:git-branch' };
+const viewModeIcon = (mode: string) => VIEW_MODE_ICONS[mode] || 'lucide:layout-grid';
 
 /**
  * Switches the view mode for the unstaged or staged file panels.
@@ -164,16 +172,35 @@ async function revealFile() {
 
 /** Stash the current file selection via the stash dialog (message + mode). */
 function stashSelectedFiles() {
-  const paths = selectedFiles.value.length ? [...selectedFiles.value] : (selectedFile.value ? [selectedFile.value] : []);
-  if (!repoPath.value || paths.length === 0) return;
+  const allPaths = selectedFiles.value.length ? [...selectedFiles.value] : (selectedFile.value ? [selectedFile.value] : []);
+  if (!repoPath.value || allPaths.length === 0) return;
 
-  requestStash(paths.length, async (message, mode) => {
+  // Which of the picked paths are untracked. `git stash push -- <path>` rejects
+  // an untracked pathspec ("did not match any file(s) known to git") unless
+  // --include-untracked is passed, so this drives whether we keep or drop them.
+  const untracked = new Set(allPaths.filter(p => (status.value.find(s => s.path === p)?.status || '').includes('untracked')));
+
+  requestStash(allPaths.length, async (message, mode) => {
     try {
-      await window.gitbox.stashFile(repoPath.value, paths, message, mode);
+      // Honour the persistent "include untracked" choice. Off → drop untracked
+      // paths so the stash still succeeds for the tracked ones (instead of
+      // failing outright); on → keep them and let stashFile pass the flag.
+      const paths = mode.includeUntracked ? allPaths : allPaths.filter(p => !untracked.has(p));
+      if (paths.length === 0) {
+        showToast(t('changes.stash_title'), t('changes.stash_only_untracked'), 'info');
+        return;
+      }
+      await window.gitbox.stashFile(repoPath.value, paths, message, {
+        // git can't --keep-index alongside untracked pathspecs (spurious "did
+        // not match" + a half-applied stash), and untracked files can't live in
+        // the index anyway — so keep-index yields when untracked are included.
+        keepIndex: mode.keepIndex && !mode.includeUntracked,
+        includeUntracked: mode.includeUntracked,
+      });
       await loadRepoData();
       showToast(t('common.success'), t('changes.stashed_file'), 'success');
     } catch (e: any) {
-      showToast(t('common.error'), e?.message || String(e), 'error');
+      reportError('Stash selected files', e);
     }
   });
 }
@@ -186,7 +213,7 @@ async function saveFilePatch(staged: boolean) {
     const result = await window.gitbox.savePatch(repoPath.value, paths, staged);
     if (result.saved) showToast(t('common.success'), t('changes.saved_patch'), 'success');
   } catch (e: any) {
-    showToast(t('common.error'), e?.message || String(e), 'error');
+    reportError('Save patch', e);
   }
 }
 
@@ -198,7 +225,7 @@ async function toggleAssumeUnchanged() {
     await loadRepoData();
     showToast(t('common.success'), t('changes.assumed_unchanged'), 'success');
   } catch (e: any) {
-    showToast(t('common.error'), e?.message || String(e), 'error');
+    reportError('Assume unchanged', e);
   }
 }
 
@@ -808,7 +835,7 @@ async function handleExplainChanges() {
            </Tooltip>
            <Tooltip :text="t('changes.view_options')">
              <button @click="openViewMenu($event, 'unstaged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
-               <Icon icon="lucide:layout-grid" class="text-xs" />
+               <Icon :icon="viewModeIcon(unstagedViewMode)" class="text-xs" />
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.stage_selected')">
@@ -845,7 +872,7 @@ async function handleExplainChanges() {
          <div :class="cn('h-stack items-center gap-1 shrink-0')">
            <Tooltip :text="t('changes.view_options')">
              <button @click="openViewMenu($event, 'staged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
-               <Icon icon="lucide:layout-grid" class="text-xs" />
+               <Icon :icon="viewModeIcon(stagedViewMode)" class="text-xs" />
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.unstage_selected')">
@@ -1038,10 +1065,7 @@ async function handleExplainChanges() {
                     )"
                     :placeholder="t('changes.commit_desc_placeholder')"></textarea>
          <!-- Amend toggle: fold staged changes into the previous commit. -->
-         <label class="h-stack gap-2 text-[11px] text-content-muted cursor-pointer select-none px-0.5">
-           <input type="checkbox" v-model="amendLast" class="accent-accent cursor-pointer" />
-           <span>{{ t('changes.amend_last') }}</span>
-         </label>
+         <Checkbox v-model="amendLast" :label="t('changes.amend_last')" class="px-0.5" />
          <Button variant="primary" block :icon="amendLast ? 'lucide:git-commit-vertical' : 'lucide:git-commit'"
                  class="py-2 uppercase tracking-widest font-bold shadow-lg shadow-accent/20"
                  :disabled="amendLast ? (!commitSubject.trim() && stagedFiles.length === 0) : (!commitSubject.trim() || stagedFiles.length === 0)"

@@ -67,7 +67,7 @@ export interface GraphNode {
     isHead?: boolean;
 }
 
-export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'changelog' | 'pull_request' | 'create_pr' | 'output_log' | 'statistics';
+export type TabKey = 'history' | 'local_changes' | 'changes' | 'stashes' | 'files' | 'pull_request' | 'create_pr' | 'output_log' | 'statistics';
 
 export interface StatAuthor {
     name: string;

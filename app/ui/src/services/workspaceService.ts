@@ -61,9 +61,6 @@ export const workspaces = ref<Workspace[]>(getInitialWorkspaces());
 /** ID of the workspace currently visible to the user. */
 export const activeWorkspaceId = ref<string | null>(getInitialActiveWorkspace());
 
-/** Reactive state for the application changelog visibility. */
-export const isChangelogVisible = ref<boolean>(getItem('gitbox_is_changelog_visible') === 'true');
-
 /** History of recently accessed repositories. */
 export const recentRepositories = ref<RecentRepo[]>(JSON.parse(getItem('gitbox_recent_repos') || '[]'));
 
@@ -84,10 +81,6 @@ watch(workspaces, (val) => {
 watch(activeWorkspaceId, (val) => {
     if (val && generalSettings.value.rememberTabs) setItem('gitbox_active_workspace', val);
     else removeItem('gitbox_active_workspace');
-});
-
-watch(isChangelogVisible, (val) => {
-    setItem('gitbox_is_changelog_visible', val.toString());
 });
 
 watch(() => generalSettings.value.rememberTabs, (val) => {

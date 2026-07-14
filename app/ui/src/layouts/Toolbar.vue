@@ -7,8 +7,7 @@ import {
   setActiveWorkspace, 
   removeWorkspace, 
   addWorkspace,
-  updateWorkspace,
-  isChangelogVisible
+  updateWorkspace
 } from '../services/workspaceService';
 import { repoPath, loadRepoData, isLoadingData, activeTab } from '../services/gitService';
 import { ref, watch, onMounted } from 'vue';
@@ -335,21 +334,7 @@ watch(activeWorkspaceId, async (val) => {
     <div class="flex flex-1 min-w-0 h-full relative group/tabs mr-8" style="-webkit-app-region: drag;">
         <SimpleBar ref="tabsContainer" class="flex-1 min-w-0 h-full w-full custom-toolbar-sb" @wheel.prevent="onTabScroll">
             <TransitionGroup name="tab-drag" tag="div" class="flex h-full items-end pl-2 min-w-max">
-                <!-- What's New special tab -->
-                <div v-if="isChangelogVisible"
-                     @click="activeWorkspaceId = 'changelog'"
-                     style="-webkit-app-region: no-drag;"
-                     class="h-8 min-w-[120px] px-3 flex items-center justify-between gap-2 rounded-t-md mx-[1px] cursor-pointer group transition-colors relative"
-                     :class="activeWorkspaceId === 'changelog' ? 'bg-surface text-content-strong' : 'bg-app text-content-muted hover:bg-surface-hover hover:text-content'">
-                     <div class="flex items-center gap-2 overflow-hidden flex-1">
-                        <Icon icon="lucide:megaphone" class="w-3.5 h-3.5 text-blue-500" />
-                        <span class="truncate text-xs font-medium">{{ t('common.whats_new') }}</span>
-                     </div>
-                     <Icon icon="lucide:x" @click.stop="isChangelogVisible = false; if (activeWorkspaceId === 'changelog') activeWorkspaceId = workspaces.length > 0 ? workspaces[0].id : null" class="opacity-0 group-hover:opacity-100 w-3 h-3 hover:text-red-400 transition-opacity flex-shrink-0 ml-2" />
-                     <div v-if="activeWorkspaceId === 'changelog'" class="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500 rounded-t"></div>
-                </div>
-
-                <div v-for="ws in workspaces" :key="ws.id" 
+                <div v-for="ws in workspaces" :key="ws.id"
                      :id="`workspace-tab-${ws.id}`"
                      @click="setActiveWorkspace(ws.id)"
                      @contextmenu.prevent="openTabMenu($event, ws.id)"
@@ -360,7 +345,7 @@ watch(activeWorkspaceId, async (val) => {
                      @dragend="onDragEnd"
                      style="-webkit-app-region: no-drag;"
                      class="h-8 max-w-[200px] min-w-[120px] px-3 flex items-center justify-between rounded-t-md mx-[1px] cursor-pointer group transition-colors relative border-b-2 border-transparent"
-                     :class="activeWorkspaceId === ws.id ? 'bg-surface text-content-strong border-blue-500' : 'bg-app text-content-muted hover:bg-surface-hover hover:text-content'">
+                     :class="activeWorkspaceId === ws.id ? 'bg-accent/20 text-content-strong border-accent' : 'bg-app text-content-muted hover:bg-surface-hover hover:text-content'">
                      
                      <div class="flex items-center gap-2 overflow-hidden flex-1">
                          <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: ws.color }"></div>
@@ -368,7 +353,10 @@ watch(activeWorkspaceId, async (val) => {
                      </div>
                      <div class="flex items-center justify-center w-4 h-4 ml-2">
                         <Icon v-if="isLoadingData && activeWorkspaceId === ws.id" icon="lucide:loader-2" class="w-3 h-3 text-blue-500 animate-spin" />
-                        <Icon v-else icon="lucide:x" @click.stop="removeWorkspace(ws.id)" class="opacity-0 group-hover:opacity-100 w-3 h-3 hover:text-red-400 transition-opacity" />
+                        <!-- Active tab keeps its close icon visible in the text colour (the
+                             translucent accent background was swallowing the hover-only glyph);
+                             inactive tabs still reveal it on hover. Red hover unchanged. -->
+                        <Icon v-else icon="lucide:x" @click.stop="removeWorkspace(ws.id)" :class="[activeWorkspaceId === ws.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100', 'w-3 h-3 hover:text-red-400 transition-opacity']" />
                      </div>
                 </div>
 

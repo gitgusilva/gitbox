@@ -12,6 +12,7 @@ import {
 } from '../types/git';
 import { branchActionModal } from './modalService';
 import { addLog } from './logService';
+import i18n from '../i18n';
 
 /**
  * Represents a Git submodule entry.
@@ -163,6 +164,14 @@ export const isLoadingData = ref(false);
 
 /** Setting to include or hide untracked files in the status list. */
 export const includeUntracked = ref(getItem('gitbox_include_untracked') !== 'false');
+
+/**
+ * Whether the stash dialog includes untracked files by default. Persisted across
+ * restarts (SourceGit's `IncludeUntrackedWhenStash`). Defaults to false so the
+ * behaviour matches git's own default — untracked files stay put unless asked.
+ */
+export const stashIncludeUntracked = ref(getItem('gitbox_stash_include_untracked') === 'true');
+watch(stashIncludeUntracked, (v) => setItem('gitbox_stash_include_untracked', v ? 'true' : 'false'));
 
 // Computed
 /** Files that are modified but NOT staged. */
@@ -456,6 +465,24 @@ export async function refreshStatus() {
 }
 
 /**
+ * Single sink for a failed git action. The full, technical message is surfaced
+ * for diagnosis in two durable places — the dismissible banner above the history
+ * (`error`) and the persistent Command Log (future telemetry reads from there) —
+ * while the toast stays deliberately generic, so a raw git/libgit2 error is never
+ * flashed at the user in a transient popup. `context` is a short, stable label
+ * that also titles the log entry.
+ */
+export function reportError(context: string, err: unknown) {
+    const detail = String((err as any)?.message ?? err ?? '').trim() || 'Unknown error';
+    error.value = detail;                                       // banner on top of the history
+    addLog(context, 'Error', 'error', { details: detail });     // persistent, consultable log
+    import('./toastService').then(({ showToast }) => {
+        const t = i18n.global.t as (k: string) => string;
+        showToast(t('common.action_failed'), t('common.action_failed_hint'), 'error');
+    });
+}
+
+/**
  * Runs a git action then refreshes. `refresh` decides how much:
  *  - 'status' (default): re-read only the file status — for stage/unstage/discard,
  *    which don't touch branches/tags/stashes. Avoids the 8-IPC + full-log-reload
@@ -475,10 +502,7 @@ async function runAction(action: () => unknown, refresh: 'status' | 'full' = 'st
             await refreshStatus();
         }
     } catch (err: any) {
-        error.value = String(err);
-        if (actionName) {
-            addLog(`Failed: ${actionName}`, 'Action', 'error', { details: String(err) });
-        }
+        reportError(actionName ? `Failed: ${actionName}` : 'Git action failed', err);
     } finally {
         isLoading.value = false;
     }
