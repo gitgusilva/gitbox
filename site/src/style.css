@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-ink text-content font-sans antialiased;
+  }
+  ::selection {
+    @apply bg-accent/30 text-strong;
+  }
+}
+
+@layer components {
+  /* Section rhythm shared by every block on the page. */
+  .section {
+    @apply mx-auto w-full max-w-6xl px-6 py-20 sm:py-28;
+  }
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.2em] text-accent;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-surface p-6 transition-colors hover:border-accent/40;
+  }
+}
+
+/* Respect the user's motion preference: the hero canvas freezes itself, and
+   scroll-triggered reveals become instant. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+/* Progressive enhancement: content is visible by default and only starts hidden
+   once main.ts marks the document as scripted. Without this, a JS error (or a
+   never-firing observer) would leave whole sections permanently invisible. */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Rails navigated by arrows/thumbnails don't need a visible scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
