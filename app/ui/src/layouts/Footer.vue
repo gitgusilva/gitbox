@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { contextMenu } from '../services/modalService';
 import { useI18n } from 'vue-i18n';
-import ConfirmModal from '../components/ConfirmModal.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
 import { getItem, setItem } from '../services/storageService';
 import { activeTab, repoPath } from '../services/gitService';
@@ -11,9 +10,7 @@ import { appVersion as version } from '../services/versionService';
 
 const { t } = useI18n();
 
-import { getShortcutsRegistry } from '../services/shortcutService';
 import { isShortcutsModalOpen } from '../services/modalService';
-import ScrollArea from '../components/Common/ScrollArea.vue';
 
 const openShortcutsModal = () => {
     isShortcutsModalOpen.value = true;
@@ -112,32 +109,5 @@ const openZoomMenu = (e: MouseEvent) => {
         </Tooltip>
     </div>
 
-    <!-- Shortcuts Modal -->
-    <ConfirmModal v-if="isShortcutsModalOpen" :title="t('common.keyboard_shortcuts')" hide-buttons class="max-w-lg p-0 bg-surface" @cancel="isShortcutsModalOpen = false">
-        <ScrollArea class="p-5 max-h-[60vh] bg-app rounded-b-xl relative">
-            <div v-for="category in ['global', 'repository', 'terminal', 'editor', 'other']" :key="category">
-                <template v-if="getShortcutsRegistry().filter(item => (item.category || 'other') === category).length > 0">
-                    <div class="font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest text-[9px] mb-3 mt-4 first:mt-0 flex items-center gap-2">
-                        <span>{{ category }}</span>
-                        <div class="h-px bg-neutral-200 dark:bg-neutral-800 flex-1"></div>
-                    </div>
-                    <div class="flex flex-col gap-1.5 mb-6">
-                        <div v-for="(item, idx) in getShortcutsRegistry().filter(item => (item.category || 'other') === category)" :key="idx" class="flex items-center justify-between bg-surface-hover px-3 py-2 rounded-lg border border-line/50 shadow-sm">
-                            <div class="text-[11px] font-medium text-content">{{ item.titleKey ? t(item.titleKey) : (item.descriptionKey || 'Shortcut Action') }}</div>
-                            <div class="flex items-center gap-1">
-                                <span v-for="(key, kIdx) in item.pattern.split('+')" :key="kIdx" class="bg-surface border border-line text-content-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold min-w-[20px] text-center shadow-[0_1px_0_rgba(255,255,255,0.05)_inset,0_1px_1px_rgba(0,0,0,0.2)]">
-                                    {{ key }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </div>
-            <!-- Empty State Fallback -->
-            <div v-if="getShortcutsRegistry().length === 0" class="text-center py-8 text-neutral-500 text-xs">
-                No shortcuts registered.
-            </div>
-        </ScrollArea>
-    </ConfirmModal>
   </div>
 </template>

@@ -7,10 +7,31 @@ export interface ShortcutMeta {
     titleKey?: string;
     descriptionKey?: string;
     category?: string;
+    /** Kept out of the shortcuts sheet — used by the siblings of a range that a
+     *  single representative entry already documents (e.g. Alt+1…9). */
+    hidden?: boolean;
+    /** Overrides how the keys are drawn in the sheet, e.g. "alt+1…9". */
+    displayPattern?: string;
     action: ShortcutCallback;
 }
 
 const registry = new Map<string, ShortcutMeta[]>();
+
+/**
+ * Friendly aliases → the value `KeyboardEvent.key` actually reports, so a
+ * registration written as "Ctrl+Left" matches the "arrowleft" the handler builds.
+ */
+const KEY_ALIASES: Record<string, string> = {
+    left: 'arrowleft',
+    right: 'arrowright',
+    up: 'arrowup',
+    down: 'arrowdown',
+    esc: 'escape',
+    del: 'delete',
+    return: 'enter',
+    pgup: 'pageup',
+    pgdn: 'pagedown'
+};
 
 function normalizeKeyPattern(pattern: string): string {
     const parts = pattern.toLowerCase().split(/[+\s]+/).map(p => p.trim()).filter(Boolean);
@@ -28,7 +49,7 @@ function normalizeKeyPattern(pattern: string): string {
     if (modifiers.has('ctrl')) result.push('ctrl');
     if (modifiers.has('alt')) result.push('alt');
     if (modifiers.has('shift')) result.push('shift');
-    if (mainKey) result.push(mainKey);
+    if (mainKey) result.push(KEY_ALIASES[mainKey] || mainKey);
 
     return result.join('+');
 }
@@ -43,7 +64,7 @@ function normalizeKeyPattern(pattern: string): string {
 export function registerShortcut(
     pattern: string,
     action: ShortcutCallback,
-    meta?: { titleKey?: string; descriptionKey?: string; category?: string }
+    meta?: { titleKey?: string; descriptionKey?: string; category?: string; hidden?: boolean; displayPattern?: string }
 ): () => void {
     const normalized = normalizeKeyPattern(pattern);
 
@@ -128,6 +149,7 @@ export function getShortcutsRegistry(): ShortcutMeta[] {
 
     registry.forEach(lists => {
         lists.forEach(item => {
+            if (item.hidden) return;
             const key = `${item.pattern}:${item.titleKey || item.descriptionKey || ''}`;
             if (!seen.has(key)) {
                 items.push(item);
