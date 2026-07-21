@@ -32,6 +32,9 @@ const emit = defineEmits(['update:modelValue', 'tab-click', 'tab-close', 'change
 const tabs = ref<Array<{ id: string, label: string, icon?: string }>>([]);
 const activeTabId = ref(props.modelValue);
 
+/** False from the moment this Tabs starts unmounting — see `unregister`. */
+let isAlive = true;
+
 const isVertical = computed(() => props.vertical || props.orientation === 'vertical');
 
 const activeTabLabel = computed(() => {
@@ -52,9 +55,16 @@ provide('tabs-context', {
   unregister: (id: string) => {
     const index = tabs.value.findIndex(t => t.id === id);
     tabs.value = tabs.value.filter(t => t.id !== id);
-    if (activeTabId.value === id && tabs.value.length > 0) {
+    if (activeTabId.value !== id) return;
+    // Deferred on purpose. On teardown EVERY tab unregisters in turn, and
+    // picking a neighbour for each one walked the bound model tab by tab to the
+    // last one and persisted it — reopening the Command Log always landed on
+    // "Error". By nextTick a real teardown has emptied the list, so only the
+    // genuine case (one tab removed while the others stay) reselects.
+    nextTick(() => {
+      if (!isAlive || activeTabId.value !== id || tabs.value.length === 0) return;
       selectTab(tabs.value[Math.max(0, index - 1)].id);
-    }
+    });
   },
   update: (id: string, label: string, icon?: string) => {
     const tab = tabs.value.find(t => t.id === id);
@@ -116,6 +126,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  // Runs before the child Tabs unregister, so their teardown can tell a real
+  // unmount from a single tab being removed.
+  isAlive = false;
   resizeObs?.disconnect();
   resizeObs = null;
 });
