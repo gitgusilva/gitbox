@@ -264,6 +264,29 @@ watch(selectedCommitFile, async (newVal) => {
 
 let graphState: GraphState = createGraphState();
 
+/**
+ * Commits the graph highlights from: everything reachable from one of them keeps
+ * its lane colour, the rest is drawn dim (SourceGit-style).
+ *
+ * Unfiltered → HEAD alone, so the current branch stands out. With a ref filter
+ * active → the tip of every filtered ref as well: the user explicitly asked for
+ * those branches, so greying them out just because they aren't HEAD's ancestry
+ * made a filtered branch look like it hadn't been filtered at all.
+ */
+function graphRoots(l: Commit[]): string[] {
+  const ids = new Set<string>();
+  const headId = branches.value.find(b => b.is_head)?.target || null;
+  // Only seed HEAD when it's actually in this view, else a ref-filtered log with
+  // no HEAD in it would grey out entirely.
+  if (headId && l.some(c => c.id === headId)) ids.add(headId);
+  for (const ref of effectiveLogRefs.value) {
+    const target = branches.value.find(b => b.name === ref)?.target
+      || tags.value.find(t => t.name === ref)?.target;
+    if (target) ids.add(target);
+  }
+  return [...ids];
+}
+
 watch(log, (newLog, oldLog) => {
   if (!newLog) {
       graphOutput.value = new Map();
@@ -271,11 +294,11 @@ watch(log, (newLog, oldLog) => {
       return;
   }
 
-  // HEAD-reachability highlighting (SourceGit-style): dim commits not on the
-  // current branch. Only enable when HEAD is actually in this view, else a
-  // ref-filtered log with no HEAD would gray out entirely.
+  // Reachability highlighting (SourceGit-style): dim commits that are off every
+  // highlighted root (HEAD + the filtered refs — see graphRoots).
   const headId = branches.value.find(b => b.is_head)?.target || null;
   const effHead = headId && newLog.some(c => c.id === headId) ? headId : null;
+  const roots = graphRoots(newLog);
 
   // Appended page during infinite scroll: lay out ONLY the new commits and extend
   // the existing graph — no full O(n) rebuild. Gated on isLoadingMoreLog so a
@@ -285,13 +308,13 @@ watch(log, (newLog, oldLog) => {
       && newLog.length > oldLog.length && newLog[0]?.id === oldLog[0]?.id;
 
   if (isAppend) {
-      appendCommitGraph(graphOutput.value, graphState, newLog.slice(oldLog.length), effHead);
+      appendCommitGraph(graphOutput.value, graphState, newLog.slice(oldLog.length), effHead, roots);
       triggerRef(graphOutput);
   } else {
       // Fresh log (repo/ref switch or first load) → rebuild from scratch.
       graphState = createGraphState();
       const map = new Map<string, GraphNode>();
-      appendCommitGraph(map, graphState, newLog, effHead);
+      appendCommitGraph(map, graphState, newLog, effHead, roots);
       graphOutput.value = map;
       // Jump to top only on a genuine reset (top commit changed / first load).
       if (!oldLog || oldLog.length === 0 || newLog[0]?.id !== oldLog[0]?.id) {
@@ -309,7 +332,7 @@ watch(currentTheme, () => {
   const map = new Map<string, GraphNode>();
   const headId = branches.value.find(b => b.is_head)?.target || null;
   const effHead = headId && l.some(c => c.id === headId) ? headId : null;
-  appendCommitGraph(map, graphState, l, effHead);
+  appendCommitGraph(map, graphState, l, effHead, graphRoots(l));
   graphOutput.value = map;
 });
 

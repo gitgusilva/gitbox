@@ -33,14 +33,14 @@ export interface GraphState {
     // down (SourceGit-style) instead of recoloring by lane index.
     laneColors: string[];
     // Per-lane reachability of the EDGE currently descending in that lane, i.e.
-    // whether the child commit that owns this lane's line is reachable from HEAD.
-    // A line is on the current branch's history only if the child it flows *from*
+    // whether the child commit that owns this lane's line is reachable from a root.
+    // A line is on the highlighted history only if the child it flows *from*
     // is reachable — tying line colour to the destination dot instead paints a
-    // colour onto an off-branch line whenever its parent is shared with HEAD.
+    // colour onto an off-branch line whenever its parent is shared with a root.
     laneReach: boolean[];
     nextColor: number;
-    // Commit ids reachable from HEAD, grown newest→oldest: when a reachable commit
-    // is laid out its parents are added, so the whole current-branch ancestry gets
+    // Commit ids reachable from a root, grown newest→oldest: when a reachable commit
+    // is laid out its parents are added, so the whole highlighted ancestry gets
     // marked. Anything left unmarked is off-branch and drawn dim (SourceGit-style).
     reachable: Set<string>;
 }
@@ -55,14 +55,26 @@ export function createGraphState(): GraphState {
  * its absolute position in the log — so appended pages cost O(Δ) instead of the
  * O(n) full rebuild that made infinite scroll O(n²).
  */
-export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState, commits: Commit[], headId: string | null = null): void {
+export function appendCommitGraph(
+    map: Map<string, GraphNode>,
+    state: GraphState,
+    commits: Commit[],
+    headId: string | null = null,
+    roots: string[] | null = null
+): void {
     if (!commits || commits.length === 0) return;
 
     const { lanes, laneColors, laneReach } = state;
-    // Current-branch highlighting: only when we know HEAD. Seed HEAD as reachable;
-    // reachability then flows to parents as reachable commits are laid out.
-    const dimEnabled = !!headId;
-    if (headId) state.reachable.add(headId);
+    // Highlight roots: everything reachable from one of them keeps its colour, the
+    // rest is dimmed. Defaults to HEAD alone (current-branch highlighting); callers
+    // pass the filtered refs' tips so a branch the user explicitly filtered for is
+    // NOT greyed out just because it isn't part of HEAD's ancestry. No roots (e.g.
+    // HEAD not in this view and no filter) → dimming off, everything stays coloured.
+    const seeds = roots && roots.length ? roots : (headId ? [headId] : []);
+    const dimEnabled = seeds.length > 0;
+    // Seed on every call: a root can be the tip of a branch that only shows up in a
+    // later page, and Set.add is idempotent for the ones already marked.
+    for (const r of seeds) state.reachable.add(r);
     const reach = (id: string | null) => !dimEnabled || (id != null && state.reachable.has(id));
     const palette = readPalette();
     const allocColor = () => palette[state.nextColor++ % palette.length];
@@ -224,9 +236,9 @@ export function appendCommitGraph(map: Map<string, GraphNode>, state: GraphState
 }
 
 /** Full (non-incremental) build — used on a fresh log / repo or ref switch. */
-export function buildCommitGraph(log: Commit[], headCommitId: string | null = null): Map<string, GraphNode> {
+export function buildCommitGraph(log: Commit[], headCommitId: string | null = null, roots: string[] | null = null): Map<string, GraphNode> {
     const map = new Map<string, GraphNode>();
     if (!log || log.length === 0) return map;
-    appendCommitGraph(map, createGraphState(), log, headCommitId);
+    appendCommitGraph(map, createGraphState(), log, headCommitId, roots);
     return map;
 }
