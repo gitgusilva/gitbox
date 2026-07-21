@@ -12,7 +12,8 @@ const props = withDefaults(defineProps<{
     action?: (e: MouseEvent) => void;
     disabled?: boolean;
     loading?: boolean;
-    showLabel?: boolean; // if undefined, uses generalSettings.value.hideIconLabels
+    /** Force the label on/off. Left undefined → follows generalSettings.hideIconLabels. */
+    showLabel?: boolean;
     tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
     tooltip?: string;
     variant?: 'default' | 'primary' | 'danger' | 'success' | 'ghost' | 'sidebar';
@@ -20,6 +21,11 @@ const props = withDefaults(defineProps<{
     direction?: 'row' | 'col';
     active?: boolean;
 }>(), {
+    // MUST stay explicitly `undefined`: Vue casts an ABSENT Boolean prop with no
+    // declared default to `false`, which made `showLabel` read as an explicit
+    // "hide the label" on every call site and silently overrode the
+    // hideIconLabels setting. Declaring the default keeps it undefined.
+    showLabel: undefined,
     tooltipPosition: 'bottom',
     variant: 'default',
     direction: 'col'
@@ -62,6 +68,7 @@ function handleClick(e: MouseEvent) {
                (isGhost || isSidebar) && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
                variant === 'default' && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
                isPrimary && !active ? 'bg-accent text-accent-fg hover:bg-accent-hover' : '',
+               variant === 'danger' && !active ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : '',
                active ? 'bg-accent/20 text-accent' : '',
                isSidebar && active ? 'text-accent bg-surface-hover' : ''
             )">
