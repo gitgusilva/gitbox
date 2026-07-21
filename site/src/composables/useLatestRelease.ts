@@ -23,8 +23,8 @@ export interface ReleaseAsset {
 export type Platform = 'windows' | 'linux' | 'mac' | 'unknown';
 
 export interface DownloadOption {
-    label: string;
-    hint: string;
+    /** i18n key under `downloads.` — copy lives in the locale, not here. */
+    key: string;
     url: string;
     size: string;
 }
@@ -113,21 +113,21 @@ function find(pattern: RegExp): ReleaseAsset | undefined {
     return assets.value.find(a => pattern.test(a.name));
 }
 
-function option(asset: ReleaseAsset | undefined, label: string, hint: string): DownloadOption | null {
+function option(asset: ReleaseAsset | undefined, key: string): DownloadOption | null {
     if (!asset) return null;
-    return { label, hint, url: asset.browser_download_url, size: formatSize(asset.size) };
+    return { key, url: asset.browser_download_url, size: formatSize(asset.size) };
 }
 
 const windows = computed(() => [
-    option(find(/\.exe$/), 'Installer (.exe)', 'Recommended for Windows 10/11'),
-    option(find(/\.msi$/), 'Package (.msi)', 'For managed / silent installs'),
+    option(find(/\.exe$/), 'win_exe'),
+    option(find(/\.msi$/), 'win_msi'),
 ].filter(Boolean) as DownloadOption[]);
 
 const linux = computed(() => [
-    option(find(/\.AppImage$/), 'AppImage', 'Runs anywhere — no install needed'),
-    option(find(/\.deb$/), 'Debian (.deb)', 'Debian, Ubuntu, Mint'),
-    option(find(/\.rpm$/), 'Fedora (.rpm)', 'Fedora, RHEL, openSUSE'),
-    option(find(/\.pacman$/), 'Arch (.pacman)', 'Arch, Manjaro'),
+    option(find(/\.AppImage$/), 'appimage'),
+    option(find(/\.deb$/), 'deb'),
+    option(find(/\.rpm$/), 'rpm'),
+    option(find(/\.pacman$/), 'pacman'),
 ].filter(Boolean) as DownloadOption[]);
 
 export function useLatestRelease() {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { asset } from '../asset';
+import { useI18n } from '../i18n';
 
 /**
  * Product gallery: a slider with the arrows overlaid on the shot itself (so they
@@ -10,80 +11,37 @@ import { asset } from '../asset';
  * Every shot comes from a synthetic demo repository with fictional authors —
  * never from a real one, so nothing private ships here.
  */
-const shots = [
-    {
-        id: 'history',
-        label: 'History',
-        file: 'history.png',
-        title: 'The commit graph, drawn properly',
-        caption: 'Branch labels, tags and merge glyphs on a virtualized list that stays smooth at thousands of commits.',
-    },
-    {
-        id: 'changes',
-        label: 'Local changes',
-        file: 'changes.png',
-        title: 'Stage, review, commit',
-        caption: 'A file tree of what changed with the diff right beside it, and the commit box always in reach.',
-    },
-    {
-        id: 'conflicts',
-        label: 'Conflicts',
-        file: 'conflict-decide.png',
-        title: 'Decide a conflict without leaving the app',
-        caption: 'Both sides are laid out with their branch and commit, so you can keep one outright — or open the editor.',
-    },
-    {
-        id: 'merge',
-        label: 'Merge editor',
-        file: 'merge-editor.png',
-        title: 'A real three-pane merge editor',
-        caption: 'Current, result and incoming side by side, with per-hunk actions and a live count of what is left.',
-    },
-    {
-        id: 'projects',
-        label: 'Projects',
-        file: 'projects.png',
-        title: 'Group repositories into projects',
-        caption: 'Each project keeps its own tabs and colour; switching swaps the whole tab bar in one click.',
-    },
-    {
-        id: 'stashes',
-        label: 'Stashes',
-        file: 'stashes.png',
-        title: 'Stashes you can actually read',
-        caption: 'Every stash with its branch, timestamp and contents, one click from being applied or dropped.',
-    },
-    {
-        id: 'statistics',
-        label: 'Statistics',
-        file: 'statistics.png',
-        title: 'Know your repository',
-        caption: 'Commits, contributors, branches, size and churn, with the contribution split per developer.',
-    },
-    {
-        id: 'settings',
-        label: 'Settings',
-        file: 'settings.png',
-        title: 'Tuned to your taste',
-        caption: 'Language, date format, polling, themes and external tools — all in one place.',
-    },
-    {
-        id: 'log',
-        label: 'Command log',
-        file: 'commandlog.png',
-        title: 'Nothing happens behind your back',
-        caption: 'Every operation GitBox runs, with its output and duration, so you always know what it did.',
-    },
+const { t } = useI18n();
+
+/** Only the image belongs here; every string is resolved from the locale. */
+const SHOTS = [
+    { id: 'history', file: 'history.png' },
+    { id: 'changes', file: 'changes.png' },
+    { id: 'conflicts', file: 'conflict-decide.png' },
+    { id: 'merge', file: 'merge-editor.png' },
+    { id: 'projects', file: 'projects.png' },
+    { id: 'stashes', file: 'stashes.png' },
+    { id: 'statistics', file: 'statistics.png' },
+    { id: 'settings', file: 'settings.png' },
+    { id: 'log', file: 'commandlog.png' },
 ];
 
+const shots = computed(() => SHOTS.map(s => ({
+    id: s.id,
+    file: s.file,
+    label: t(`gallery.${s.id}.label`),
+    title: t(`gallery.${s.id}.title`),
+    caption: t(`gallery.${s.id}.caption`),
+})));
+
 const activeIndex = ref(0);
-const current = computed(() => shots[activeIndex.value]);
+const current = computed(() => shots.value[activeIndex.value]);
 
 const rail = ref<HTMLElement | null>(null);
 const section = ref<HTMLElement | null>(null);
 
 function go(index: number) {
-    activeIndex.value = (index + shots.length) % shots.length;
+    activeIndex.value = (index + shots.value.length) % shots.value.length;
 }
 const step = (delta: number) => go(activeIndex.value + delta);
 
@@ -119,6 +77,46 @@ onBeforeUnmount(() => {
     io?.disconnect();
     if (timer) clearInterval(timer);
 });
+
+// Drag-to-scroll the thumbnail rail (pointer events cover mouse, pen and touch;
+// touch already scrolls natively, this is what makes it work with a mouse).
+let dragging = false;
+let dragStartX = 0;
+let dragStartScroll = 0;
+let moved = 0;
+
+function onPointerDown(e: PointerEvent) {
+    if (e.button !== 0 || !rail.value) return;
+    dragging = true;
+    moved = 0;
+    dragStartX = e.clientX;
+    dragStartScroll = rail.value.scrollLeft;
+}
+
+function onPointerMove(e: PointerEvent) {
+    if (!dragging || !rail.value) return;
+    const delta = e.clientX - dragStartX;
+    moved = Math.max(moved, Math.abs(delta));
+    rail.value.scrollLeft = dragStartScroll - delta;
+    // Past a few pixels this is a drag, not a click: capture the pointer so the
+    // gesture keeps working outside the rail and the browser stops trying to
+    // drag the thumbnail image itself.
+    if (moved > 4) rail.value.setPointerCapture?.(e.pointerId);
+}
+
+function endDrag() {
+    dragging = false;
+}
+
+/** Swallows the click that ends a drag, so releasing doesn't switch slides. */
+function onThumbClick(e: MouseEvent, index: number) {
+    if (moved > 4) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+    go(index);
+}
 </script>
 
 <template>
@@ -128,11 +126,9 @@ onBeforeUnmount(() => {
     @focusin="engaged = true" @focusout="engaged = false"
   >
     <div class="mb-10 max-w-2xl">
-      <p class="eyebrow">A look inside</p>
-      <h2 class="mt-3 text-3xl font-bold tracking-tight text-strong sm:text-4xl">Built for long sessions</h2>
-      <p class="mt-4 text-sm leading-relaxed text-muted">
-        Nine screens you will actually live in — not a landing-page mockup.
-      </p>
+      <p class="eyebrow">{{ t('gallery.eyebrow') }}</p>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight text-strong sm:text-4xl">{{ t('gallery.title') }}</h2>
+      <p class="mt-4 text-sm leading-relaxed text-muted">{{ t('gallery.subtitle') }}</p>
     </div>
 
     <figure class="reveal">
@@ -149,11 +145,11 @@ onBeforeUnmount(() => {
 
         <!-- Arrows ride on the shot so they stay put no matter the screen size -->
         <button
-          @click="step(-1)" aria-label="Previous screenshot"
+          @click="step(-1)" :aria-label="t('gallery.prev')"
           class="absolute left-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-ink/80 text-lg text-content backdrop-blur transition-colors hover:border-accent hover:text-strong sm:left-4"
         >&#8249;</button>
         <button
-          @click="step(1)" aria-label="Next screenshot"
+          @click="step(1)" :aria-label="t('gallery.next')"
           class="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-line bg-ink/80 text-lg text-content backdrop-blur transition-colors hover:border-accent hover:text-strong sm:right-4"
         >&#8250;</button>
 
@@ -171,18 +167,26 @@ onBeforeUnmount(() => {
 
     <!-- Thumbnail rail: scrolls without a visible scrollbar, since the arrows and
          the thumbnails themselves are the navigation. -->
-    <div ref="rail" class="no-scrollbar mt-4 flex gap-3 overflow-x-auto pb-1">
+    <div
+      ref="rail"
+      class="no-scrollbar mt-4 flex cursor-grab gap-3 overflow-x-auto pb-1 active:cursor-grabbing"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="endDrag"
+      @pointercancel="endDrag"
+      @pointerleave="endDrag"
+    >
       <button
         v-for="(s, i) in shots" :key="s.id"
-        @click="go(i)"
-        class="group shrink-0 text-left transition-opacity"
+        @click="onThumbClick($event, i)"
+        class="group shrink-0 select-none text-left transition-opacity"
         :class="i === activeIndex ? '' : 'opacity-55 hover:opacity-100'"
       >
         <span
           class="block w-32 overflow-hidden rounded-lg border transition-colors sm:w-36"
           :class="i === activeIndex ? 'border-accent' : 'border-line group-hover:border-accent/50'"
         >
-          <img :src="asset('screenshots/' + s.file)" :alt="s.label" class="h-20 w-full object-cover object-left-top" loading="lazy" />
+          <img :src="asset('screenshots/' + s.file)" :alt="s.label" class="pointer-events-none h-20 w-full object-cover object-left-top" draggable="false" loading="lazy" />
         </span>
         <span
           class="mt-1.5 block text-[11px] font-medium"
