@@ -1,6 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.2
+### Fixed
+- Discarding an untracked file logged two "pathspec did not match" errors for an operation that had succeeded
+- Repositories without a remote no longer error: the sync actions are disabled with an explanation, and the background fetch is skipped
+- Stashing selected files could half-succeed — the stash was created and the operation still reported failure — when a path had gone stale since the list was rendered
+- Stage, unstage, stash and discard now drop paths git no longer reports instead of failing on them
+- A pull that diverged from upstream is logged as the action it is (it opens the merge/rebase dialog), not as a failure
+- Merge conflicts are reported as the expected outcome of a merge rather than an error
+
 ## v1.1.1
 ### Fixed
 - Merge editor: the two sides of a conflict were swapped — the local side was labelled "Incoming" and the branch being merged in was labelled "Current"
