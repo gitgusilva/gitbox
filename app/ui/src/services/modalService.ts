@@ -45,6 +45,9 @@ export const deviceFlowModal = ref<{
     onCancel: () => void;
 } | null>(null);
 
+/** Create / edit a project (group of repositories). */
+export const projectModal = ref<{ mode: 'create' | 'edit'; id?: string } | null>(null);
+
 export const isSettingsOpen = ref(false);
 export const isShortcutsModalOpen = ref(false);
 export const isCreatePROpen = ref(false);

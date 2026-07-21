@@ -1,6 +1,16 @@
 import { ref, watch, computed } from 'vue';
 import { getItem, setItem, removeItem } from './storageService';
 import { generalSettings } from './settingsService';
+import {
+    projects,
+    activeProjectId,
+    activeProject,
+    activeProjectColor,
+    ensureProject,
+    saveTabsToProject,
+    createProject as createProjectEntry,
+    removeProject as removeProjectEntry
+} from './projectService';
 
 /**
  * Represents a recently opened repository.
@@ -36,11 +46,12 @@ export interface Workspace {
     parentPath?: string;
 }
 
-function getInitialWorkspaces(): Workspace[] {
+function getLegacyWorkspaces(): Workspace[] {
     const saved = getItem('gitbox_workspaces');
     if (saved && generalSettings.value.rememberTabs) {
         try {
-            return JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+            return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
             return [];
         }
@@ -48,18 +59,28 @@ function getInitialWorkspaces(): Workspace[] {
     return [];
 }
 
-function getInitialActiveWorkspace(): string | null {
-    if (generalSettings.value.rememberTabs) {
-        return getItem('gitbox_active_workspace');
-    }
-    return null;
+/**
+ * Tabs now belong to a Project. On the first run after this feature the legacy
+ * flat keys are adopted as the initial project, so an existing install keeps the
+ * tabs it had open instead of starting empty.
+ */
+function bootstrapProject() {
+    const legacyTabs = getLegacyWorkspaces();
+    const legacyActive = generalSettings.value.rememberTabs ? getItem('gitbox_active_workspace') : null;
+    ensureProject(legacyTabs, legacyActive);
 }
 
-/** List of currently open workspaces (tabs). */
-export const workspaces = ref<Workspace[]>(getInitialWorkspaces());
+bootstrapProject();
+
+/** Tabs of the ACTIVE project — what the toolbar renders. */
+export const workspaces = ref<Workspace[]>(
+    generalSettings.value.rememberTabs ? (activeProject.value?.tabs ?? []) : []
+);
 
 /** ID of the workspace currently visible to the user. */
-export const activeWorkspaceId = ref<string | null>(getInitialActiveWorkspace());
+export const activeWorkspaceId = ref<string | null>(
+    generalSettings.value.rememberTabs ? (activeProject.value?.activeTabId ?? null) : null
+);
 
 /** History of recently accessed repositories. */
 export const recentRepositories = ref<RecentRepo[]>(JSON.parse(getItem('gitbox_recent_repos') || '[]'));
@@ -68,20 +89,20 @@ watch(recentRepositories, (val) => {
     setItem('gitbox_recent_repos', JSON.stringify(val));
 }, { deep: true });
 
-watch(workspaces, (val) => {
-    if (generalSettings.value.rememberTabs) {
-        // Only persist actual repositories, "New Tab" (empty path) should not be persistent
-        const toSave = val.filter(w => w.path && w.path.trim() !== '');
-        setItem('gitbox_workspaces', JSON.stringify(toSave));
-    } else {
+/** Mirrors the live toolbar state into the project that owns it. */
+function persistTabs() {
+    if (!generalSettings.value.rememberTabs) {
         removeItem('gitbox_workspaces');
+        removeItem('gitbox_active_workspace');
+        return;
     }
-}, { deep: true });
+    if (activeProjectId.value) {
+        saveTabsToProject(activeProjectId.value, workspaces.value, activeWorkspaceId.value);
+    }
+}
 
-watch(activeWorkspaceId, (val) => {
-    if (val && generalSettings.value.rememberTabs) setItem('gitbox_active_workspace', val);
-    else removeItem('gitbox_active_workspace');
-});
+watch(workspaces, persistTabs, { deep: true });
+watch(activeWorkspaceId, persistTabs);
 
 watch(() => generalSettings.value.rememberTabs, (val) => {
     if (!val) {
@@ -138,6 +159,45 @@ export function removeWorkspace(id: string) {
     }
 }
 
+/**
+ * Makes another project current: the toolbar state is stored back into the
+ * outgoing project and the incoming one's tabs take over the tab bar. No-op when
+ * the project is already active.
+ */
+export function switchProject(id: string) {
+    if (id === activeProjectId.value) return;
+    const target = projects.value.find(p => p.id === id);
+    if (!target) return;
+
+    if (activeProjectId.value) {
+        saveTabsToProject(activeProjectId.value, workspaces.value, activeWorkspaceId.value);
+    }
+
+    activeProjectId.value = id;
+    workspaces.value = target.tabs.map(t => ({ ...t }));
+    // Nothing open in there yet → land on the welcome screen rather than a stale repo.
+    activeWorkspaceId.value = target.tabs.some(t => t.id === target.activeTabId)
+        ? target.activeTabId
+        : (target.tabs[0]?.id ?? null);
+}
+
+/** Creates a project and immediately switches to it (it starts empty). */
+export function createAndSwitchProject(name: string, color: string) {
+    const p = createProjectEntry(name, color);
+    switchProject(p.id);
+    return p;
+}
+
+/** Deletes a project, switching away first when it is the active one. */
+export function deleteProject(id: string) {
+    const nextId = removeProjectEntry(id);
+    if (nextId) {
+        // The removed project was active: adopt the neighbour's tabs.
+        activeProjectId.value = null; // force switchProject past its early return
+        switchProject(nextId);
+    }
+}
+
 export function addRecentRepository(name: string, path: string, color: string) {
     if (!path) return;
 
@@ -157,7 +217,9 @@ export function addRecentRepository(name: string, path: string, color: string) {
  */
 export function openRepository(path: string, name: string = '', isSubmodule: boolean = false, parentName?: string, parentPath?: string) {
     if (!name) name = path.split(/[/\\]/).pop() || 'Repo';
-    const color = '#1E88E5';
+    // New repos inherit the active project's colour (still editable per tab), so a
+    // project reads as one visual group instead of a wall of identical blue dots.
+    const color = activeProjectColor.value;
 
     addRecentRepository(name, path, color);
 

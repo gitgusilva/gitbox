@@ -14,6 +14,8 @@ import ToastContainer from '../components/ToastContainer.vue';
 import UpdateModal from '../components/UpdateModal.vue';
 import BranchActionModal from '../components/BranchActionModal.vue';
 import StashModal from '../components/StashModal.vue';
+import ProjectModal from '../components/ProjectModal.vue';
+import ShortcutsModal from '../components/ShortcutsModal.vue';
 import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
 import { activeWorkspaceId, workspaces } from '../services/workspaceService';
 import TerminalPanel from './TerminalPanel.vue';
@@ -37,9 +39,9 @@ const activeWorkspacePath = computed(() => {
 });
 
 onMounted(() => {
-    registerShortcut('ctrl+j', () => toggleTerminal(), { descriptionKey: 'Toggle Terminal', category: 'global' });
-    registerShortcut('ctrl+,', () => isSettingsOpen.value = true, { descriptionKey: 'Settings', category: 'global' });
-    registerShortcut('ctrl+/', () => isShortcutsModalOpen.value = true, { descriptionKey: 'Keyboard Shortcuts', category: 'global' });
+    registerShortcut('ctrl+j', () => toggleTerminal(), { titleKey: 'shortcuts.toggle_terminal', category: 'view' });
+    registerShortcut('ctrl+,', () => isSettingsOpen.value = true, { titleKey: 'shortcuts.settings', category: 'app' });
+    registerShortcut('ctrl+/', () => isShortcutsModalOpen.value = true, { titleKey: 'shortcuts.shortcuts_sheet', category: 'app' });
 
     initProtocolHandler();
 });
@@ -61,6 +63,8 @@ const { t } = useI18n();
     <DeviceFlowModal v-if="deviceFlowModal" />
     <BranchActionModal v-if="branchActionModal" />
     <StashModal />
+    <ProjectModal />
+    <ShortcutsModal />
     <UpdateModal />
     <ToastContainer />
 

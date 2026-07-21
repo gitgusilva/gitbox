@@ -797,5 +797,47 @@
     "active": "Activo",
     "customize_hint": "Para personalizar un tema, expórtalo, edita el JSON e impórtalo de nuevo.",
     "publish_theme": "Publicar un tema"
+  },
+  "project": {
+    "title": "Proyectos",
+    "default_name": "Predeterminado",
+    "new": "Nuevo proyecto…",
+    "new_message": "Agrupa repositorios en un proyecto. Los repos que abras con él activo le pertenecen.",
+    "name_placeholder": "Nombre del proyecto",
+    "delete": "Eliminar proyecto",
+    "delete_message": "¿Eliminar el proyecto \"{name}\"? Sus pestañas de repositorio se cierran aquí, pero no se borra nada del disco.",
+    "repo_count": "sin repositorios | 1 repositorio | {count} repositorios",
+    "switch_tooltip": "Cambiar de proyecto (Ctrl+Shift+P)",
+    "edit": "Editar proyecto",
+    "name_label": "Nombre",
+    "color_label": "Color",
+    "search": "Buscar proyectos…",
+    "empty_search": "Ningún proyecto coincide con la búsqueda."
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "search": "Buscar atajos…",
+    "empty": "Ningún atajo coincide con la búsqueda.",
+    "categories": {
+      "app": "Aplicación",
+      "projects": "Proyectos",
+      "tabs": "Pestañas de repositorio",
+      "repository": "Repositorio",
+      "view": "Vista",
+      "terminal": "Terminal",
+      "editor": "Editor",
+      "other": "Otros"
+    },
+    "new_tab": "Nueva pestaña",
+    "close_tab": "Cerrar pestaña",
+    "open_repo": "Abrir repositorio",
+    "quit": "Salir de GitBox",
+    "projects_menu": "Abrir menú de proyectos",
+    "next_project": "Proyecto siguiente",
+    "prev_project": "Proyecto anterior",
+    "switch_project_n": "Ir al proyecto 1–9",
+    "toggle_terminal": "Alternar terminal",
+    "settings": "Configuración",
+    "shortcuts_sheet": "Atajos de teclado"
   }
 }

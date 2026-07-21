@@ -849,5 +849,47 @@
     "active": "Active",
     "customize_hint": "To customize a theme, export it, edit the JSON, and import it back.",
     "publish_theme": "Publish a theme"
+  },
+  "project": {
+    "title": "Projects",
+    "default_name": "Default",
+    "new": "New Project…",
+    "new_message": "Group repositories under a project. Repos you open while it is active belong to it.",
+    "name_placeholder": "Project name",
+    "delete": "Delete project",
+    "delete_message": "Delete the project \"{name}\"? Its repository tabs are closed here, but nothing is removed from disk.",
+    "repo_count": "no repositories | 1 repository | {count} repositories",
+    "switch_tooltip": "Switch project (Ctrl+Shift+P)",
+    "edit": "Edit Project",
+    "name_label": "Name",
+    "color_label": "Color",
+    "search": "Search projects…",
+    "empty_search": "No project matches your search."
+  },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "search": "Search shortcuts…",
+    "empty": "No shortcut matches your search.",
+    "categories": {
+      "app": "Application",
+      "projects": "Projects",
+      "tabs": "Repository Tabs",
+      "repository": "Repository",
+      "view": "View",
+      "terminal": "Terminal",
+      "editor": "Editor",
+      "other": "Other"
+    },
+    "new_tab": "New tab",
+    "close_tab": "Close tab",
+    "open_repo": "Open repository",
+    "quit": "Quit GitBox",
+    "projects_menu": "Open projects menu",
+    "next_project": "Next project",
+    "prev_project": "Previous project",
+    "switch_project_n": "Jump to project 1–9",
+    "toggle_terminal": "Toggle terminal",
+    "settings": "Settings",
+    "shortcuts_sheet": "Keyboard shortcuts"
   }
 }

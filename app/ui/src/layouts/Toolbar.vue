@@ -15,6 +15,30 @@ import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
 import Tooltip from '../components/Common/Tooltip.vue';
 import ColorPicker from '../components/Common/ColorPicker.vue';
+import ProjectMenu from '../components/ProjectMenu.vue';
+import { activeProject, activeProjectColor, projects, activeProjectId } from '../services/projectService';
+import { switchProject } from '../services/workspaceService';
+
+const isProjectMenuOpen = ref(false);
+const projectMenuX = ref(8);
+
+function toggleProjectMenu() {
+    if (isProjectMenuOpen.value) {
+        isProjectMenuOpen.value = false;
+        return;
+    }
+    const el = document.getElementById('project-switcher');
+    projectMenuX.value = el ? el.getBoundingClientRect().left : 8;
+    isProjectMenuOpen.value = true;
+}
+
+/** Ctrl+Alt+←/→ cycles projects in toolbar order, wrapping at both ends. */
+function cycleProject(step: number) {
+    if (projects.value.length < 2) return;
+    const i = projects.value.findIndex(p => p.id === activeProjectId.value);
+    const next = projects.value[(i + step + projects.value.length) % projects.value.length];
+    switchProject(next.id);
+}
 
 const isOverflowing = ref(false);
 let observer: ResizeObserver | null = null;
@@ -126,12 +150,30 @@ function handleMaximize() {
 import { registerShortcut } from '../services/shortcutService';
 
 onMounted(() => {
-    registerShortcut('ctrl+t', () => handleAddWorkspaceFlow(), { descriptionKey: 'New Tab', category: 'global' });
+    registerShortcut('ctrl+t', () => handleAddWorkspaceFlow(), { titleKey: 'shortcuts.new_tab', category: 'tabs' });
     registerShortcut('ctrl+w', () => {
         if (activeWorkspaceId.value) removeWorkspace(activeWorkspaceId.value);
-    }, { descriptionKey: 'Close Tab', category: 'global' });
-    registerShortcut('ctrl+o', () => addWorkspaceFlow(), { descriptionKey: 'Open Repository', category: 'global' });
-    registerShortcut('ctrl+q', () => handleClose(), { descriptionKey: 'Quit Application', category: 'global' });
+    }, { titleKey: 'shortcuts.close_tab', category: 'tabs' });
+    registerShortcut('ctrl+o', () => addWorkspaceFlow(), { titleKey: 'shortcuts.open_repo', category: 'tabs' });
+    registerShortcut('ctrl+q', () => handleClose(), { titleKey: 'shortcuts.quit', category: 'app' });
+
+    // Projects. Deliberately NOT Ctrl+Alt+arrows (the GNOME workspace switcher
+    // swallows those) and no Shift with digits (Shift turns "1" into "!" in
+    // KeyboardEvent.key, so the pattern would never match).
+    registerShortcut('ctrl+shift+p', () => toggleProjectMenu(), { titleKey: 'shortcuts.projects_menu', category: 'projects' });
+    registerShortcut('alt+pagedown', () => cycleProject(1), { titleKey: 'shortcuts.next_project', category: 'projects' });
+    registerShortcut('alt+pageup', () => cycleProject(-1), { titleKey: 'shortcuts.prev_project', category: 'projects' });
+    // Alt+1..9 jumps straight to the nth project.
+    for (let n = 1; n <= 9; n++) {
+        registerShortcut(`alt+${n}`, () => {
+            const p = projects.value[n - 1];
+            if (p) switchProject(p.id);
+            // One representative row documents the whole range in the shortcuts
+            // sheet; the other eight would just be noise.
+        }, n === 1
+            ? { titleKey: 'shortcuts.switch_project_n', category: 'projects', displayPattern: 'alt+1…9' }
+            : { hidden: true });
+    }
 });
 
 function openColorPicker(wsId: string) {
@@ -218,8 +260,8 @@ function openMainMenu(e: MouseEvent) {
             { label: t('workspace.clone_repo'), shortcut: 'Ctrl+N', action: () => {} },
             { label: t('workspace.init_repo'), shortcut: 'Ctrl+I', action: () => {} },
             { label: t('workspace.open_repo'), shortcut: 'Ctrl+O', action: () => addWorkspaceFlow() },
-            { label: t('workspace.open_repo_management'), shortcut: 'Alt+Ctrl+O', action: () => {} },
-            { label: t('workspace.open_in_external_editor'), shortcut: 'Ctrl+Shift+E', action: () => {} },
+            { separator: true },
+            { label: t('project.title'), icon: 'lucide:folders', shortcut: 'Ctrl+Shift+P', action: () => toggleProjectMenu() },
             { separator: true },
             { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', action: () => {} },
             { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', action: () => {} },
@@ -317,17 +359,32 @@ watch(activeWorkspaceId, async (val) => {
 </script>
 
 <template>
-  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none" style="-webkit-app-region: drag;">
+  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none relative" style="-webkit-app-region: drag;">
+
+    <!-- Active project accent. Anchored to the TOP edge: the tabs sit on the
+         bottom edge (items-end), so a strip down there cut across them and their
+         rounded corners. Up here the line is free and reads as a window accent. -->
+    <div class="absolute top-0 left-0 right-0 h-[2px] pointer-events-none z-30" :style="{ backgroundColor: activeProjectColor }"></div>
+
+    <ProjectMenu v-if="isProjectMenuOpen" :x="projectMenuX" @close="isProjectMenuOpen = false" />
     
     <!-- Left actions -->
     <div class="flex items-center px-4 gap-3 relative z-10" style="-webkit-app-region: no-drag;">
        <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="openMainMenu">
            <Icon icon="lucide:menu" />
        </div>
-       <!-- Removed the folder from here entirely? Or leave it? User only complained about + button -> let's leave it as is. -->
-       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
-           <Icon icon="lucide:folder" />
-       </div>
+       <!-- Project switcher: the tab bar shows the repos of whichever project is
+            active here, and its colour tints this button + the strip below. -->
+       <Tooltip :text="t('project.switch_tooltip')" position="bottom">
+         <div id="project-switcher"
+              class="h-stack items-center gap-1.5 pl-1.5 pr-2 py-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors text-content-muted hover:text-neutral-900 dark:hover:text-white"
+              :class="{ 'bg-neutral-200 dark:bg-[#2D2D2D]': isProjectMenuOpen }"
+              @click="toggleProjectMenu">
+             <Icon icon="lucide:folders" :style="{ color: activeProjectColor }" />
+             <span class="max-w-[120px] truncate text-xs font-medium">{{ activeProject?.name || t('project.default_name') }}</span>
+             <Icon icon="lucide:chevron-down" class="w-3 h-3 opacity-60" />
+         </div>
+       </Tooltip>
     </div>
 
     <!-- Tabs -->

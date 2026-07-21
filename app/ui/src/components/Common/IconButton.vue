@@ -68,7 +68,7 @@ function handleClick(e: MouseEvent) {
                (isGhost || isSidebar) && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
                variant === 'default' && !active ? 'text-content-muted hover:text-content-strong hover:bg-surface-hover' : '',
                isPrimary && !active ? 'bg-accent text-accent-fg hover:bg-accent-hover' : '',
-               variant === 'danger' && !active ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : '',
+               variant === 'danger' && !active ? 'text-removed hover:text-removed hover:bg-removed/10' : '',
                active ? 'bg-accent/20 text-accent' : '',
                isSidebar && active ? 'text-accent bg-surface-hover' : ''
             )">
