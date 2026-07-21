@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { asset } from '../asset';
 import { useI18n, type LocaleCode } from '../i18n';
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const { t, locale, setLocale, locales } = useI18n();
 
@@ -12,6 +12,9 @@ const onScroll = () => { scrolled.value = window.scrollY > 12; };
 const langOpen = ref(false);
 const langRef = ref<HTMLElement | null>(null);
 
+/** Slide-in drawer: below `sm` the links have nowhere to live in the bar. */
+const menuOpen = ref(false);
+
 function pick(code: LocaleCode) {
     setLocale(code);
     langOpen.value = false;
@@ -20,7 +23,16 @@ function pick(code: LocaleCode) {
 function onDocClick(e: MouseEvent) {
     if (langOpen.value && langRef.value && !langRef.value.contains(e.target as Node)) langOpen.value = false;
 }
-const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') langOpen.value = false; };
+const onEsc = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    langOpen.value = false;
+    menuOpen.value = false;
+};
+
+// The page must not scroll under an open drawer.
+watch(menuOpen, (open) => {
+    document.body.style.overflow = open ? 'hidden' : '';
+});
 
 onMounted(() => {
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -31,6 +43,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('scroll', onScroll);
     document.removeEventListener('click', onDocClick);
     document.removeEventListener('keydown', onEsc);
+    document.body.style.overflow = '';
 });
 </script>
 
@@ -69,15 +82,18 @@ onBeforeUnmount(() => {
           enter-active-class="transition duration-150" leave-active-class="transition duration-100"
           enter-from-class="opacity-0 -translate-y-1" leave-to-class="opacity-0 -translate-y-1"
         >
-          <ul v-if="langOpen" class="absolute right-0 top-full mt-2 w-36 overflow-hidden rounded-lg border border-line bg-overlay py-1 shadow-xl">
+          <!-- bg-elevated, not bg-overlay: the latter is a token from the app's
+               Tailwind config and Tailwind emits nothing for an unknown colour,
+               which left this menu fully transparent. -->
+          <ul v-if="langOpen" class="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-lg border border-line bg-elevated py-1 shadow-xl shadow-black/50">
             <li v-for="l in locales" :key="l.code">
               <button
                 @click="pick(l.code)"
-                class="flex w-full items-center justify-between px-3 py-2 text-xs transition-colors hover:bg-surface"
+                class="flex w-full items-center justify-between gap-3 whitespace-nowrap px-3 py-2 text-xs transition-colors hover:bg-surface"
                 :class="locale === l.code ? 'text-accent' : 'text-content'"
               >
                 <span>{{ l.label }}</span>
-                <span class="font-mono text-[10px] opacity-60">{{ l.short }}</span>
+                <span class="w-12 shrink-0 text-right font-mono text-[10px] opacity-60">{{ l.short }}</span>
               </button>
             </li>
           </ul>
@@ -86,10 +102,82 @@ onBeforeUnmount(() => {
 
       <a
         href="#download"
-        class="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-soft"
+        class="hidden rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-soft sm:block"
       >
         {{ t('nav.download') }}
       </a>
+
+      <!-- Hamburger (small screens only) -->
+      <button
+        @click="menuOpen = true"
+        :aria-label="t('nav.menu')"
+        :aria-expanded="menuOpen"
+        class="rounded-lg border border-line bg-surface p-2 text-content transition-colors hover:border-accent/50 sm:hidden"
+      >
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
     </nav>
+
+    <!-- Mobile drawer -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-opacity duration-300" leave-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0" leave-to-class="opacity-0"
+      >
+        <div v-if="menuOpen" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm sm:hidden" @click="menuOpen = false"></div>
+      </Transition>
+
+      <Transition
+        enter-active-class="transition-transform duration-300 ease-out" leave-active-class="transition-transform duration-200 ease-in"
+        enter-from-class="translate-x-full" leave-to-class="translate-x-full"
+      >
+        <aside
+          v-if="menuOpen"
+          class="fixed inset-y-0 right-0 z-[61] flex w-72 max-w-[85vw] flex-col border-l border-line bg-elevated shadow-2xl shadow-black/60 sm:hidden"
+        >
+          <div class="flex h-16 items-center justify-between border-b border-line px-5">
+            <span class="text-sm font-bold text-strong">GitBox</span>
+            <button @click="menuOpen = false" :aria-label="t('nav.close')" class="rounded-lg p-2 text-muted transition-colors hover:text-strong">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+
+          <nav class="flex flex-col gap-1 p-4">
+            <a @click="menuOpen = false" href="#features" class="rounded-lg px-3 py-3 text-sm text-content transition-colors hover:bg-surface hover:text-strong">{{ t('nav.features') }}</a>
+            <a @click="menuOpen = false" href="#screenshots" class="rounded-lg px-3 py-3 text-sm text-content transition-colors hover:bg-surface hover:text-strong">{{ t('nav.screenshots') }}</a>
+            <a href="https://github.com/gitgusilva/gitbox" class="rounded-lg px-3 py-3 text-sm text-content transition-colors hover:bg-surface hover:text-strong">{{ t('nav.github') }}</a>
+          </nav>
+
+          <div class="mt-auto space-y-4 border-t border-line p-4">
+            <div>
+              <p class="px-1 pb-2 text-[10px] font-bold uppercase tracking-widest text-muted">{{ t('common.language') }}</p>
+              <div class="flex flex-col gap-1">
+                <button
+                  v-for="l in locales" :key="l.code"
+                  @click="setLocale(l.code)"
+                  class="flex items-center justify-between whitespace-nowrap rounded-lg px-3 py-2 text-xs transition-colors hover:bg-surface"
+                  :class="locale === l.code ? 'text-accent' : 'text-content'"
+                >
+                  <span>{{ l.label }}</span>
+                  <span class="w-12 shrink-0 text-right font-mono text-[10px] opacity-60">{{ l.short }}</span>
+                </button>
+              </div>
+            </div>
+
+            <a
+              @click="menuOpen = false"
+              href="#download"
+              class="block rounded-lg bg-accent px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-accent-soft"
+            >
+              {{ t('nav.download') }}
+            </a>
+          </div>
+        </aside>
+      </Transition>
+    </Teleport>
   </header>
 </template>

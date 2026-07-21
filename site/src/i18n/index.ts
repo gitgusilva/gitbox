@@ -19,7 +19,7 @@ const STORAGE_KEY = 'gitbox_site_locale';
 type Messages = Record<string, any>;
 
 const en: Messages = {
-    nav: { features: 'Features', screenshots: 'Screenshots', github: 'GitHub', download: 'Download' },
+    nav: { features: 'Features', screenshots: 'Screenshots', github: 'GitHub', download: 'Download', menu: 'Open menu', close: 'Close menu' },
     hero: {
         badge_version: '{version} is out — projects, faster history and more',
         badge_generic: 'Now with projects, faster history and more',
@@ -88,7 +88,7 @@ const en: Messages = {
 };
 
 const ptBr: Messages = {
-    nav: { features: 'Recursos', screenshots: 'Telas', github: 'GitHub', download: 'Baixar' },
+    nav: { features: 'Recursos', screenshots: 'Telas', github: 'GitHub', download: 'Baixar', menu: 'Abrir menu', close: 'Fechar menu' },
     hero: {
         badge_version: '{version} chegou — projetos, histórico mais rápido e mais',
         badge_generic: 'Agora com projetos, histórico mais rápido e mais',
@@ -157,7 +157,7 @@ const ptBr: Messages = {
 };
 
 const es: Messages = {
-    nav: { features: 'Funciones', screenshots: 'Pantallas', github: 'GitHub', download: 'Descargar' },
+    nav: { features: 'Funciones', screenshots: 'Pantallas', github: 'GitHub', download: 'Descargar', menu: 'Abrir menú', close: 'Cerrar menú' },
     hero: {
         badge_version: '{version} ya está disponible — proyectos, historial más rápido y más',
         badge_generic: 'Ahora con proyectos, historial más rápido y más',

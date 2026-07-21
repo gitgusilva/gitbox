@@ -95,27 +95,27 @@ onBeforeUnmount(() => observer?.disconnect());
       <div class="relative mx-auto w-full max-w-6xl px-6 pb-24 [perspective:2000px]">
         <div class="relative">
           <div
-            class="absolute left-0 top-10 hidden w-[42%] overflow-hidden rounded-xl border border-line bg-surface opacity-60 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] [transform:rotateY(14deg)_rotateX(6deg)_scale(0.92)] lg:block"
+            class="absolute -left-[14%] top-6 w-[48%] overflow-hidden rounded-lg border border-line bg-surface opacity-50 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] [transform:rotateY(16deg)_rotateX(6deg)_scale(0.88)] sm:-left-[6%] sm:rounded-xl lg:left-0 lg:w-[42%] lg:opacity-60 lg:[transform:rotateY(14deg)_rotateX(6deg)_scale(0.92)]"
             style="mask-image: linear-gradient(to bottom, #000 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);"
           >
-            <img :src="asset('screenshots/statistics.png')" alt="" class="h-[300px] w-full object-cover object-top" />
+            <img :src="asset('screenshots/statistics.png')" alt="" class="h-[150px] w-full object-cover object-top sm:h-[300px]" />
           </div>
 
           <div
-            class="absolute right-0 top-10 hidden w-[42%] overflow-hidden rounded-xl border border-line bg-surface opacity-60 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] [transform:rotateY(-14deg)_rotateX(6deg)_scale(0.92)] lg:block"
+            class="absolute -right-[14%] top-6 w-[48%] overflow-hidden rounded-lg border border-line bg-surface opacity-50 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] [transform:rotateY(-16deg)_rotateX(6deg)_scale(0.88)] sm:-right-[6%] sm:rounded-xl lg:right-0 lg:w-[42%] lg:opacity-60 lg:[transform:rotateY(-14deg)_rotateX(6deg)_scale(0.92)]"
             style="mask-image: linear-gradient(to bottom, #000 55%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);"
           >
-            <img :src="asset('screenshots/merge-editor.png')" alt="" class="h-[300px] w-full object-cover object-top" />
+            <img :src="asset('screenshots/merge-editor.png')" alt="" class="h-[150px] w-full object-cover object-top sm:h-[300px]" />
           </div>
 
           <div
-            class="relative z-10 mx-auto w-full overflow-hidden rounded-xl border border-line bg-surface shadow-[0_40px_90px_-20px_rgba(0,0,0,0.9)] [transform:rotateX(7deg)] lg:w-[64%]"
+            class="relative z-10 mx-auto w-[76%] overflow-hidden rounded-lg border border-line bg-surface shadow-[0_40px_90px_-20px_rgba(0,0,0,0.9)] [transform:rotateX(7deg)] sm:w-[72%] sm:rounded-xl lg:w-[64%]"
             style="mask-image: linear-gradient(to bottom, #000 62%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);"
           >
             <img
               :src="asset('screenshots/history.png')"
               :alt="t('hero.shot_alt')"
-              class="h-[300px] w-full object-cover object-top sm:h-[420px]"
+              class="h-[190px] w-full object-cover object-top sm:h-[300px] lg:h-[420px]"
             />
           </div>
         </div>
