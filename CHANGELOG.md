@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.1
+### Fixed
+- Merge editor: the two sides of a conflict were swapped — the local side was labelled "Incoming" and the branch being merged in was labelled "Current"
+- Merge editor: "accept all incoming" wrote the local side into the file (and "accept all current" wrote the remote one); "keep both" also emitted the sides in the wrong order
+
 ## v1.1.0
 ### Added
 - Projects: group repositories into colour-coded projects, each with its own set of tabs
