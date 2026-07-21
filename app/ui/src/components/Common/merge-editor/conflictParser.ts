@@ -12,6 +12,15 @@ export type ParsedConflictResult = {
   resultText: string;
 };
 
+/**
+ * Splits a conflicted file into its two sides.
+ *
+ * Git's markers are: `<<<<<<<` opens OURS — the branch you are on, i.e. HEAD,
+ * the "current" side — and `>>>>>>>` closes THEIRS, the branch being merged in,
+ * i.e. the "incoming" side. These were previously mapped the other way round,
+ * which swapped the pane labels and, worse, made "accept all incoming" write the
+ * local side into the file.
+ */
 export function parseConflicts(content: string, options: ParseConflictOptions): ParsedConflictResult {
   const lines = content.split('\n');
   const incomingLines: string[] = [];
@@ -31,19 +40,20 @@ export function parseConflicts(content: string, options: ParseConflictOptions): 
       continue;
     }
 
-    const incomingLabel = line.replace('<<<<<<<', '').trim() || options.incomingFallbackLabel;
+    // `<<<<<<< HEAD` — ours / local / current.
+    const currentLabel = line.replace('<<<<<<<', '').trim() || options.currentFallbackLabel;
     i += 1;
 
-    const incomingChunk: string[] = [];
+    const currentChunk: string[] = [];
     while (i < lines.length && !lines[i].startsWith('|||||||') && !lines[i].startsWith('=======')) {
-      incomingChunk.push(lines[i]);
+      currentChunk.push(lines[i]);
       i += 1;
     }
 
     if (i >= lines.length) {
-      incomingLines.push(...incomingChunk);
-      currentLines.push(...incomingChunk);
-      resultLines.push(...incomingChunk);
+      incomingLines.push(...currentChunk);
+      currentLines.push(...currentChunk);
+      resultLines.push(...currentChunk);
       break;
     }
 
@@ -58,15 +68,16 @@ export function parseConflicts(content: string, options: ParseConflictOptions): 
 
     i += 1;
 
-    const currentChunk: string[] = [];
+    const incomingChunk: string[] = [];
     while (i < lines.length && !lines[i].startsWith('>>>>>>>')) {
-      currentChunk.push(lines[i]);
+      incomingChunk.push(lines[i]);
       i += 1;
     }
 
-    const currentLabel = i < lines.length
-      ? lines[i].replace('>>>>>>>', '').trim() || options.currentFallbackLabel
-      : options.currentFallbackLabel;
+    // `>>>>>>> branch` — theirs / remote / incoming.
+    const incomingLabel = i < lines.length
+      ? lines[i].replace('>>>>>>>', '').trim() || options.incomingFallbackLabel
+      : options.incomingFallbackLabel;
 
     if (i < lines.length && lines[i].startsWith('>>>>>>>')) i += 1;
 
@@ -122,9 +133,10 @@ export function resolveAllConflictsFromSource(content: string, strategy: 'incomi
     }
 
     i += 1;
-    const incomingChunk: string[] = [];
+    // Ours / HEAD — see parseConflicts for why this side is "current".
+    const currentChunk: string[] = [];
     while (i < lines.length && !lines[i].startsWith('|||||||') && !lines[i].startsWith('=======')) {
-      incomingChunk.push(lines[i]);
+      currentChunk.push(lines[i]);
       i += 1;
     }
 
@@ -137,15 +149,16 @@ export function resolveAllConflictsFromSource(content: string, strategy: 'incomi
 
     if (i < lines.length && lines[i].startsWith('=======')) i += 1;
 
-    const currentChunk: string[] = [];
+    const incomingChunk: string[] = [];
     while (i < lines.length && !lines[i].startsWith('>>>>>>>')) {
-      currentChunk.push(lines[i]);
+      incomingChunk.push(lines[i]);
       i += 1;
     }
     if (i < lines.length && lines[i].startsWith('>>>>>>>')) i += 1;
 
     if (strategy === 'incoming') output.push(...incomingChunk);
     else if (strategy === 'current') output.push(...currentChunk);
+    // "Both" keeps ours first, then theirs — the order git itself writes.
     else output.push(...currentChunk, ...incomingChunk);
   }
 
