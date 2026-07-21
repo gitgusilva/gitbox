@@ -8,7 +8,7 @@ import { ref, computed } from 'vue';
  */
 export const LOCALES = [
     { code: 'en', label: 'English', short: 'EN' },
-    { code: 'pt-br', label: 'Português', short: 'PT' },
+    { code: 'pt-br', label: 'Português (Brasil)', short: 'PT-BR' },
     { code: 'es', label: 'Español', short: 'ES' },
 ] as const;
 
