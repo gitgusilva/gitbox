@@ -19,7 +19,9 @@ class Reset extends Command {
      * Unstage a specific file
      */
     async file(repoPath, filePath) {
-        try { await this.execGit(repoPath, ['reset', 'HEAD', '--', filePath]); return true; } catch (e) { throw new Error(e.message); }
+        const paths = await this.livePaths(repoPath, filePath);
+        if (paths.length === 0) return false;
+        try { await this.execGit(repoPath, ['reset', 'HEAD', '--', ...paths]); return true; } catch (e) { throw new Error(e.message); }
     }
 
     /**

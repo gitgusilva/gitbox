@@ -243,7 +243,8 @@
     "line_by_line": "Line by line",
     "save": "Save",
     "external_editor": "External editor",
-    "open_in_external_editor": "Open in {tool}"
+    "open_in_external_editor": "Open in {tool}",
+    "stash_nothing": "Nothing left to stash — those files are no longer modified."
   },
   "branch_menu": {
     "merge_into_current": "Merge into {branch}",
@@ -891,5 +892,9 @@
     "toggle_terminal": "Toggle terminal",
     "settings": "Settings",
     "shortcuts_sheet": "Keyboard shortcuts"
+  },
+  "sync": {
+    "no_remote_title": "No remote configured",
+    "no_remote_body": "Add a remote to this repository to fetch, pull or push."
   }
 }

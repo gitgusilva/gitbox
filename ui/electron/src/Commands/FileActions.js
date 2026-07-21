@@ -37,9 +37,24 @@ class FileActions extends Command {
      * @param {{ keepIndex?: boolean, includeUntracked?: boolean }} [options]
      *   keepIndex → leave staged changes in the index; includeUntracked → also stash untracked files.
      */
+    /**
+     * Stashes only the given paths.
+     *
+     * The selection is re-checked against the live status first. A path that git
+     * no longer reports — the file was deleted, discarded, or already stashed
+     * from another tab since the UI last refreshed — makes `git stash push`
+     * create the stash for the remaining paths and THEN exit 1 with
+     * "pathspec ':(prefix:0)<path>' did not match any files". The operation half
+     * succeeds while the app reports a failure, so the stale paths are dropped
+     * before git ever sees them.
+     */
     async stashFile(repoPath, filePath, message = '', options = {}) {
-        const paths = (Array.isArray(filePath) ? filePath : [filePath]).filter(Boolean);
-        if (paths.length === 0) return false;
+        const paths = await this.livePaths(repoPath, filePath);
+        if (paths.length === 0) {
+            // Nothing left to stash: report it as a no-op, not as a git failure.
+            return false;
+        }
+
         const args = ['stash', 'push'];
         if (options && options.keepIndex) args.push('--keep-index');
         if (options && options.includeUntracked) args.push('--include-untracked');

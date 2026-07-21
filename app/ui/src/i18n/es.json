@@ -254,7 +254,8 @@
     "line_by_line": "Línea por línea",
     "save": "Guardar",
     "external_editor": "Editor externo",
-    "open_in_external_editor": "Abrir en {tool}"
+    "open_in_external_editor": "Abrir en {tool}",
+    "stash_nothing": "Nada que guardar — esos archivos ya no están modificados."
   },
   "branch_menu": {
     "merge_into_current": "Fusionar en {branch}",
@@ -839,5 +840,9 @@
     "toggle_terminal": "Alternar terminal",
     "settings": "Configuración",
     "shortcuts_sheet": "Atajos de teclado"
+  },
+  "sync": {
+    "no_remote_title": "Sin remoto configurado",
+    "no_remote_body": "Añade un remoto a este repositorio para hacer fetch, pull o push."
   }
 }

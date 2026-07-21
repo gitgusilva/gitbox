@@ -6,6 +6,7 @@ import {
   doFetch, 
   doPull, 
   doPush, 
+  hasRemote,
   discardAll,
   isLoading,
   toggleTerminal,
@@ -147,9 +148,9 @@ const openBranchMenu = (e: MouseEvent) => {
 
       <!-- Actions (Centered) -->
       <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-1" style="-webkit-app-region: no-drag;">
-          <IconButton direction="row" icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.fetch')" :action="doFetch" />
-          <IconButton direction="row" icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.pull')" :action="doPull" />
-          <IconButton direction="row" icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :label="t('common.push')" :action="doPush" />
+          <IconButton direction="row" icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.fetch')" :action="doFetch" />
+          <IconButton direction="row" icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.pull')" :action="doPull" />
+          <IconButton direction="row" icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.push')" :action="doPush" />
           <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-600 mx-1"></div>
           <IconButton direction="row" icon="lucide:git-branch-plus" :label="t('ui.create_branch')" :action="createBranchAction" />
           <IconButton direction="row" icon="lucide:archive-restore" :label="t('common.discard')" :action="onDiscardAll" />

@@ -45,6 +45,15 @@ export const branches = shallowRef<Branch[]>([]);
 /** Remotes configured for the repository. */
 export const remotes = shallowRef<string[]>([]);
 
+/**
+ * Whether the repository has any remote configured.
+ *
+ * A repo without one is a perfectly normal local repo, not an error state: the
+ * sync actions are disabled until a remote exists, and the background poll skips
+ * fetching instead of failing with "remote 'origin' does not exist" every minute.
+ */
+export const hasRemote = computed(() => remotes.value.length > 0);
+
 /** Tags found in the repository. */
 export const tags = shallowRef<{ name: string, target?: string }[]>([]);
 
@@ -393,7 +402,7 @@ export function startPolling() {
         // If interval is 0, we don't do background fetch. 
         // We still might want to poll status every 1 min for UI responsiveness, 
         // but let's follow the "0 removes the auto fetch" literally for now.
-        if (interval > 0 && !document.hidden && !isLoading.value && repoPath.value) {
+        if (interval > 0 && !document.hidden && !isLoading.value && repoPath.value && hasRemote.value) {
             try {
                 // Perform the actual git fetch
                 await window.gitbox.fetch(repoPath.value);
@@ -402,7 +411,7 @@ export function startPolling() {
             } catch (e) {
                 // Background fetch failed, ignore
             }
-        } else if (interval === 0 && !document.hidden && !isLoading.value && repoPath.value) {
+        } else if (!document.hidden && !isLoading.value && repoPath.value) {
             // Auto-fetch off: only re-read the working-tree status so the user sees
             // local file changes. No need for the full 8-IPC repo reload every minute.
             await refreshStatus();
@@ -472,6 +481,31 @@ export async function refreshStatus() {
  * flashed at the user in a transient popup. `context` is a short, stable label
  * that also titles the log entry.
  */
+/**
+ * Failures the app answers with a UI flow instead of a dead end. They are real
+ * git responses, so the raw command still shows in the Git log — but the
+ * app-level entry is an action, not a failure: the user was handed a choice, and
+ * a red "Failed:" line for it is noise that trains people to ignore the log.
+ */
+const HANDLED_FAILURES = [
+    // Pull: opens the merge/rebase dialog.
+    /non-fast-forward/i,
+];
+
+export function isHandledFailure(err: unknown): boolean {
+    const detail = String((err as any)?.message ?? err ?? '');
+    return HANDLED_FAILURES.some(re => re.test(detail));
+}
+
+/**
+ * Logs a failure the app resolved into a UI flow, without the error banner or
+ * the failure toast. `reportError` stays for the ones the user really is stuck on.
+ */
+export function reportHandled(context: string, err: unknown, resolution: string) {
+    const detail = String((err as any)?.message ?? err ?? '').trim();
+    addLog(context, 'Action', 'info', { details: `${resolution}\n\n${detail}` });
+}
+
 export function reportError(context: string, err: unknown) {
     const detail = String((err as any)?.message ?? err ?? '').trim() || 'Unknown error';
     error.value = detail;                                       // banner on top of the history
@@ -492,9 +526,12 @@ export function reportError(context: string, err: unknown) {
 async function runAction(action: () => unknown, refresh: 'status' | 'full' = 'status', actionName?: string, showLoader = false) {
     isLoading.value = true;
     try {
-        await action();
+        // A command returns exactly `false` when it had nothing left to do — the
+        // selected paths went stale before it ran. That is neither a success nor
+        // a failure, and claiming success would be a lie in the log.
+        const outcome = await action();
         if (actionName) {
-            addLog(actionName, 'Action', 'success');
+            addLog(actionName, 'Action', outcome === false ? 'info' : 'success');
         }
         if (refresh === 'full') {
             await loadRepoData(showLoader);
@@ -502,7 +539,11 @@ async function runAction(action: () => unknown, refresh: 'status' | 'full' = 'st
             await refreshStatus();
         }
     } catch (err: any) {
-        reportError(actionName ? `Failed: ${actionName}` : 'Git action failed', err);
+        if (isHandledFailure(err)) {
+            reportHandled(actionName || 'Git action', err, 'Handled by the app — see the dialog that opened.');
+        } else {
+            reportError(actionName ? `Failed: ${actionName}` : 'Git action failed', err);
+        }
     } finally {
         isLoading.value = false;
     }
@@ -514,11 +555,21 @@ export const unstageAll = () => runAction(() => window.gitbox.unstageAll(repoPat
 export const unstageFile = (path: string) => runAction(() => window.gitbox.unstageFile(repoPath.value, path), 'status', `Unstage file ${path}`);
 export const discardAll = () => runAction(() => window.gitbox.discardAll(repoPath.value), 'status', "Discard all changes");
 export const discardFile = (path: string) => runAction(() => window.gitbox.discardFile(repoPath.value, path), 'status', `Discard file ${path}`);
-export const doFetch = () => runAction(() => window.gitbox.fetch(repoPath.value), 'full', "Fetch from remote", true);
+/** Shown when a sync action is attempted on a repo that has no remote yet. */
+async function warnNoRemote() {
+    const { showToast } = await import('./toastService');
+    showToast(i18n.global.t('sync.no_remote_title'), i18n.global.t('sync.no_remote_body'), 'info');
+}
+
+export const doFetch = () => {
+    if (!hasRemote.value) return warnNoRemote();
+    return runAction(() => window.gitbox.fetch(repoPath.value), 'full', "Fetch from remote", true);
+};
 import { isPushModalOpen, isPullModalOpen } from './modalService';
 
 export const doPull = async () => {
     if (!repoPath.value || !window.gitbox) return;
+    if (!hasRemote.value) return warnNoRemote();
     isLoading.value = true;
     error.value = '';
     try {
@@ -529,7 +580,9 @@ export const doPull = async () => {
         const msg = String(err?.message || err);
         if (/non-fast-forward/i.test(msg)) {
             // Diverged from upstream. The fast pull already fetched, so ask the
-            // user how to integrate — merge or rebase (SourceGit-style).
+            // user how to integrate — merge or rebase (SourceGit-style). This is a
+            // handled outcome, so it is logged as an action rather than a failure.
+            reportHandled('Pull from remote', err, 'Diverged from upstream — asked how to integrate (merge or rebase).');
             isPullModalOpen.value = true;
         } else {
             error.value = msg;
@@ -565,7 +618,7 @@ export const confirmPull = (mode: 'merge' | 'rebase') => {
             const res = await window.gitbox.mergeBranch(repoPath.value, upstream);
             if (res?.status === 'conflicts') {
                 activeTab.value = 'local_changes';
-                showToast('Merge conflicts', 'Resolve the conflicts, then complete the merge.', 'error');
+                showToast('Merge conflicts', 'Resolve the conflicts, then complete the merge.', 'warning');
             } else {
                 showToast('Pull', `Merged ${upstream}.`, 'success');
             }
@@ -574,6 +627,7 @@ export const confirmPull = (mode: 'merge' | 'rebase') => {
 };
 
 export const doPush = () => {
+    if (!hasRemote.value) { warnNoRemote(); return; }
     isPushModalOpen.value = true;
 };
 
@@ -707,9 +761,11 @@ export const mergeBranchAction = async (name: string) => {
         } else if (result.status === 'conflicts') {
             const count = result.conflicts?.length || 0;
             activeTab.value = 'local_changes';
-            showToast('Merge conflicts', `${count} file(s) conflict. Resolve them, then complete the merge.`, 'error');
+            showToast('Merge conflicts', `${count} file(s) conflict. Resolve them, then complete the merge.`, 'warning');
         }
-        addLog(`Merge ${name}: ${result.status}`, 'Action', result.status === 'conflicts' ? 'error' : 'success');
+        // Conflicts are the expected outcome of a real merge, not a failure: the
+        // merge banner and the conflicts page take over from here.
+        addLog(`Merge ${name}: ${result.status}`, 'Action', result.status === 'conflicts' ? 'info' : 'success');
     } catch (err: any) {
         error.value = String(err?.message || err);
         const { showToast } = await import('./toastService');

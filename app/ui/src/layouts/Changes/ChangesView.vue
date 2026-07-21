@@ -190,7 +190,7 @@ function stashSelectedFiles() {
         showToast(t('changes.stash_title'), t('changes.stash_only_untracked'), 'info');
         return;
       }
-      await window.gitbox.stashFile(repoPath.value, paths, message, {
+      const stashed = await window.gitbox.stashFile(repoPath.value, paths, message, {
         // git can't --keep-index alongside untracked pathspecs (spurious "did
         // not match" + a half-applied stash), and untracked files can't live in
         // the index anyway — so keep-index yields when untracked are included.
@@ -198,6 +198,13 @@ function stashSelectedFiles() {
         includeUntracked: mode.includeUntracked,
       });
       await loadRepoData();
+      // The main process drops paths git no longer reports (deleted or already
+      // stashed elsewhere since this list was rendered); nothing left is a no-op,
+      // not a success and not an error.
+      if (!stashed) {
+        showToast(t('changes.stash_title'), t('changes.stash_nothing'), 'info');
+        return;
+      }
       showToast(t('common.success'), t('changes.stashed_file'), 'success');
     } catch (e: any) {
       reportError('Stash selected files', e);
