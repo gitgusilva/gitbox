@@ -53,7 +53,11 @@ watch(isActive, (v) => { if (v) hasBeenActive.value = true; }, { immediate: true
 </script>
 
 <template>
-  <div v-show="isActive" :class="cn('h-full w-full overflow-hidden content-tab')">
+  <!-- Registration-only tabs (no content of their own — the parent renders one
+       shared panel for every tab, as the Command Log does) must render NOTHING:
+       an empty `h-full` wrapper still takes the whole content area in block flow
+       and pushes the parent's shared panel out of the clipped region. -->
+  <div v-if="$slots.default" v-show="isActive" :class="cn('h-full w-full overflow-hidden content-tab')">
     <slot v-if="hasBeenActive"></slot>
   </div>
 </template>

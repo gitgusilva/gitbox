@@ -13,7 +13,7 @@ import { startMarquee, stopMarquee } from '../utils/dom';
 import { requestConfirm } from '../services/modalService';
 import Tabs from '../components/Common/Tabs.vue';
 import Tab from '../components/Common/Tab.vue';
-import Tooltip from '../components/Common/Tooltip.vue';
+import IconButton from '../components/Common/IconButton.vue';
 import SearchInput from '../components/Common/SearchInput.vue';
 import ScrollArea from '../components/Common/ScrollArea.vue';
 import { onMounted, onUnmounted } from 'vue';
@@ -135,15 +135,16 @@ const getColor = (type: string) => {
                     <SearchInput v-model="searchQuery" />
                 </div>
 
-                <Tooltip :text="t('common.clear')" position="left">
-                  <button
-                    @click="handleClearLogs"
-                    class="flex items-center gap-1.5 px-3 h-7 rounded bg-red-500/10 border border-red-500/20 text-[10px] font-bold uppercase tracking-wider text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all active:scale-95"
-                  >
-                    <Icon icon="lucide:trash-2" class="w-3.5 h-3.5" />
-                    <span>{{ t('common.clear') || 'Clear' }}</span>
-                  </button>
-                </Tooltip>
+                <!-- Same icon/label rule as the header actions: the label shows
+                     beside the icon unless the user hid icon labels. -->
+                <IconButton
+                  direction="row"
+                  variant="danger"
+                  tooltipPosition="left"
+                  icon="lucide:trash-2"
+                  :label="t('common.clear')"
+                  :action="handleClearLogs"
+                />
             </div>
         </template>
 
@@ -151,21 +152,29 @@ const getColor = (type: string) => {
             <!-- Register all tabs (they don't render content here, just register themselves) -->
             <Tab v-for="cat in categories" :key="cat" :id="cat" :label="t('logs.categories.' + cat.toLowerCase())" />
             
-            <div class="flex flex-col h-full bg-app">
+            <div class="flex flex-col h-full min-h-0 overflow-hidden bg-app">
                 <!-- Panel Header -->
                 <div class="grid px-4 font-bold text-[10px] text-content-muted uppercase tracking-widest border-b border-line bg-surface shrink-0" style="grid-template-columns: 1fr 120px;">
                     <div class="py-2">{{ t('common.message') || 'Message' }}</div>
                     <div class="py-2 pl-3 border-l border-line">{{ t('history.time') }}</div>
                 </div>
 
-                <!-- Shared List for all tabs -->
-                <ScrollArea ref="scrollAreaRef" class="flex-1">
-                    <div v-if="visibleLogs.length === 0" class="h-full flex flex-col items-center justify-center text-content-muted gap-3 opacity-50">
-                        <Icon icon="lucide:list" class="w-12 h-12" />
-                        <span class="text-sm font-medium">{{ t('common.no_logs') || 'No logs found' }}</span>
-                    </div>
+                <!-- Empty state sits OUTSIDE the ScrollArea: inside it, SimpleBar's
+                     content wrapper is only as tall as its content, so `h-full`
+                     collapsed and the message hugged the header instead of
+                     centering in the panel. -->
+                <div v-if="visibleLogs.length === 0" class="flex-1 flex flex-col items-center justify-center text-content-muted gap-3 opacity-50">
+                    <Icon icon="lucide:list" class="w-12 h-12" />
+                    <span class="text-sm font-medium">{{ t('common.no_logs') || 'No logs found' }}</span>
+                </div>
 
-                    <div v-else class="min-h-full pb-4">
+                <!-- Shared List for all tabs. `min-h-0` is what makes it SCROLL:
+                     a flex item defaults to min-height:auto, so without it the
+                     ScrollArea just grew to the height of its content (expanding
+                     one big log stretched it to thousands of px) and SimpleBar,
+                     having no constrained height, never produced a scrollbar. -->
+                <ScrollArea v-else ref="scrollAreaRef" class="flex-1 min-h-0">
+                    <div class="min-h-full pb-4">
                         <div
                             v-for="log in visibleLogs"
                             :key="log.id"
@@ -230,7 +239,18 @@ const getColor = (type: string) => {
                                             <span>{{ t('logs.output') }}</span>
                                             <div class="h-px bg-line flex-1"></div>
                                         </div>
-                                        <pre class="text-[11px] text-content-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.details }}</pre>
+                                        <!-- Big outputs (a full log/diff) get their own
+                                             scroll instead of stretching the row to
+                                             thousands of px and burying the next entry. -->
+                                        <ScrollArea class="max-h-[320px]">
+                                            <pre class="text-[11px] text-content-muted font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.details }}</pre>
+                                        </ScrollArea>
+                                    </div>
+
+                                    <!-- Nothing to show: say so instead of opening an empty box. -->
+                                    <div v-if="!log.details" class="flex items-center gap-2 text-[11px] text-content-muted italic">
+                                        <Icon icon="lucide:info" class="w-3.5 h-3.5 shrink-0" />
+                                        <span>{{ t('logs.no_details') }}</span>
                                     </div>
                                 </div>
                             </div>

@@ -6,8 +6,8 @@ import { generalSettings } from './services/settingsService';
 import { useTheme } from './services/themeService';
 import AppLayout from './layouts/AppLayout.vue';
 import DashboardView from './layouts/DashboardView.vue';
-
-import { addLog } from './services/logService';
+// Imported for its side effect: subscribes to the main process' git command log.
+import './services/logService';
 
 const { currentTheme, applyTheme } = useTheme();
 
@@ -24,20 +24,8 @@ onMounted(() => {
     setTimeout(() => { checkForUpdates(); }, 4000);
   }
 
-  if (window.gitbox && window.gitbox.onGitLog) {
-      window.gitbox.onGitLog((_repoPath, cmd, stdout, stderr, duration, exitCode) => {
-          // Ignore background polling status/branches/etc to avoid flooding
-          const isBackground = cmd.includes('git status') || cmd.includes('git branch') || cmd.includes('git tag') || cmd.includes('git stash list') || cmd.includes('git submodule status');
-          
-          if (!isBackground || exitCode !== 0) {
-            addLog(cmd, 'Git', exitCode === 0 ? 'command' : 'error', {
-                command: cmd,
-                details: stderr || stdout,
-                duration
-            });
-          }
-      });
-  }
+  // NOTE: the `git:log-entry` subscription lives in services/logService.ts — a
+  // second one here made every git command show up TWICE in the Command Log.
 
   if (window.gitbox && window.gitbox.onMergeResolved) {
       window.gitbox.onMergeResolved(() => {
