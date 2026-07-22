@@ -431,6 +431,9 @@
     "restart_install": "Reiniciar e instalar",
     "update_modal_title": "Atualização disponível",
     "update_modal_body": "Uma nova versão do GitBox está disponível. Baixe na página de releases e execute o instalador para atualizar.",
+    "whats_new_title": "Novidades da v{version}",
+    "whats_new_full_release": "Ver a release completa",
+    "view_changelog": "Ver notas da versão",
     "update_download": "Baixar",
     "update_later": "Depois"
   },

@@ -12,6 +12,7 @@ import InputModal from '../components/InputModal.vue';
 import DeviceFlowModal from '../components/DeviceFlowModal.vue';
 import ToastContainer from '../components/ToastContainer.vue';
 import UpdateModal from '../components/UpdateModal.vue';
+import WhatsNewModal from '../components/WhatsNewModal.vue';
 import BranchActionModal from '../components/BranchActionModal.vue';
 import StashModal from '../components/StashModal.vue';
 import ProjectModal from '../components/ProjectModal.vue';
@@ -66,6 +67,7 @@ const { t } = useI18n();
     <ProjectModal />
     <ShortcutsModal />
     <UpdateModal />
+    <WhatsNewModal />
     <ToastContainer />
 
     <ConfirmModal v-if="confirmModal"

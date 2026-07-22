@@ -10,9 +10,24 @@ import {
   downloadedVersion,
   installUpdate,
   openReleasePage,
+  openWhatsNew,
+  loadingWhatsNew,
+  showWhatsNewModal,
 } from '../../../services/versionService';
+import { isSettingsOpen } from '../../../services/modalService';
 
 const { t } = useI18n();
+
+/**
+ * The notes open as their own dialog on top of Settings, so Settings has to get
+ * out of the way. Closed only once the notes are actually up — while the fetch
+ * is in flight the spinner belongs here, and if there is nothing to show
+ * (openWhatsNew falls back to the release page) the user keeps their place.
+ */
+async function viewChangelog() {
+  await openWhatsNew();
+  if (showWhatsNewModal.value) isSettingsOpen.value = false;
+}
 </script>
 
 <template>
@@ -40,6 +55,15 @@ const { t } = useI18n();
         <span v-else-if="updateStatus === 'error'" class="text-[11px] text-red-400 flex items-center gap-1">
           <Icon icon="lucide:alert-circle" class="w-3 h-3" /> {{ t('settings.update_check_failed') }}
         </span>
+
+        <!-- Re-open the release notes for the running version at any time; the
+             automatic popup only ever fires once per version. -->
+        <button @click="viewChangelog()" :disabled="loadingWhatsNew"
+                class="text-[11px] text-content-muted hover:text-accent flex items-center gap-1 transition-colors disabled:opacity-50 w-fit">
+          <Icon :icon="loadingWhatsNew ? 'lucide:loader-2' : 'lucide:scroll-text'"
+                :class="loadingWhatsNew ? 'animate-spin' : ''" class="w-3 h-3" />
+          {{ t('settings.view_changelog') }}
+        </button>
       </div>
 
       <button v-if="updateStatus === 'downloaded'" @click="installUpdate()"

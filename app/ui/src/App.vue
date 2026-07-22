@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { loadRepoData, startPolling } from './services/gitService';
-import { loadAppVersion, initUpdater, checkForUpdates } from './services/versionService';
+import { loadAppVersion, initUpdater, checkForUpdates, checkWhatsNew } from './services/versionService';
 import { generalSettings } from './services/settingsService';
 import { useTheme } from './services/themeService';
 import AppLayout from './layouts/AppLayout.vue';
@@ -14,7 +14,9 @@ const { currentTheme, applyTheme } = useTheme();
 onMounted(() => {
   // Initialize theme
   applyTheme(currentTheme.value);
-  loadAppVersion();
+  // The release notes are keyed on the running version, so the version has to be
+  // known first — hence the chain rather than two independent calls.
+  loadAppVersion().then(() => checkWhatsNew());
 
   // Native auto-updater: subscribe to download/install events, then (if the
   // user opted in) run a silent check on startup. On updatable builds the main

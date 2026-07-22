@@ -61,6 +61,89 @@ export function dismissUpdate() {
     showUpdateModal.value = false;
 }
 
+// --- "What's new" after an update ----------------------------------------
+const RELEASE_BY_TAG_API = 'https://api.github.com/repos/gitgusilva/gitbox/releases/tags/v';
+const LAST_SEEN_KEY = 'gitbox_last_seen_version';
+
+export const showWhatsNewModal = ref(false);
+/** Raw markdown body of the GitHub release for the running version. */
+export const whatsNewNotes = ref('');
+
+/** True while the notes are being fetched, so the Settings entry can show it. */
+export const loadingWhatsNew = ref(false);
+
+export function closeWhatsNew() {
+    showWhatsNewModal.value = false;
+}
+
+/**
+ * Loads the release body for a tag. Returns false when GitHub has nothing to
+ * show (no release for that tag, offline, rate-limited) — callers decide whether
+ * that is worth telling the user about.
+ */
+async function loadReleaseNotes(version: string): Promise<boolean> {
+    try {
+        const res = await fetch(RELEASE_BY_TAG_API + encodeURIComponent(version), {
+            headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        const body = String(data.body || '').trim();
+        if (!body) return false;
+        whatsNewNotes.value = body;
+        releaseUrl.value = data.html_url || releaseUrl.value;
+        return true;
+    } catch (err) {
+        console.error('Failed to load release notes:', err);
+        return false;
+    }
+}
+
+/**
+ * Opens the release notes on demand (the Settings entry), as opposed to the
+ * automatic once-per-version popup. Notes are cached for the session, so
+ * reopening doesn't hit the API again.
+ */
+export async function openWhatsNew(): Promise<void> {
+    if (whatsNewNotes.value) {
+        showWhatsNewModal.value = true;
+        return;
+    }
+    loadingWhatsNew.value = true;
+    const ok = await loadReleaseNotes(appVersion.value);
+    loadingWhatsNew.value = false;
+    if (ok) {
+        showWhatsNewModal.value = true;
+    } else {
+        // Nothing to show in-app — send them to the release page rather than
+        // popping an empty modal.
+        showToast('Release notes', `No published notes found for v${appVersion.value}.`, 'info');
+        openReleasePage();
+    }
+}
+
+/**
+ * Shows the release notes once, the first time the app runs on a version it has
+ * not run on before. Notes come from the GitHub release for the matching tag, so
+ * there is nothing to keep in sync in the app itself.
+ *
+ * The version is recorded even when the notes can't be fetched (no release
+ * published for that tag, offline, rate-limited) — otherwise every launch would
+ * retry and eventually pop the modal for a version the user has long been using.
+ *
+ * On the very first run there is no stored version. That is a fresh install, not
+ * an update, so the modal is skipped and the version is just recorded.
+ */
+export async function checkWhatsNew(): Promise<void> {
+    const current = appVersion.value;
+    if (!current) return;
+    const lastSeen = getItem(LAST_SEEN_KEY);
+    setItem(LAST_SEEN_KEY, current);
+    if (!lastSeen || compareVersions(current, lastSeen) <= 0) return;
+
+    if (await loadReleaseNotes(current)) showWhatsNewModal.value = true;
+}
+
 interface NativeUpdaterStatus {
     state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
     info?: { version?: string } | null;
