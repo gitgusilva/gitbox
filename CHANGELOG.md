@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.3
+### Added
+- Release notes are shown once after updating to a new version, and can be reopened from Settings › Updates
+
+### Fixed
+- A pull blocked by local changes named the files it would overwrite, and offers to stash them, pull and restore
+- Discarding a file no longer depends on a system `git` — it runs through libgit2, and handles staged-new files correctly
+- Permission failures name the file and the folder that need their ownership fixed, with the exact command to copy
+- Error messages no longer carry the internal `Error invoking remote method '…'` prefix that pushed the real cause out of view
+- Restoring a stash keeps the entry when the changes conflict, instead of dropping it over a half-merged working tree
+- Restoring a stash brings the changes back unstaged, matching `git stash pop`
+
 ## v1.1.2
 ### Fixed
 - Discarding an untracked file logged two "pathspec did not match" errors for an operation that had succeeded
