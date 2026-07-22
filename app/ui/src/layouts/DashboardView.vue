@@ -6,8 +6,9 @@ import {
   selectedCommit, 
   unstagedFiles, 
   stagedFiles, 
-  stashes, 
-  error 
+  stashes,
+  error,
+  errorRemedy
 } from '../services/gitService';
 import HistoryView from './History/HistoryView.vue';
 import ChangesView from './Changes/ChangesView.vue';
@@ -31,6 +32,15 @@ function copyError() {
     }
 }
 
+/** Copies the suggested fix so the user can paste it into their own terminal.
+ *  The app never runs it — see `errorRemedy` for why. */
+function copyRemedy() {
+    const remedy = errorRemedy.value;
+    if (!remedy) return;
+    navigator.clipboard.writeText(remedy.command);
+    showToast('Success', t('common.copy') || 'Copied to clipboard', 'success');
+}
+
 </script>
 
 <template>
@@ -48,6 +58,21 @@ function copyError() {
        <button @click="error = ''" class="shrink-0 p-1 rounded text-removed hover:text-content-strong hover:bg-removed/25 transition-colors">
          <Icon icon="lucide:x" class="text-sm" />
        </button>
+    </div>
+
+    <!-- Ownership failures are the one class of error with a known, mechanical
+         fix that GitBox cannot apply itself (it needs privileges, on files a
+         container usually owns). Hand over the exact command instead. -->
+    <div v-if="error && errorRemedy" class="shrink-0 px-3 py-2 bg-surface border-b border-removed/40 text-xs v-stack gap-1.5">
+      <div class="text-content-strong">{{ errorRemedy.title }}</div>
+      <div class="h-stack items-center gap-2">
+        <code class="flex-1 min-w-0 truncate px-2 py-1 rounded bg-app text-content font-mono select-all">{{ errorRemedy.command }}</code>
+        <button @click="copyRemedy" class="shrink-0 h-stack items-center gap-1 px-2 py-1 rounded bg-accent/15 text-accent hover:bg-accent/25 transition-colors">
+          <Icon icon="lucide:copy" class="text-sm" />
+          <span>{{ t('common.copy') || 'Copy' }}</span>
+        </button>
+      </div>
+      <div class="text-content-muted">{{ errorRemedy.note }}</div>
     </div>
 
     <!-- Merge-in-progress banner: shown on every tab while a merge is active. -->

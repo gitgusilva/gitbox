@@ -44,6 +44,61 @@ bool ThrowGitError(Napi::Env env, const std::string &fallback) {
   return false;
 }
 
+// libgit2 answers a blocked checkout with the bare "N conflicts prevent
+// checkout" — it never says WHICH paths, so the user has nothing to act on.
+// Registering this as the checkout notify callback records the offending paths
+// so the error can name them.
+struct CheckoutConflicts {
+  std::vector<std::string> paths;
+};
+
+int CollectCheckoutConflict(git_checkout_notify_t why, const char *path,
+                            const git_diff_file *, const git_diff_file *,
+                            const git_diff_file *, void *payload) {
+  auto *collected = static_cast<CheckoutConflicts *>(payload);
+  if (why == GIT_CHECKOUT_NOTIFY_CONFLICT && path != nullptr &&
+      collected != nullptr && collected->paths.size() < 25) {
+    collected->paths.push_back(path);
+  }
+  return 0;
+}
+
+// Arms `opts` to collect conflicting paths into `sink`.
+void WatchCheckoutConflicts(git_checkout_options *opts,
+                            CheckoutConflicts *sink) {
+  opts->notify_flags = GIT_CHECKOUT_NOTIFY_CONFLICT;
+  opts->notify_cb = CollectCheckoutConflict;
+  opts->notify_payload = sink;
+}
+
+std::string JoinPaths(const std::vector<std::string> &paths) {
+  std::string joined;
+  for (size_t i = 0; i < paths.size(); ++i) {
+    if (i > 0)
+      joined += ", ";
+    joined += paths[i];
+  }
+  return joined;
+}
+
+// A path owned by another user (Docker bind mounts are the usual source) fails
+// deep inside libgit2 with a bare "Permission denied". Callers can't fix what
+// they can't identify, so name the path and the way out.
+std::string WithPermissionHint(const std::string &message,
+                               const std::string &path) {
+  if (message.find("Permission denied") == std::string::npos &&
+      message.find("Access is denied") == std::string::npos &&
+      message.find("access denied") == std::string::npos) {
+    return message;
+  }
+  std::string where = path.empty() ? std::string("a file in the working tree")
+                                   : ("'" + path + "'");
+  return message + " — GitBox cannot write " + where +
+         ". The file or its folder belongs to another user (this is common with"
+         " Docker-created files); fix the ownership, e.g. `sudo chown -R $USER"
+         " <folder>`, then try again.";
+}
+
 bool SignatureFromConfig(git_repository *repo, git_signature **out) {
   if (git_signature_default(out, repo) == 0) {
     return true;
@@ -580,13 +635,109 @@ Napi::Value DiscardAll(const Napi::CallbackInfo &info) {
   git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
   opts.checkout_strategy = GIT_CHECKOUT_FORCE | GIT_CHECKOUT_RECREATE_MISSING;
   if (git_checkout_tree(repo, target, &opts) != 0) {
+    std::string message =
+        WithPermissionHint(LastGitErrorOr("failed to discard changes"), "");
     git_object_free(target);
     git_repository_free(repo);
-    return ThrowGitError(env, "failed to discard changes"), env.Null();
+    Napi::Error::New(env, message).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
   git_object_free(target);
   git_repository_free(repo);
+  return Napi::Boolean::New(env, true);
+}
+
+// Discards the working-tree (and staged) change for a single path, natively —
+// the shell-out this replaced needed a system `git`, which packaged GitBox does
+// not ship, and it reported failures as raw CLI stderr.
+//
+// Three cases, decided by whether HEAD knows the path:
+//   in HEAD      -> reset the index entry and re-checkout the file from HEAD
+//   not in HEAD  -> drop any index entry and delete the file from disk
+// Deleting is confined to the requested path, so ignored files elsewhere (.env,
+// node_modules, build output) are never touched.
+Napi::Value DiscardFile(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+  if (!EnsureStringArg(info, 1, "filePath"))
+    return env.Null();
+
+  std::string repoPath = repoValue.As<Napi::String>().Utf8Value();
+  std::string filePath = info[1].As<Napi::String>().Utf8Value();
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, repoPath, &repo)) {
+    return env.Null();
+  }
+
+  git_object *headTree = nullptr;
+  bool inHead = false;
+  if (git_revparse_single(&headTree, repo, "HEAD^{tree}") == 0) {
+    git_tree_entry *entry = nullptr;
+    if (git_tree_entry_bypath(&entry, reinterpret_cast<git_tree *>(headTree),
+                              filePath.c_str()) == 0) {
+      inHead = true;
+      git_tree_entry_free(entry);
+    }
+  }
+
+  char *pathspecEntry = const_cast<char *>(filePath.c_str());
+  git_strarray pathspec = {&pathspecEntry, 1};
+
+  if (!inHead) {
+    // Unstage it (no-op when it was never staged), then remove it from disk.
+    git_object *headCommit = nullptr;
+    if (git_revparse_single(&headCommit, repo, "HEAD^{commit}") == 0) {
+      git_reset_default(repo, headCommit, &pathspec);
+      git_object_free(headCommit);
+    }
+    std::error_code ec;
+    std::filesystem::path onDisk =
+        std::filesystem::path(git_repository_workdir(repo) != nullptr
+                                  ? git_repository_workdir(repo)
+                                  : repoPath.c_str()) /
+        filePath;
+    std::filesystem::remove_all(onDisk, ec);
+    if (headTree != nullptr)
+      git_object_free(headTree);
+    git_repository_free(repo);
+    if (ec) {
+      Napi::Error::New(env, WithPermissionHint(ec.message(), filePath))
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    return Napi::Boolean::New(env, true);
+  }
+
+  git_object *headCommit = nullptr;
+  if (git_revparse_single(&headCommit, repo, "HEAD^{commit}") == 0) {
+    // Clears a staged modification so the checkout below restores HEAD's copy
+    // in the index as well as in the working tree.
+    git_reset_default(repo, headCommit, &pathspec);
+    git_object_free(headCommit);
+  }
+
+  git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+  opts.checkout_strategy = GIT_CHECKOUT_FORCE | GIT_CHECKOUT_RECREATE_MISSING |
+                           GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
+  opts.paths = pathspec;
+  int rc = git_checkout_head(repo, &opts);
+  std::string message =
+      rc == 0 ? std::string()
+              : WithPermissionHint(LastGitErrorOr("failed to discard file"),
+                                   filePath);
+
+  if (headTree != nullptr)
+    git_object_free(headTree);
+  git_repository_free(repo);
+
+  if (rc != 0) {
+    Napi::Error::New(env, message).ThrowAsJavaScriptException();
+    return env.Null();
+  }
   return Napi::Boolean::New(env, true);
 }
 
@@ -962,8 +1113,26 @@ class PullWorker : public BoolPromiseWorker {
     }
     git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
     checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
-    if (git_checkout_tree(repo, target, &checkoutOpts) != 0 ||
-        git_reference_set_target(&remoteRef, remoteRef, targetOid,
+    CheckoutConflicts blocked;
+    WatchCheckoutConflicts(&checkoutOpts, &blocked);
+    if (git_checkout_tree(repo, target, &checkoutOpts) != 0) {
+      std::string message = LastGitErrorOr("failed to fast-forward working tree");
+      // The fetch already landed; only the working-tree update was refused. Name
+      // the paths so the caller can offer to stash/discard them.
+      if (!blocked.paths.empty()) {
+        message = "local changes would be overwritten by pull: " +
+                  JoinPaths(blocked.paths);
+      }
+      message = WithPermissionHint(
+          message, blocked.paths.empty() ? std::string() : blocked.paths[0]);
+      git_object_free(target);
+      git_annotated_commit_free(remoteHead);
+      git_reference_free(remoteRef);
+      git_repository_free(repo);
+      SetError(message);
+      return;
+    }
+    if (git_reference_set_target(&remoteRef, remoteRef, targetOid,
                                  "gitbox pull") != 0) {
       git_object_free(target);
       git_annotated_commit_free(remoteHead);
@@ -1144,6 +1313,217 @@ Napi::Value Stashes(const Napi::CallbackInfo &info) {
 
   git_repository_free(repo);
   return result;
+}
+
+// Resolves a stash OID (what the UI carries around) to the index git_stash_pop
+// wants. Absent/empty id means the most recent entry.
+struct StashIndexLookup {
+  std::string wantedOid;
+  size_t index = 0;
+  bool found = false;
+};
+
+int FindStashIndex(size_t index, const char *, const git_oid *stash_id,
+                   void *payload) {
+  auto *lookup = static_cast<StashIndexLookup *>(payload);
+  char oidStr[GIT_OID_HEXSZ + 1];
+  git_oid_tostr(oidStr, sizeof(oidStr), stash_id);
+  if (lookup->wantedOid == oidStr) {
+    lookup->index = index;
+    lookup->found = true;
+    return 1;  // stop iterating
+  }
+  return 0;
+}
+
+// git_stash_apply leaves the restored changes in the index, so they come back
+// staged; `git stash pop` (without --index) brings them back unstaged, which is
+// what the Local Changes list is built around. Reset only the paths the stash
+// actually carried, so anything staged in the meantime is left alone.
+void UnstageStashedPaths(git_repository *repo, size_t stashIndex) {
+  struct Finder {
+    size_t wanted;
+    git_oid oid;
+    bool found = false;
+  } finder{stashIndex, {}, false};
+
+  git_stash_foreach(
+      repo,
+      [](size_t index, const char *, const git_oid *oid, void *payload) -> int {
+        auto *f = static_cast<Finder *>(payload);
+        if (index == f->wanted) {
+          git_oid_cpy(&f->oid, oid);
+          f->found = true;
+          return 1;
+        }
+        return 0;
+      },
+      &finder);
+  if (!finder.found)
+    return;
+
+  git_commit *stashCommit = nullptr;
+  if (git_commit_lookup(&stashCommit, repo, &finder.oid) != 0)
+    return;
+  git_commit *base = nullptr;
+  git_tree *stashTree = nullptr;
+  git_tree *baseTree = nullptr;
+  git_diff *diff = nullptr;
+  std::vector<std::string> paths;
+  if (git_commit_parent(&base, stashCommit, 0) == 0 &&
+      git_commit_tree(&stashTree, stashCommit) == 0 &&
+      git_commit_tree(&baseTree, base) == 0 &&
+      git_diff_tree_to_tree(&diff, repo, baseTree, stashTree, nullptr) == 0) {
+    size_t deltas = git_diff_num_deltas(diff);
+    for (size_t i = 0; i < deltas; ++i) {
+      const git_diff_delta *delta = git_diff_get_delta(diff, i);
+      if (delta != nullptr && delta->new_file.path != nullptr)
+        paths.push_back(delta->new_file.path);
+    }
+  }
+
+  if (!paths.empty()) {
+    git_object *head = nullptr;
+    if (git_revparse_single(&head, repo, "HEAD^{commit}") == 0) {
+      std::vector<char *> raw;
+      raw.reserve(paths.size());
+      for (auto &p : paths)
+        raw.push_back(const_cast<char *>(p.c_str()));
+      git_strarray spec = {raw.data(), raw.size()};
+      git_reset_default(repo, head, &spec);
+      git_object_free(head);
+    }
+  }
+
+  if (diff != nullptr)
+    git_diff_free(diff);
+  if (baseTree != nullptr)
+    git_tree_free(baseTree);
+  if (stashTree != nullptr)
+    git_tree_free(stashTree);
+  if (base != nullptr)
+    git_commit_free(base);
+  git_commit_free(stashCommit);
+}
+
+// Stash save/pop natively, so the "stash, pull, restore" recovery path works in
+// a packaged build — it must not depend on a system `git` GitBox does not ship.
+Napi::Value StashSave(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string message;
+  if (info.Length() > 1 && info[1].IsString()) {
+    message = info[1].As<Napi::String>().Utf8Value();
+  }
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  git_signature *stasher = nullptr;
+  if (!SignatureFromConfig(repo, &stasher)) {
+    git_repository_free(repo);
+    return ThrowGitError(env, "failed to build stash signature"), env.Null();
+  }
+
+  git_oid out;
+  int rc = git_stash_save(&out, repo, stasher,
+                          message.empty() ? nullptr : message.c_str(),
+                          GIT_STASH_DEFAULT);
+  std::string error = rc == 0 ? std::string()
+                              : LastGitErrorOr("failed to stash changes");
+  git_signature_free(stasher);
+  git_repository_free(repo);
+
+  // Nothing to stash is a state, not a failure — the caller decides what it
+  // means (for pull-with-autostash it means "just pull").
+  if (rc == GIT_ENOTFOUND) {
+    return Napi::Boolean::New(env, false);
+  }
+  if (rc != 0) {
+    Napi::Error::New(env, error).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return Napi::Boolean::New(env, true);
+}
+
+Napi::Value StashPop(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  auto repoValue = EnsureRepo(info);
+  if (env.IsExceptionPending())
+    return env.Null();
+
+  std::string path = repoValue.As<Napi::String>().Utf8Value();
+  std::string stashId;
+  if (info.Length() > 1 && info[1].IsString()) {
+    stashId = info[1].As<Napi::String>().Utf8Value();
+  }
+
+  git_repository *repo = nullptr;
+  if (!OpenRepoOrThrow(env, path, &repo)) {
+    return env.Null();
+  }
+
+  size_t index = 0;
+  if (!stashId.empty()) {
+    StashIndexLookup lookup{stashId, 0, false};
+    git_stash_foreach(repo, FindStashIndex, &lookup);
+    if (!lookup.found) {
+      git_repository_free(repo);
+      Napi::Error::New(env, "stash entry not found: " + stashId)
+          .ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    index = lookup.index;
+  }
+
+  // Apply and drop separately rather than calling git_stash_pop: libgit2's pop
+  // drops the entry even when the apply left conflict markers behind, so the
+  // only copy of the user's work would be a half-merged working tree. Git keeps
+  // the stash in that case, and so do we.
+  git_stash_apply_options opts = GIT_STASH_APPLY_OPTIONS_INIT;
+  CheckoutConflicts blocked;
+  WatchCheckoutConflicts(&opts.checkout_options, &blocked);
+  int rc = git_stash_apply(repo, index, &opts);
+
+  std::string error;
+  if (rc != 0) {
+    error = LastGitErrorOr("failed to restore stash");
+    if (!blocked.paths.empty()) {
+      error = "restoring the stash would overwrite local changes to: " +
+              JoinPaths(blocked.paths);
+    }
+    error = WithPermissionHint(
+        error, blocked.paths.empty() ? std::string() : blocked.paths[0]);
+  } else {
+    git_index *repoIndex = nullptr;
+    if (git_repository_index(&repoIndex, repo) == 0) {
+      if (git_index_has_conflicts(repoIndex)) {
+        error =
+            "the stash was applied but conflicts with the working tree — "
+            "resolve the conflict markers. The stash entry was kept so nothing "
+            "is lost.";
+      }
+      git_index_free(repoIndex);
+    }
+  }
+
+  if (rc == 0 && error.empty()) {
+    UnstageStashedPaths(repo, index);
+    git_stash_drop(repo, index);
+  }
+  git_repository_free(repo);
+
+  if (!error.empty()) {
+    Napi::Error::New(env, error).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return Napi::Boolean::New(env, true);
 }
 
 // --force-with-lease: only overwrite the remote branch if it still points where
@@ -2828,10 +3208,13 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("remotes", Napi::Function::New(env, Remotes));
   exports.Set("tags", Napi::Function::New(env, Tags));
   exports.Set("stashes", Napi::Function::New(env, Stashes));
+  exports.Set("stashSave", Napi::Function::New(env, StashSave));
+  exports.Set("stashPop", Napi::Function::New(env, StashPop));
   exports.Set("log", Napi::Function::New(env, Log));
   exports.Set("stageAll", Napi::Function::New(env, StageAll));
   exports.Set("unstageAll", Napi::Function::New(env, UnstageAll));
   exports.Set("discardAll", Napi::Function::New(env, DiscardAll));
+  exports.Set("discardFile", Napi::Function::New(env, DiscardFile));
   exports.Set("commitAll", Napi::Function::New(env, CommitAll));
   exports.Set("commitFiles", Napi::Function::New(env, CommitFiles));
   exports.Set("checkoutBranch", Napi::Function::New(env, CheckoutBranch));

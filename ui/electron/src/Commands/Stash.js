@@ -16,10 +16,14 @@ class Stash extends Command {
     }
 
     /**
-     * Save local changes to a new stash
+     * Save local changes to a new stash.
+     *
+     * Native, because the stash/pull/restore recovery offered when local changes
+     * block a fast-forward has to work in a packaged build, where no system git
+     * exists. Returns false — not an error — when there was nothing to stash.
      */
     async save(repoPath, message) {
-        try { await this.execGit(repoPath, message ? ['stash', 'push', '-m', message] : ['stash', 'push']); return true; } catch (e) { throw new Error(e.message); }
+        return this.addon.stashSave(repoPath, message);
     }
 
     /**
@@ -33,7 +37,7 @@ class Stash extends Command {
      * Apply and drop a stash entry
      */
     async pop(repoPath, stashId) {
-        try { await this.execGit(repoPath, stashId ? ['stash', 'pop', stashId] : ['stash', 'pop']); return true; } catch (e) { throw new Error(e.message); }
+        return this.addon.stashPop(repoPath, stashId);
     }
 
     /**

@@ -492,9 +492,24 @@ const HANDLED_FAILURES = [
     /non-fast-forward/i,
 ];
 
+/**
+ * The message a user should read, out of whatever the IPC layer threw.
+ *
+ * Electron wraps everything crossing `ipcRenderer.invoke` as
+ * `Error invoking remote method 'gitbox:discardFile': Error: <the real thing>`.
+ * That prefix names an internal channel and pushes the actual cause past the
+ * edge of the banner — exactly the part the user needs. Strip it.
+ */
+export function messageOf(err: unknown): string {
+    const raw = String((err as any)?.message ?? err ?? '');
+    return raw
+        .replace(/^Error invoking remote method '[^']*':\s*/i, '')
+        .replace(/^Error:\s*/i, '')
+        .trim();
+}
+
 export function isHandledFailure(err: unknown): boolean {
-    const detail = String((err as any)?.message ?? err ?? '');
-    return HANDLED_FAILURES.some(re => re.test(detail));
+    return HANDLED_FAILURES.some(re => re.test(messageOf(err)));
 }
 
 /**
@@ -502,12 +517,55 @@ export function isHandledFailure(err: unknown): boolean {
  * the failure toast. `reportError` stays for the ones the user really is stuck on.
  */
 export function reportHandled(context: string, err: unknown, resolution: string) {
-    const detail = String((err as any)?.message ?? err ?? '').trim();
-    addLog(context, 'Action', 'info', { details: `${resolution}\n\n${detail}` });
+    addLog(context, 'Action', 'info', { details: `${resolution}\n\n${messageOf(err)}` });
 }
 
+/**
+ * Builds the ownership-fix suggestion from an error message, or null when the
+ * failure isn't a permission one.
+ *
+ * The command is deliberately NOT run by the app. `chown` is a privileged,
+ * out-of-band change to files GitBox does not own — typically a Docker-managed
+ * data directory, where rewriting ownership of the wrong thing stops the
+ * container from starting. The user gets the exact command and decides.
+ *
+ * Scoped to the single path that failed and its parent — no `-R`. Writing a file
+ * needs write permission on its directory, so those two entries are exactly what
+ * the operation requires.
+ */
+function ownershipRemedy(detail: string): { title: string; command: string; note: string } | null {
+    if (!/Permission denied|Access is denied|access denied/i.test(detail)) return null;
+    // Several things in the message are quoted — the IPC channel name
+    // ('gitbox:discardFile'), the absolute path libgit2 could not open, and the
+    // repo-relative path from our own hint. Only a path is a chown target, so
+    // require a separator, and take the first (the absolute one, which pastes
+    // into a terminal from any working directory).
+    const target = (detail.match(/'([^']+)'/g) || [])
+        .map(q => q.slice(1, -1))
+        .find(q => q.includes('/') || q.includes('\\'));
+    if (!target) return null;
+    const parent = target.replace(/\/[^/]*$/, '') || '/';
+    const windows = /win/i.test(navigator.userAgent) && !/like mac/i.test(navigator.userAgent);
+    const command = windows
+        ? `icacls "${parent}" /grant "%USERNAME%":(OI)(CI)F`
+        : `sudo chown "$USER" ${JSON.stringify(parent)} ${JSON.stringify(target)}`;
+    return {
+        title: `GitBox can't write ${target}`,
+        command,
+        note: 'Run it in a terminal. It only touches that file and its folder — avoid adding -R on a directory a container writes to, it can stop the container from starting.',
+    };
+}
+
+/**
+ * The fix suggested alongside the error banner. Derived from `error` rather than
+ * set by each reporter, so every path that raises the banner — including the
+ * ones that assign `error.value` directly — gets the hint, and clearing the
+ * banner clears the hint.
+ */
+export const errorRemedy = computed(() => ownershipRemedy(error.value));
+
 export function reportError(context: string, err: unknown) {
-    const detail = String((err as any)?.message ?? err ?? '').trim() || 'Unknown error';
+    const detail = messageOf(err) || 'Unknown error';
     error.value = detail;                                       // banner on top of the history
     addLog(context, 'Error', 'error', { details: detail });     // persistent, consultable log
     import('./toastService').then(({ showToast }) => {
@@ -567,6 +625,56 @@ export const doFetch = () => {
 };
 import { isPushModalOpen, isPullModalOpen } from './modalService';
 
+/**
+ * Stash → pull → pop, for the case where uncommitted work is the only thing
+ * standing between the repo and a clean fast-forward.
+ *
+ * If the pop conflicts the stash is deliberately left in place: popping is the
+ * step that can fail halfway, and a user who has just been told "we stashed your
+ * work" must be able to find it again.
+ */
+async function stashPullAndRestore() {
+    isLoading.value = true;
+    error.value = '';
+    const { showToast } = await import('./toastService');
+    try {
+        // `false` means there was nothing to stash. Popping in that case would
+        // restore an unrelated, older entry, so track it and skip the restore.
+        const stashed = await window.gitbox.stashSave(repoPath.value, 'GitBox: auto-stash before pull');
+        try {
+            await window.gitbox.pull(repoPath.value);
+        } catch (pullErr: any) {
+            // Pull still refused — restore immediately so nothing is left parked.
+            if (stashed) await window.gitbox.stashPop(repoPath.value).catch(() => {});
+            throw pullErr;
+        }
+        if (!stashed) {
+            await loadRepoData(true);
+            showToast('Pull', 'Pulled from remote.', 'success');
+            return;
+        }
+        try {
+            await window.gitbox.stashPop(repoPath.value);
+            showToast('Pull', 'Pulled and restored your local changes.', 'success');
+        } catch (popErr: any) {
+            showToast(
+                'Pulled — restore your changes',
+                'The pull succeeded, but your changes could not be reapplied cleanly. They are safe in the stash list.',
+                'warning',
+            );
+            reportHandled('Restore stash after pull', popErr, 'Changes kept in the stash for manual apply.');
+        }
+        await loadRepoData(true);
+        addLog('Pulled from remote (auto-stash)', 'Action', 'success');
+    } catch (err: any) {
+        const msg = messageOf(err);
+        error.value = msg;
+        showToast('Pull failed', msg, 'error');
+    } finally {
+        isLoading.value = false;
+    }
+}
+
 export const doPull = async () => {
     if (!repoPath.value || !window.gitbox) return;
     if (!hasRemote.value) return warnNoRemote();
@@ -577,13 +685,26 @@ export const doPull = async () => {
         await loadRepoData(true);
         addLog('Pulled from remote', 'Action', 'success');
     } catch (err: any) {
-        const msg = String(err?.message || err);
+        const msg = messageOf(err);
         if (/non-fast-forward/i.test(msg)) {
             // Diverged from upstream. The fast pull already fetched, so ask the
             // user how to integrate — merge or rebase (SourceGit-style). This is a
             // handled outcome, so it is logged as an action rather than a failure.
             reportHandled('Pull from remote', err, 'Diverged from upstream — asked how to integrate (merge or rebase).');
             isPullModalOpen.value = true;
+        } else if (/local changes would be overwritten/i.test(msg)) {
+            // The fetch succeeded; only the working-tree update was refused. The
+            // way out is mechanical — park the changes, fast-forward, put them
+            // back — so offer it instead of leaving the user with the raw error.
+            reportHandled('Pull from remote', err, 'Local changes block the fast-forward — offered stash & pull.');
+            const files = msg.split(':').slice(1).join(':').trim();
+            const { requestConfirm } = await import('./modalService');
+            requestConfirm(
+                'Local changes block the pull',
+                `These files would be overwritten by the pull:\n\n${files}\n\nStash them, pull, then restore them?`,
+                false,
+                () => stashPullAndRestore(),
+            );
         } else {
             error.value = msg;
             const { showToast } = await import('./toastService');
@@ -767,7 +888,7 @@ export const mergeBranchAction = async (name: string) => {
         // merge banner and the conflicts page take over from here.
         addLog(`Merge ${name}: ${result.status}`, 'Action', result.status === 'conflicts' ? 'info' : 'success');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Merge failed', error.value, 'error');
     } finally {
@@ -796,7 +917,7 @@ export const completeMergeAction = async (message?: string) => {
         showToast('Merge', 'Merge completed.', 'success');
         addLog('Merge completed', 'Action', 'success');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Merge failed', error.value, 'error');
     } finally {
@@ -816,7 +937,7 @@ export const abortMergeAction = async () => {
         showToast('Merge', 'Merge aborted.', 'info');
         addLog('Merge aborted', 'Action', 'info');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Abort failed', error.value, 'error');
     } finally {
@@ -839,7 +960,7 @@ const runRebaseAction = async (
         showToast('Rebase', okMsg, 'info');
         addLog(okMsg, 'Action', 'info');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Rebase failed', error.value, 'error');
     } finally {
@@ -867,7 +988,7 @@ export const cherryPickAction = async (sha: string) => {
         }
         addLog(`Cherry-pick ${sha.substring(0, 7)}: ${result.status}`, 'Action', result.status === 'conflicts' ? 'error' : 'success');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Cherry-pick failed', error.value, 'error');
     } finally {
@@ -895,7 +1016,7 @@ const runCherryPickAction = async (
         }
         addLog(okMsg, 'Action', 'info');
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Cherry-pick failed', error.value, 'error');
     } finally {
@@ -944,7 +1065,7 @@ export const manualMergeAction = async () => {
             await window.gitbox.openMergeWindow(repoPath.value, target);
         }
     } catch (err: any) {
-        error.value = String(err?.message || err);
+        error.value = messageOf(err);
         const { showToast } = await import('./toastService');
         showToast('Merge tool failed', error.value, 'error');
     }
