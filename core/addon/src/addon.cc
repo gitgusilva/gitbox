@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+
+#include <git2/sys/errors.h>  // git_error_set_str, for our own auth messages
 #include <vector>
 
 namespace {
@@ -888,16 +890,99 @@ struct CredPayload {
   std::string username;
   std::string token;
   int tried;
+  // SSH state, carried across callback invocations: libgit2 calls the callback
+  // again after each rejected credential, and without this the same agent/key
+  // would be offered forever instead of falling through to the next candidate.
+  bool sshAgentTried;
+  int sshKeyIndex;
 };
+
+// Home directory, for locating ~/.ssh. HOME is set on Linux/macOS; Windows
+// splits it across USERPROFILE (or HOMEDRIVE+HOMEPATH).
+std::string HomeDir() {
+  const char *home = std::getenv("HOME");
+  if (home && *home)
+    return home;
+  const char *profile = std::getenv("USERPROFILE");
+  if (profile && *profile)
+    return profile;
+  const char *drive = std::getenv("HOMEDRIVE");
+  const char *rest = std::getenv("HOMEPATH");
+  if (drive && rest)
+    return std::string(drive) + rest;
+  return "";
+}
+
+// Private key names OpenSSH generates, newest algorithm first — the same order
+// ssh(1) tries them in. A matching .pub is required by libssh2 for some key
+// types, so both paths are handed over when the public half exists.
+const char *kSshKeyNames[] = {"id_ed25519", "id_ecdsa", "id_rsa", "id_dsa"};
+
+int SshCredentials(git_credential **out, const char *username_from_url,
+                   CredPayload *p) {
+  const char *user =
+      username_from_url && *username_from_url ? username_from_url : "git";
+
+  // 1. ssh-agent. What most developers actually use, and the only way a
+  //    passphrase-protected key works without prompting — the agent holds the
+  //    decrypted key. Note this call succeeds even with no agent running: it
+  //    only records the intent, and the failure surfaces later in the
+  //    handshake. Hence sshAgentTried, so the next callback moves on to files.
+  if (!p->sshAgentTried) {
+    p->sshAgentTried = true;
+    if (git_credential_ssh_key_from_agent(out, user) == 0)
+      return 0;
+  }
+
+  // 2. Key files under ~/.ssh, tried one per callback invocation: libgit2 calls
+  //    us again after each rejection, so walking the list across calls is what
+  //    lets a second key be attempted when the first is not authorised.
+  std::string home = HomeDir();
+  if (home.empty())
+    return GIT_PASSTHROUGH;
+
+  while (p->sshKeyIndex < (int)(sizeof(kSshKeyNames) / sizeof(kSshKeyNames[0]))) {
+    std::string base = home + "/.ssh/" + kSshKeyNames[p->sshKeyIndex++];
+    std::string pub = base + ".pub";
+    struct stat st;
+    if (stat(base.c_str(), &st) != 0)
+      continue;
+    const char *pubPath = stat(pub.c_str(), &st) == 0 ? pub.c_str() : nullptr;
+    // Empty passphrase: correct for unencrypted keys, and the only thing we
+    // can supply without a prompt. Like the agent above, this call just records
+    // the paths — an encrypted key is rejected later, during the handshake, and
+    // the next callback invocation moves on to the following candidate.
+    if (git_credential_ssh_key_new(out, user, pubPath, base.c_str(), "") == 0)
+      return 0;
+  }
+  return GIT_PASSTHROUGH;
+}
 
 int CredentialsCb(git_credential **out, const char * /*url*/,
                   const char *username_from_url, unsigned int allowed_types,
                   void *payload) {
   CredPayload *p = static_cast<CredPayload *>(payload);
   // Give up after a few attempts so a bad token fails instead of looping.
-  if (p->tried++ > 3)
+  // SSH needs more headroom: the server asks for the username first, then each
+  // key is a separate round.
+  if (p->tried++ > 8)
     return GIT_EUSER;
+
+  // SSH asks for the username separately before any key is offered.
+  if (allowed_types & GIT_CREDENTIAL_USERNAME) {
+    return git_credential_username_new(
+        out, username_from_url && *username_from_url ? username_from_url : "git");
+  }
+  if (allowed_types & GIT_CREDENTIAL_SSH_KEY)
+    return SshCredentials(out, username_from_url, p);
+
   if (allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) {
+    if (p->token.empty()) {
+      git_error_set_str(
+          GIT_ERROR_NET,
+          "authentication required but no credentials are configured");
+      return GIT_EUSER;
+    }
     const char *user = !p->username.empty()
                            ? p->username.c_str()
                            : (username_from_url ? username_from_url : "oauth2");
@@ -919,10 +1004,10 @@ void ApplyAuth(const Napi::CallbackInfo &info, size_t index,
   cred->username = "oauth2";
   cred->token = token;
   cred->tried = 0;
-  if (!token.empty()) {
-    cbs->credentials = CredentialsCb;
-    cbs->payload = cred;
-  }
+  cred->sshAgentTried = false;
+  cred->sshKeyIndex = 0;
+  cbs->credentials = CredentialsCb;
+  cbs->payload = cred;
 }
 
 // Network git ops (fetch/pull/push/clone) run over the network and can take tens
@@ -951,6 +1036,24 @@ class BoolPromiseWorker : public Napi::AsyncWorker {
   }
 
  protected:
+  // Wires the credential callback for one network call. `user` is the HTTP basic
+  // username: GitHub/GitLab PATs are happy with the conventional "oauth2", but a
+  // self-hosted server (GitLab CE, Gitea, Azure DevOps) can require the real
+  // account name, so callers pass it through instead of it being hardcoded here.
+  void SetupAuth(git_remote_callbacks *cbs, const std::string &token,
+                 const std::string &user) {
+    cred_.username = user.empty() ? "oauth2" : user;
+    cred_.token = token;
+    cred_.tried = 0;
+    cred_.sshAgentTried = false;
+    cred_.sshKeyIndex = 0;
+    // Always wired, even with an empty token: an SSH remote authenticates with
+    // a key from the agent or ~/.ssh and needs no token at all. The callback
+    // itself reports "nothing configured" for the HTTPS-without-token case.
+    cbs->credentials = CredentialsCb;
+    cbs->payload = &cred_;
+  }
+
   Napi::Promise::Deferred deferred_;
   CredPayload cred_;
 };
@@ -958,11 +1061,12 @@ class BoolPromiseWorker : public Napi::AsyncWorker {
 class FetchWorker : public BoolPromiseWorker {
  public:
   FetchWorker(Napi::Env env, std::string repoPath, std::string remoteName,
-              std::string token)
+              std::string token, std::string user)
       : BoolPromiseWorker(env),
         repoPath_(std::move(repoPath)),
         remoteName_(std::move(remoteName)),
-        token_(std::move(token)) {}
+        token_(std::move(token)),
+        user_(std::move(user)) {}
 
   void Execute() override {
     git_repository *repo = nullptr;
@@ -977,13 +1081,7 @@ class FetchWorker : public BoolPromiseWorker {
       return;
     }
     git_fetch_options opts = GIT_FETCH_OPTIONS_INIT;
-    cred_.username = "oauth2";
-    cred_.token = token_;
-    cred_.tried = 0;
-    if (!token_.empty()) {
-      opts.callbacks.credentials = CredentialsCb;
-      opts.callbacks.payload = &cred_;
-    }
+    SetupAuth(&opts.callbacks, token_, user_);
     int rc = git_remote_fetch(remote, nullptr, &opts, nullptr);
     git_remote_free(remote);
     git_repository_free(repo);
@@ -996,6 +1094,7 @@ class FetchWorker : public BoolPromiseWorker {
   std::string repoPath_;
   std::string remoteName_;
   std::string token_;
+  std::string user_;
 };
 
 Napi::Value Fetch(const Napi::CallbackInfo &info) {
@@ -1014,8 +1113,79 @@ Napi::Value Fetch(const Napi::CallbackInfo &info) {
   if (info.Length() > 2 && info[2].IsString()) {
     token = info[2].As<Napi::String>().Utf8Value();
   }
+  std::string user;
+  if (info.Length() > 3 && info[3].IsString()) {
+    user = info[3].As<Napi::String>().Utf8Value();
+  }
 
-  FetchWorker *worker = new FetchWorker(env, path, remoteName, token);
+  FetchWorker *worker = new FetchWorker(env, path, remoteName, token, user);
+  Napi::Promise promise = worker->GetPromise();
+  worker->Queue();
+  return promise;
+}
+
+// Validate credentials against a remote WITHOUT cloning: open a detached remote,
+// run the auth handshake and read the ref advertisement, then disconnect. No
+// objects are transferred, so it is cheap and safe to run from a dialog. Resolves
+// true on success; rejects with the auth/transport error otherwise.
+class TestCredentialsWorker : public BoolPromiseWorker {
+ public:
+  TestCredentialsWorker(Napi::Env env, std::string url, std::string token,
+                        std::string user)
+      : BoolPromiseWorker(env),
+        url_(std::move(url)),
+        token_(std::move(token)),
+        user_(std::move(user)) {}
+
+  void Execute() override {
+    git_remote *remote = nullptr;
+    if (git_remote_create_detached(&remote, url_.c_str()) != 0) {
+      SetError(LastGitErrorOr("invalid remote URL"));
+      return;
+    }
+    git_remote_callbacks cbs = GIT_REMOTE_CALLBACKS_INIT;
+    SetupAuth(&cbs, token_, user_);
+    // connect performs the TLS + auth handshake but transfers nothing.
+    int rc = git_remote_connect(remote, GIT_DIRECTION_FETCH, &cbs, nullptr,
+                                nullptr);
+    if (rc == 0) {
+      // Some servers accept the connection then refuse to advertise refs; listing
+      // exercises authorization end to end, so a private repo the token cannot see
+      // still reports as a failure rather than a false "valid".
+      const git_remote_head **heads = nullptr;
+      size_t n = 0;
+      rc = git_remote_ls(&heads, &n, remote);
+      git_remote_disconnect(remote);
+    }
+    git_remote_free(remote);
+    if (rc != 0) {
+      SetError(LastGitErrorOr("authentication failed"));
+    }
+  }
+
+ private:
+  std::string url_;
+  std::string token_;
+  std::string user_;
+};
+
+Napi::Value TestCredentials(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "url (string) is required")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string url = info[0].As<Napi::String>().Utf8Value();
+  std::string token;
+  if (info.Length() > 1 && info[1].IsString()) {
+    token = info[1].As<Napi::String>().Utf8Value();
+  }
+  std::string user;
+  if (info.Length() > 2 && info[2].IsString()) {
+    user = info[2].As<Napi::String>().Utf8Value();
+  }
+  TestCredentialsWorker *worker = new TestCredentialsWorker(env, url, token, user);
   Napi::Promise promise = worker->GetPromise();
   worker->Queue();
   return promise;
@@ -1025,11 +1195,12 @@ Napi::Value Fetch(const Napi::CallbackInfo &info) {
 class PullWorker : public BoolPromiseWorker {
  public:
   PullWorker(Napi::Env env, std::string repoPath, std::string remoteName,
-             std::string token)
+             std::string token, std::string user)
       : BoolPromiseWorker(env),
         repoPath_(std::move(repoPath)),
         remoteName_(std::move(remoteName)),
-        token_(std::move(token)) {}
+        token_(std::move(token)),
+        user_(std::move(user)) {}
 
   void Execute() override {
     git_repository *repo = nullptr;
@@ -1050,13 +1221,7 @@ class PullWorker : public BoolPromiseWorker {
       return;
     }
     git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-    cred_.username = "oauth2";
-    cred_.token = token_;
-    cred_.tried = 0;
-    if (!token_.empty()) {
-      fetchOpts.callbacks.credentials = CredentialsCb;
-      fetchOpts.callbacks.payload = &cred_;
-    }
+    SetupAuth(&fetchOpts.callbacks, token_, user_);
     if (git_remote_fetch(remote, nullptr, &fetchOpts, nullptr) != 0) {
       git_remote_free(remote);
       git_repository_free(repo);
@@ -1167,6 +1332,7 @@ class PullWorker : public BoolPromiseWorker {
   std::string repoPath_;
   std::string remoteName_;
   std::string token_;
+  std::string user_;
 };
 
 Napi::Value Pull(const Napi::CallbackInfo &info) {
@@ -1185,7 +1351,11 @@ Napi::Value Pull(const Napi::CallbackInfo &info) {
   if (info.Length() > 2 && info[2].IsString()) {
     token = info[2].As<Napi::String>().Utf8Value();
   }
-  PullWorker *worker = new PullWorker(env, path, remoteName, token);
+  std::string user;
+  if (info.Length() > 3 && info[3].IsString()) {
+    user = info[3].As<Napi::String>().Utf8Value();
+  }
+  PullWorker *worker = new PullWorker(env, path, remoteName, token, user);
   Napi::Promise promise = worker->GetPromise();
   worker->Queue();
   return promise;
@@ -1564,7 +1734,7 @@ class PushWorker : public BoolPromiseWorker {
  public:
   PushWorker(Napi::Env env, std::string repoPath, std::string remoteName,
              std::string token, std::string target, bool force, bool pushTags,
-             bool setUpstream, bool forceWithLease)
+             bool setUpstream, bool forceWithLease, std::string user)
       : BoolPromiseWorker(env),
         repoPath_(std::move(repoPath)),
         remoteName_(std::move(remoteName)),
@@ -1573,7 +1743,8 @@ class PushWorker : public BoolPromiseWorker {
         force_(force),
         pushTags_(pushTags),
         setUpstream_(setUpstream),
-        forceWithLease_(forceWithLease) {}
+        forceWithLease_(forceWithLease),
+        user_(std::move(user)) {}
 
   void Execute() override {
     git_repository *repo = nullptr;
@@ -1609,13 +1780,7 @@ class PushWorker : public BoolPromiseWorker {
     git_strarray refspecs{specs.data(), specs.size()};
 
     git_push_options opts = GIT_PUSH_OPTIONS_INIT;
-    cred_.username = "oauth2";
-    cred_.token = token_;
-    cred_.tried = 0;
-    if (!token_.empty()) {
-      opts.callbacks.credentials = CredentialsCb;
-      opts.callbacks.payload = &cred_;
-    }
+    SetupAuth(&opts.callbacks, token_, user_);
 
     // force-with-lease: lease on our remote-tracking ref; the negotiation
     // callback aborts if the remote's actual tip differs (someone pushed).
@@ -1677,6 +1842,7 @@ class PushWorker : public BoolPromiseWorker {
   bool pushTags_;
   bool setUpstream_;
   bool forceWithLease_;
+  std::string user_;
 };
 
 Napi::Value Push(const Napi::CallbackInfo &info) {
@@ -1709,9 +1875,13 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
   bool forceWithLease = info.Length() > 7 && info[7].IsBoolean() &&
                         info[7].As<Napi::Boolean>().Value();
 
+  std::string user;
+  if (info.Length() > 8 && info[8].IsString()) {
+    user = info[8].As<Napi::String>().Utf8Value();
+  }
   PushWorker *worker = new PushWorker(env, path, remoteName, token, target,
                                       force, pushTags, setUpstream,
-                                      forceWithLease);
+                                      forceWithLease, user);
   Napi::Promise promise = worker->GetPromise();
   worker->Queue();
   return promise;
@@ -1721,21 +1891,16 @@ Napi::Value Push(const Napi::CallbackInfo &info) {
 class CloneWorker : public BoolPromiseWorker {
  public:
   CloneWorker(Napi::Env env, std::string url, std::string localPath,
-              std::string token)
+              std::string token, std::string user)
       : BoolPromiseWorker(env),
         url_(std::move(url)),
         localPath_(std::move(localPath)),
-        token_(std::move(token)) {}
+        token_(std::move(token)),
+        user_(std::move(user)) {}
 
   void Execute() override {
     git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
-    cred_.username = "oauth2";
-    cred_.token = token_;
-    cred_.tried = 0;
-    if (!token_.empty()) {
-      opts.fetch_opts.callbacks.credentials = CredentialsCb;
-      opts.fetch_opts.callbacks.payload = &cred_;
-    }
+    SetupAuth(&opts.fetch_opts.callbacks, token_, user_);
     git_repository *repo = nullptr;
     if (git_clone(&repo, url_.c_str(), localPath_.c_str(), &opts) != 0) {
       SetError(LastGitErrorOr("clone failed"));
@@ -1748,9 +1913,10 @@ class CloneWorker : public BoolPromiseWorker {
   std::string url_;
   std::string localPath_;
   std::string token_;
+  std::string user_;
 };
 
-// args: [0]=url, [1]=localPath, [2]=token?
+// args: [0]=url, [1]=localPath, [2]=token?, [3]=username?
 Napi::Value Clone(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
   if (!EnsureStringArg(info, 0, "url") || !EnsureStringArg(info, 1, "localPath"))
@@ -1761,7 +1927,11 @@ Napi::Value Clone(const Napi::CallbackInfo &info) {
   if (info.Length() > 2 && info[2].IsString()) {
     token = info[2].As<Napi::String>().Utf8Value();
   }
-  CloneWorker *worker = new CloneWorker(env, url, localPath, token);
+  std::string user;
+  if (info.Length() > 3 && info[3].IsString()) {
+    user = info[3].As<Napi::String>().Utf8Value();
+  }
+  CloneWorker *worker = new CloneWorker(env, url, localPath, token, user);
   Napi::Promise promise = worker->GetPromise();
   worker->Queue();
   return promise;
@@ -2061,6 +2231,61 @@ Napi::Value SetConfig(const Napi::CallbackInfo &info) {
   git_config_free(cfg);
   git_repository_free(repo);
   return Napi::Boolean::New(env, true);
+}
+
+// Lists config entries whose name matches a regex, across the whole config
+// chain (system + global + repo when a repo path is given). Used to read the
+// user's `credential.*` settings so GitBox can reuse credentials they already
+// configured for git — without shelling out to the git CLI, which it must not
+// require. Multivalued keys (a helper chain is one) come back as repeated
+// entries in configuration order, which is the order git itself consults them.
+// args: [0]=repoPath (may be '' for global+system only), [1]=regex
+// returns: [{ name, value }]
+Napi::Value ConfigEntries(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  std::string repoPath;
+  if (info.Length() > 0 && info[0].IsString())
+    repoPath = info[0].As<Napi::String>().Utf8Value();
+  std::string pattern = "^credential\\.";
+  if (info.Length() > 1 && info[1].IsString())
+    pattern = info[1].As<Napi::String>().Utf8Value();
+
+  git_repository *repo = nullptr;
+  git_config *cfg = nullptr;
+  bool opened = false;
+  if (!repoPath.empty() && git_repository_open(&repo, repoPath.c_str()) == 0) {
+    opened = git_repository_config(&cfg, repo) == 0;
+  }
+  if (!opened) {
+    // No repo (or it failed to open): the global/system config still carries
+    // the helper configuration, which is where it usually lives.
+    if (repo) {
+      git_repository_free(repo);
+      repo = nullptr;
+    }
+    if (git_config_open_default(&cfg) != 0)
+      return Napi::Array::New(env, 0);
+  }
+
+  Napi::Array out = Napi::Array::New(env);
+  git_config_iterator *iter = nullptr;
+  if (git_config_iterator_glob_new(&iter, cfg, pattern.c_str()) == 0) {
+    git_config_entry *entry = nullptr;
+    uint32_t i = 0;
+    while (git_config_next(&entry, iter) == 0) {
+      Napi::Object item = Napi::Object::New(env);
+      item.Set("name", Napi::String::New(env, entry->name ? entry->name : ""));
+      item.Set("value",
+               Napi::String::New(env, entry->value ? entry->value : ""));
+      out.Set(i++, item);
+    }
+    git_config_iterator_free(iter);
+  }
+
+  git_config_free(cfg);
+  if (repo)
+    git_repository_free(repo);
+  return out;
 }
 
 // Reads a string value from a *live* (non-snapshot) git_config. Plain
@@ -3219,10 +3444,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("commitFiles", Napi::Function::New(env, CommitFiles));
   exports.Set("checkoutBranch", Napi::Function::New(env, CheckoutBranch));
   exports.Set("fetch", Napi::Function::New(env, Fetch));
+  exports.Set("testCredentials", Napi::Function::New(env, TestCredentials));
   exports.Set("pull", Napi::Function::New(env, Pull));
   exports.Set("push", Napi::Function::New(env, Push));
   exports.Set("clone", Napi::Function::New(env, Clone));
   exports.Set("remoteUrl", Napi::Function::New(env, RemoteUrl));
+  exports.Set("configEntries", Napi::Function::New(env, ConfigEntries));
   exports.Set("setTlsCertFile", Napi::Function::New(env, SetTlsCertFile));
   exports.Set("initRepo", Napi::Function::New(env, InitRepo));
   exports.Set("conflictedFiles", Napi::Function::New(env, ConflictedFiles));
