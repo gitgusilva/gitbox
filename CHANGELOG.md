@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.4
+### Added
+- Remote authentication: GitBox saves per-host credentials in an encrypted store and reuses them for fetch, pull and push over HTTPS and SSH, so you sign in once. Manage them from Settings › Credentials
+- Theme gallery now works offline — preview images are cached on disk — and themes can be favorited to pin them to the top of the list
+
+### Fixed
+- Focus outlines no longer paint the system accent colour over inputs, menus and dialogs
+
 ## v1.1.3
 ### Added
 - Release notes are shown once after updating to a new version, and can be reopened from Settings › Updates
