@@ -17,6 +17,7 @@ import AppearanceSection from './Sections/AppearanceSection.vue';
 import Modal from '../Common/Modal.vue';
 import GitSection from './Sections/GitSection.vue';
 import IntegrationsSection from './Sections/IntegrationsSection.vue';
+import CredentialsSection from './Sections/CredentialsSection.vue';
 import PreferencesSection from './Sections/PreferencesSection.vue';
 import ScrollArea from '../Common/ScrollArea.vue';
 
@@ -81,6 +82,7 @@ function handleClose() {
                     
                     <Tab id="integrations" :label="t('settings.integrations')" icon="lucide:link">
                         <IntegrationsSection />
+                        <div class="mt-8"><CredentialsSection /></div>
                     </Tab>
                 </div>
             </ScrollArea>

@@ -3,24 +3,21 @@ import { ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { recentRepositories, openRepository, addWorkspaceFlow } from '../services/workspaceService';
-import { isSettingsOpen, settingsActiveSection, isShortcutsModalOpen } from '../services/modalService';
-import RepoActionModal from '../components/RepoActionModal.vue';
+import { isSettingsOpen, settingsActiveSection, isShortcutsModalOpen, repoActionModal } from '../services/modalService';
 import SearchInput from '../components/Common/SearchInput.vue';
 
 const { t } = useI18n();
-
-const repoModalType = ref<'init' | 'clone' | null>(null);
 
 async function handleAddWorkspace() {
   await addWorkspaceFlow();
 }
 
 function handleClone() {
-    repoModalType.value = 'clone';
+    repoActionModal.value = 'clone';
 }
 
 function handleCreate() {
-    repoModalType.value = 'init';
+    repoActionModal.value = 'init';
 }
 function removeRecent(path: string) {
     recentRepositories.value = recentRepositories.value.filter(r => r.path !== path);
@@ -123,7 +120,5 @@ const quickLinks = computed(() => [
              </div>
         </div>
      </div>
-
-     <RepoActionModal v-if="repoModalType" :action="repoModalType" @close="repoModalType = null" />
   </div>
 </template>

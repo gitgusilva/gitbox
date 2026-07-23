@@ -17,7 +17,9 @@ import BranchActionModal from '../components/BranchActionModal.vue';
 import StashModal from '../components/StashModal.vue';
 import ProjectModal from '../components/ProjectModal.vue';
 import ShortcutsModal from '../components/ShortcutsModal.vue';
-import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal } from '../services/modalService';
+import { confirmModal, inputModal, contextMenu, isSettingsOpen, isShortcutsModalOpen, isCreatePROpen, deviceFlowModal, branchActionModal, repoActionModal } from '../services/modalService';
+import RepoActionModal from '../components/RepoActionModal.vue';
+import CredentialPromptModal from '../components/CredentialPromptModal.vue';
 import { activeWorkspaceId, workspaces } from '../services/workspaceService';
 import TerminalPanel from './TerminalPanel.vue';
 import AppFooter from './Footer.vue';
@@ -43,6 +45,8 @@ onMounted(() => {
     registerShortcut('ctrl+j', () => toggleTerminal(), { titleKey: 'shortcuts.toggle_terminal', category: 'view' });
     registerShortcut('ctrl+,', () => isSettingsOpen.value = true, { titleKey: 'shortcuts.settings', category: 'app' });
     registerShortcut('ctrl+/', () => isShortcutsModalOpen.value = true, { titleKey: 'shortcuts.shortcuts_sheet', category: 'app' });
+    registerShortcut('ctrl+n', () => repoActionModal.value = 'clone', { titleKey: 'shortcuts.clone_repo', category: 'tabs' });
+    registerShortcut('ctrl+i', () => repoActionModal.value = 'init', { titleKey: 'shortcuts.init_repo', category: 'tabs' });
 
     initProtocolHandler();
 });
@@ -66,6 +70,8 @@ const { t } = useI18n();
     <StashModal />
     <ProjectModal />
     <ShortcutsModal />
+    <RepoActionModal v-if="repoActionModal" :action="repoActionModal" @close="repoActionModal = null" />
+    <CredentialPromptModal />
     <UpdateModal />
     <WhatsNewModal />
     <ToastContainer />

@@ -18,6 +18,10 @@ interface Props {
   /** When false, the body is a plain flex container (no scroll wrapper) so the
    *  slotted content can manage its own height/scrolling and fill the modal. */
   scrollBody?: boolean;
+  /** When false, clicking the backdrop no longer closes the modal — for dialogs
+   *  that demand an explicit choice (e.g. the credential prompt), so a stray
+   *  click outside can't dismiss them and lose what the user was doing. */
+  closeOnOverlay?: boolean;
   class?: string;
 }
 
@@ -36,9 +40,9 @@ function close() {
 
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" 
-         class="fixed inset-0 z-[100] center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" 
-         @click.self="close">
+    <div v-if="modelValue"
+         class="fixed inset-0 z-[100] center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+         @click.self="closeOnOverlay !== false && close()">
       <div :class="cn(
             'bg-app border border-line rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden scale-in-center v-stack',
             height ? '' : 'h-min',

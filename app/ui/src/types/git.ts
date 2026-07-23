@@ -168,7 +168,8 @@ export interface GitboxAPI {
     fetch: (repoPath: string, remoteName?: string) => Promise<boolean>;
     pull: (repoPath: string, remoteName?: string) => Promise<boolean>;
     push: (repoPath: string, remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean, forceWithLease?: boolean) => Promise<boolean>;
-    clone: (url: string, targetDir: string) => Promise<{ path: string; name: string }>;
+    clone: (url: string, targetDir: string, options?: { name?: string; username?: string; password?: string; remember?: boolean }) => Promise<{ path: string; name: string }>;
+    testCredentials: (url: string, username?: string, token?: string) => Promise<{ ok: boolean; message?: string }>;
     init: (targetDir: string, name?: string, defaultBranch?: string) => Promise<{ path: string; name: string }>;
     createBranch: (repoPath: string, branchName: string, startPoint?: string) => Promise<boolean>;
     deleteBranch: (repoPath: string, branchName: string) => Promise<boolean>;

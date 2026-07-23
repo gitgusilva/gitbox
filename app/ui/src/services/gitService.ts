@@ -12,6 +12,7 @@ import {
 } from '../types/git';
 import { branchActionModal } from './modalService';
 import { addLog } from './logService';
+import { withCredentialRetry, stripAuthMarker, parseAuthMarker } from './credentials';
 import i18n from '../i18n';
 
 /**
@@ -502,14 +503,24 @@ const HANDLED_FAILURES = [
  */
 export function messageOf(err: unknown): string {
     const raw = String((err as any)?.message ?? err ?? '');
-    return raw
+    return stripAuthMarker(raw
         .replace(/^Error invoking remote method '[^']*':\s*/i, '')
         .replace(/^Error:\s*/i, '')
-        .trim();
+        .trim());
 }
 
 export function isHandledFailure(err: unknown): boolean {
     return HANDLED_FAILURES.some(re => re.test(messageOf(err)));
+}
+
+/**
+ * True when the failure is an authentication one that the askpass prompt already
+ * took over (the marker survives on the raw message even though messageOf strips
+ * it for display). The user was shown the credential dialog, so this must NOT
+ * also raise the error banner — logging it quietly is enough.
+ */
+function isAuthPromptFailure(err: unknown): boolean {
+    return !!parseAuthMarker(String((err as any)?.message ?? err ?? ''));
 }
 
 /**
@@ -597,7 +608,10 @@ async function runAction(action: () => unknown, refresh: 'status' | 'full' = 'st
             await refreshStatus();
         }
     } catch (err: any) {
-        if (isHandledFailure(err)) {
+        if (isAuthPromptFailure(err)) {
+            // The askpass dialog was shown (and cancelled or exhausted). No banner.
+            reportHandled(actionName || 'Git action', err, 'Authentication needed — the credential prompt was shown.');
+        } else if (isHandledFailure(err)) {
             reportHandled(actionName || 'Git action', err, 'Handled by the app — see the dialog that opened.');
         } else {
             reportError(actionName ? `Failed: ${actionName}` : 'Git action failed', err);
@@ -621,7 +635,7 @@ async function warnNoRemote() {
 
 export const doFetch = () => {
     if (!hasRemote.value) return warnNoRemote();
-    return runAction(() => window.gitbox.fetch(repoPath.value), 'full', "Fetch from remote", true);
+    return runAction(() => withCredentialRetry(() => window.gitbox.fetch(repoPath.value)), 'full', "Fetch from remote", true);
 };
 import { isPushModalOpen, isPullModalOpen } from './modalService';
 
@@ -642,7 +656,7 @@ async function stashPullAndRestore() {
         // restore an unrelated, older entry, so track it and skip the restore.
         const stashed = await window.gitbox.stashSave(repoPath.value, 'GitBox: auto-stash before pull');
         try {
-            await window.gitbox.pull(repoPath.value);
+            await withCredentialRetry(() => window.gitbox.pull(repoPath.value));
         } catch (pullErr: any) {
             // Pull still refused — restore immediately so nothing is left parked.
             if (stashed) await window.gitbox.stashPop(repoPath.value).catch(() => {});
@@ -681,7 +695,7 @@ export const doPull = async () => {
     isLoading.value = true;
     error.value = '';
     try {
-        await window.gitbox.pull(repoPath.value);
+        await withCredentialRetry(() => window.gitbox.pull(repoPath.value));
         await loadRepoData(true);
         addLog('Pulled from remote', 'Action', 'success');
     } catch (err: any) {
@@ -705,6 +719,8 @@ export const doPull = async () => {
                 false,
                 () => stashPullAndRestore(),
             );
+        } else if (isAuthPromptFailure(err)) {
+            reportHandled('Pull from remote', err, 'Authentication needed — the credential prompt was shown.');
         } else {
             error.value = msg;
             const { showToast } = await import('./toastService');
@@ -755,7 +771,7 @@ export const doPush = () => {
 export const confirmPush = (remoteName?: string, branchName?: string, setUpstream?: boolean, force?: boolean, pushTags?: boolean, forceWithLease?: boolean) => {
     return runAction(async () => {
         isPushModalOpen.value = false;
-        await window.gitbox.push(repoPath.value, remoteName, branchName, setUpstream, force, pushTags, forceWithLease);
+        await withCredentialRetry(() => window.gitbox.push(repoPath.value, remoteName, branchName, setUpstream, force, pushTags, forceWithLease));
     }, 'full', `Push to ${remoteName || 'origin'}/${branchName || ''}`, true);
 };
 

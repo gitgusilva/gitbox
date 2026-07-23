@@ -48,6 +48,25 @@ export const deviceFlowModal = ref<{
 /** Create / edit a project (group of repositories). */
 export const projectModal = ref<{ mode: 'create' | 'edit'; id?: string } | null>(null);
 
+/** Clone / initialize repository dialog. null = closed. Mounted once in
+ *  AppLayout so it can be opened from the welcome screen or the ctrl+n shortcut
+ *  regardless of whether a repository is currently open. */
+export const repoActionModal = ref<'init' | 'clone' | null>(null);
+
+/**
+ * Username/password prompt for a host whose remote operation just failed for
+ * lack of (or with refused) credentials — SourceGit-style. `resolve` is settled
+ * with the entered credentials, or null if the user dismisses the dialog.
+ */
+export const credentialPrompt = ref<{
+    host: string,
+    /** true when a saved credential was refused (vs. none present) — tunes the copy. */
+    rejected: boolean,
+    /** `remember` = persist encrypted on disk; otherwise the caller keeps it for
+     *  the session only (the askpass default). */
+    resolve: (creds: { username: string, password: string, remember: boolean } | null) => void,
+} | null>(null);
+
 export const isSettingsOpen = ref(false);
 export const isShortcutsModalOpen = ref(false);
 export const isCreatePROpen = ref(false);

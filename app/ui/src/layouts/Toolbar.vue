@@ -129,7 +129,7 @@ onMounted(() => {
 });
 
 import { addNewTab, addWorkspaceFlow } from '../services/workspaceService';
-import { contextMenu, requestInput, isSettingsOpen, settingsActiveSection } from '../services/modalService';
+import { contextMenu, requestInput, isSettingsOpen, settingsActiveSection, repoActionModal } from '../services/modalService';
 
 async function handleAddWorkspaceFlow() {
   addNewTab();
@@ -257,8 +257,8 @@ function openMainMenu(e: MouseEvent) {
             }},
             { label: t('workspace.reopen_closed_tab'), shortcut: 'Ctrl+Shift+T', action: () => {} },
             { separator: true },
-            { label: t('workspace.clone_repo'), shortcut: 'Ctrl+N', action: () => {} },
-            { label: t('workspace.init_repo'), shortcut: 'Ctrl+I', action: () => {} },
+            { label: t('workspace.clone_repo'), shortcut: 'Ctrl+N', action: () => { repoActionModal.value = 'clone'; } },
+            { label: t('workspace.init_repo'), shortcut: 'Ctrl+I', action: () => { repoActionModal.value = 'init'; } },
             { label: t('workspace.open_repo'), shortcut: 'Ctrl+O', action: () => addWorkspaceFlow() },
             { separator: true },
             { label: t('project.title'), icon: 'lucide:folders', shortcut: 'Ctrl+Shift+P', action: () => toggleProjectMenu() },
