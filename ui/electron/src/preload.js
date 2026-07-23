@@ -25,9 +25,16 @@ contextBridge.exposeInMainWorld('gitbox', {
   // Git Flow (Fetch, Pull, Push, Checkout)
   // ==========================================
   fetch: (repoPath, remoteName = 'origin') => ipcRenderer.invoke('gitbox:fetch', repoPath, remoteName),
+  gitCredentialCheck: (host) => ipcRenderer.invoke('gitbox:gitCredentialCheck', host),
+  testCredentials: (url, username, token) => ipcRenderer.invoke('gitbox:testCredentials', url, username, token),
+  credentialsList: () => ipcRenderer.invoke('gitbox:credentialsList'),
+  credentialSave: (host, username, token) => ipcRenderer.invoke('gitbox:credentialSave', host, username, token),
+  credentialSaveSession: (host, username, token) => ipcRenderer.invoke('gitbox:credentialSaveSession', host, username, token),
+  credentialRemove: (host) => ipcRenderer.invoke('gitbox:credentialRemove', host),
+  credentialProtection: () => ipcRenderer.invoke('gitbox:credentialProtection'),
   pull: (repoPath, remoteName) => ipcRenderer.invoke('gitbox:pull', repoPath, remoteName),
   push: (repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease) => ipcRenderer.invoke('gitbox:push', repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease),
-  clone: (url, targetDir) => ipcRenderer.invoke('gitbox:clone', url, targetDir),
+  clone: (url, targetDir, options) => ipcRenderer.invoke('gitbox:clone', url, targetDir, options),
   init: (targetDir, name, defaultBranch) => ipcRenderer.invoke('gitbox:init', targetDir, name, defaultBranch),
   checkoutBranch: (repoPath, branchName) => ipcRenderer.invoke('gitbox:checkoutBranch', repoPath, branchName),
   checkMerge: (repoPath, toBranch, fromBranch) => ipcRenderer.invoke('gitbox:checkMerge', repoPath, toBranch, fromBranch),

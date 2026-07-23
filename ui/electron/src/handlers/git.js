@@ -123,11 +123,66 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:getGlobalConfig', async () => configCmd.getGlobal());
     ipcMain.handle('gitbox:setGlobalConfig', async (_, name, email) => configCmd.setGlobal(name, email));
 
+    // Credentials: the renderer sends a token in and gets metadata back — the
+    // plaintext never travels the other way across the IPC boundary.
+    const credentialStore = require('../credentialStore');
+    ipcMain.handle('gitbox:credentialsList', async () => credentialStore.list());
+    ipcMain.handle('gitbox:credentialSave', async (_, host, username, token) => credentialStore.save(host, username, token));
+    // Session-only (memory) credentials — the askpass "don't remember" path.
+    ipcMain.handle('gitbox:credentialSaveSession', async (_, host, username, token) => credentialStore.saveSession(host, username, token));
+    ipcMain.handle('gitbox:credentialRemove', async (_, host) => credentialStore.remove(host));
+    ipcMain.handle('gitbox:credentialProtection', async () => credentialStore.protectionLevel());
+
+    // Validate credentials for a private origin without cloning — the clone
+    // dialog's "Test" button. Returns a plain result so the renderer needn't
+    // catch: { ok } on success, { ok:false, message } with an explained reason.
+    ipcMain.handle('gitbox:testCredentials', async (_, url, username, token) => {
+        const { hostOf } = require('../Commands/AuthUtils');
+        try {
+            await addon.testCredentials(url, token || '', username || '');
+            return { ok: true };
+        } catch (e) {
+            // A connect+ls failure is almost always auth, a bad URL, or the network
+            // — libgit2's raw text after a 401 is cryptic ("the ProgramData file
+            // 'config' doesn't exist"), so categorize into something actionable
+            // rather than surfacing the internal message.
+            const raw = String((e && e.message) || e || '');
+            const host = hostOf(url) || 'the server';
+            let message;
+            if (/could not resolve|failed to resolve|failed to connect|connection refused|timed out|getaddrinfo|network is unreachable|no address/i.test(raw)) {
+                message = `Could not reach ${host}. Check the URL and your network connection.`;
+            } else if (/\b404\b|not found/i.test(raw)) {
+                message = `Reached ${host}, but the repository was not found — check the URL.`;
+            } else if (/host key|known_hosts|hostkey|certificate check/i.test(raw)) {
+                message = `The SSH host key for ${host} isn't trusted yet — connect once with \`ssh ${host}\` first.`;
+            } else if (/unsupported url protocol|unsupported transport|this transport isn't implemented/i.test(raw)) {
+                message = `This build can't use that URL scheme for ${host}. Use the https:// URL.`;
+            } else {
+                message = `${host} rejected the credentials. Check the username and password/token.`;
+            }
+            return { ok: false, message };
+        }
+    });
+
+    // Does the user's git configuration already answer for a host? Settings uses
+    // this to show that a credential helper is serving a host — and, since
+    // helpers take precedence, to flag a typed entry that is being overridden.
+    ipcMain.handle('gitbox:gitCredentialCheck', async (_, host) => {
+        const { credentialsFromGit } = require('../Commands/GitCredentialHelpers');
+        for (const protocol of ['https', 'http']) {
+            try {
+                const found = await credentialsFromGit(addon, `${protocol}://${host}`);
+                if (found) return { covered: true, helper: found.helper, username: found.username };
+            } catch (e) { /* a broken helper just means "not covered" */ }
+        }
+        return { covered: false };
+    });
+
     // Sync
     ipcMain.handle('gitbox:fetch', async (_, repoPath, remoteName) => fetchCmd.execute(repoPath, remoteName));
     ipcMain.handle('gitbox:pull', async (_, repoPath, remoteName) => pullCmd.execute(repoPath, remoteName));
     ipcMain.handle('gitbox:push', async (_, repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease) => pushCmd.execute(repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease));
-    ipcMain.handle('gitbox:clone', async (_, url, targetDir) => cloneCmd.execute(url, targetDir));
+    ipcMain.handle('gitbox:clone', async (_, url, targetDir, options) => cloneCmd.execute(url, targetDir, options));
     ipcMain.handle('gitbox:init', async (_, targetDir, name, defaultBranch) => initCmd.execute(targetDir, name, defaultBranch));
 
     // GitFlow
