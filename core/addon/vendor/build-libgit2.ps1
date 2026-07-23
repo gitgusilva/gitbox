@@ -79,6 +79,15 @@ if (-not (Test-Path (Join-Path $Src "CMakeLists.txt"))) {
   if ($LASTEXITCODE -ne 0) { throw "libgit2 clone failed" }
 }
 Remove-Item -Recurse -Force $Build, $Prefix -ErrorAction Ignore
+# SSH stays off on Windows for now. Enabling it needs the same static OpenSSL
+# the Linux recipe builds (libssh2's WinCNG backend defines LIBSSH2_ED25519 as
+# 0, so it would reject the key type most users have), and that build has to
+# be validated on a real Windows runner first — including matching the static
+# CRT (/MT) these libs use, which OpenSSL does not pick by default. Until
+# then Windows authenticates over HTTPS, and the app says so.
+# NOTE: keep the cmake arguments below unbroken — a comment inside a backtick
+# line-continuation ends the command and breaks the build (USE_SSH parsed as a
+# standalone command).
 cmake -S $Src -B $Build -G $Gen `
   -DCMAKE_BUILD_TYPE=Release `
   -DCMAKE_POLICY_DEFAULT_CMP0091=NEW `
@@ -90,12 +99,6 @@ cmake -S $Src -B $Build -G $Gen `
   -DBUILD_TESTS=OFF `
   -DBUILD_CLI=OFF `
   -DBUILD_EXAMPLES=OFF `
-  # SSH stays off on Windows for now. Enabling it needs the same static OpenSSL
-  # the Linux recipe builds (libssh2's WinCNG backend defines LIBSSH2_ED25519 as
-  # 0, so it would reject the key type most users have), and that build has to
-  # be validated on a real Windows runner first — including matching the static
-  # CRT (/MT) these libs use, which OpenSSL does not pick by default. Until
-  # then Windows authenticates over HTTPS, and the app says so.
   -DUSE_SSH=OFF `
   -DUSE_HTTPS=mbedTLS `
   -DWINHTTP=OFF `
