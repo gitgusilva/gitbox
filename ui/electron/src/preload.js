@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   saveTextFile: (defaultName, content) => ipcRenderer.invoke('gitbox:saveTextFile', defaultName, content),
   openTextFile: () => ipcRenderer.invoke('gitbox:openTextFile'),
   fetchText: (url) => ipcRenderer.invoke('gitbox:fetchText', url),
+  cachePreview: (url) => ipcRenderer.invoke('gitbox:cachePreview', url),
   notifyMergeResolved: () => ipcRenderer.send('merge:resolved'),
   onMergeResolved: (callback) => {
     const listener = () => callback();

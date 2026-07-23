@@ -81,7 +81,7 @@ function cancel() {
               <span class="text-[11px] text-content leading-snug">
                  {{ t('credential_prompt.remember') }}
                  <span class="block text-[10px] text-content-muted mt-0.5">
-                    {{ t('credential_prompt.remember_on') }}
+                    {{ remember ? t('credential_prompt.remember_on') : t('credential_prompt.remember_off') }}
                  </span>
               </span>
            </Checkbox>

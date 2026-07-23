@@ -53,9 +53,14 @@ const dropdownStyle = ref({ top: '0px', left: '0px', width: '0px' });
 const searchQuery = ref('');
 
 /**
- * Syncs the search query with the current model value when appropriate.
+ * Syncs the search query with the current selection's label. Watches the options
+ * too, not just the value: when options arrive asynchronously (e.g. a list still
+ * loading over IPC) the selected value can't be resolved to a label on first
+ * render, so it would otherwise show raw until the user clicked to force a
+ * re-sync. Skipped while the dropdown is open so it never clobbers what the user
+ * is typing.
  */
-watch(() => props.modelValue, (newVal) => {
+watch([() => props.modelValue, () => props.options], ([newVal]) => {
     if (props.searchable || props.creatable) {
         if (!isOpen.value && !props.multiple) {
            const opt = props.options?.find(o => o.value === newVal);

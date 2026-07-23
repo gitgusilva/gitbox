@@ -56,6 +56,25 @@ export const registryLoading = ref(false);
 export const registryError = ref<string | null>(null);
 export const registryLoaded = ref(false);
 
+// Disk-cached preview images, resolved to base64 data URLs so they render
+// offline and never appear broken. Value is `null` when a preview is unavailable.
+export const previewCache = ref<Record<string, string | null>>({});
+const inflightPreviews = new Set<string>();
+
+/** Resolve a preview URL to a cached data URL (downloads and caches on first use). */
+export async function resolvePreview(url?: string): Promise<void> {
+    if (!url || url in previewCache.value || inflightPreviews.has(url)) return;
+    inflightPreviews.add(url);
+    try {
+        const dataUrl = await window.gitbox.cachePreview(url);
+        previewCache.value = { ...previewCache.value, [url]: dataUrl };
+    } catch {
+        previewCache.value = { ...previewCache.value, [url]: null };
+    } finally {
+        inflightPreviews.delete(url);
+    }
+}
+
 interface ContentsItem {
     name: string;
     type: 'dir' | 'file';

@@ -127,14 +127,25 @@ body {
   @apply min-h-screen;
   font-family: var(--gb-font-ui);
   font-size: var(--gb-ui-font-size);
-  /* Native controls (range, checkbox, radio, progress) follow the theme accent. */
+}
+
+/* Native controls (range, checkbox, radio, progress) follow the theme accent,
+   app-wide including teleported content (modals, menus, tooltips live on body). */
+:root {
   accent-color: rgb(var(--gb-accent));
 }
 
-/* Focus outlines are disabled for now; a dedicated accessibility pass is planned. */
-#app :focus,
-#app :focus-visible {
-  outline: none;
+/* Focus outlines are disabled for now; a dedicated accessibility pass is planned.
+   Global + !important so nothing (teleported modals, Monaco, SimpleBar, tabindex
+   containers, or UA styles) can bring the outline back in any situation. */
+*,
+*:focus,
+*:focus-visible,
+*:focus-within {
+  outline: none !important;
+}
+::-moz-focus-inner {
+  border: 0 !important;
 }
 
 /* Custom Scrollbar - Minimal */

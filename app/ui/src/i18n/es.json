@@ -296,6 +296,7 @@
     "git_config_hint": "Tu identidad global de git (~/.gitconfig), usada para autorizar commits.",
     "user_name": "Nombre de Usuario",
     "git_config_saved": "Guardado en la config global de git (~/.gitconfig)",
+    "save_git_config": "Guardar Configuración",
     "notifications": "Notificaciones",
     "notifications_enabled": "Mostrar notificaciones (toasts)",
     "notification_position": "Posición de las notificaciones",
@@ -378,8 +379,9 @@
     "view_changelog": "Ver notas de la versión",
     "update_download": "Descargar",
     "update_later": "Más tarde",
-    "credentials": "Credenciales de servidor",
+    "credentials": "Credenciales",
     "credentials_description": "Para servidores git donde GitBox no puede iniciar sesión solo — un GitLab propio, Gitea, Azure DevOps. Se guardan por host y se usan en fetch, pull, push y clone.",
+    "credentials_empty": "Aún no hay credenciales guardadas. Cuando una operación remota necesite usuario y token, GitBox lo pide — y, si eliges recordarlo, el host aparece aquí para revisarlo o quitarlo.",
     "credentials_host": "Host",
     "credentials_host_placeholder": "git.miempresa.com (o pega la URL de clonado)",
     "credentials_host_normalized": "Se guardará como {host}",
@@ -830,7 +832,9 @@
     "repo_offline_cached": "Sin conexión — mostrando la lista guardada. No se pueden buscar temas nuevos.",
     "active": "Activo",
     "customize_hint": "Para personalizar un tema, expórtalo, edita el JSON e impórtalo de nuevo.",
-    "publish_theme": "Publicar un tema"
+    "publish_theme": "Publicar un tema",
+    "favorite": "Favorito",
+    "unfavorite": "Quitar favorito"
   },
   "project": {
     "title": "Proyectos",

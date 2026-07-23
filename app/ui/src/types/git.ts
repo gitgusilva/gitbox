@@ -212,6 +212,7 @@ export interface GitboxAPI {
     saveTextFile: (defaultName: string, content: string) => Promise<{ saved: boolean; path?: string }>;
     openTextFile: () => Promise<{ content: string; path: string } | null>;
     fetchText: (url: string) => Promise<string>;
+    cachePreview: (url: string) => Promise<string | null>;
     getFileBlame: (repoPath: string, filePath: string, rev?: string) => Promise<BlameLine[]>;
     commitFiles: (repoPath: string, commitId: string) => Promise<GitStatusEntry[]>;
     diffCommitFile: (repoPath: string, commitId: string, filePath: string) => Promise<FileDiff>;

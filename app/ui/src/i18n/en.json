@@ -302,6 +302,7 @@
     "git_config_hint": "Your global git identity (~/.gitconfig), used to author commits.",
     "user_name": "User Name",
     "git_config_saved": "Saved to global git config (~/.gitconfig)",
+    "save_git_config": "Save Configuration",
     "notifications": "Notifications",
     "notifications_enabled": "Show notifications (toasts)",
     "notification_position": "Notification position",
@@ -402,8 +403,9 @@
     "view_changelog": "View release notes",
     "update_download": "Download",
     "update_later": "Later",
-    "credentials": "Server credentials",
+    "credentials": "Credentials",
     "credentials_description": "For git servers GitBox can't sign in to automatically — a self-hosted GitLab, Gitea, Azure DevOps. Saved per host and used for fetch, pull, push and clone.",
+    "credentials_empty": "No saved credentials yet. When a remote operation needs a username and token, GitBox asks and — if you choose to remember it — the host shows up here to review or remove.",
     "credentials_host": "Host",
     "credentials_host_placeholder": "git.mycompany.com (or paste the clone URL)",
     "credentials_host_normalized": "Will be saved as {host}",
@@ -882,7 +884,9 @@
     "repo_offline_cached": "Offline — showing the saved list. Fetching new themes is unavailable.",
     "active": "Active",
     "customize_hint": "To customize a theme, export it, edit the JSON, and import it back.",
-    "publish_theme": "Publish a theme"
+    "publish_theme": "Publish a theme",
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite"
   },
   "project": {
     "title": "Projects",

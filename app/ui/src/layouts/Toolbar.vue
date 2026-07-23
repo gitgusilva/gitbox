@@ -285,6 +285,7 @@ function openMainMenu(e: MouseEvent) {
                     { label: t('settings.preferences'), icon: 'lucide:sliders', action: () => openSettings('preferences') },
                     { label: t('settings.git'), icon: 'lucide:git-branch', action: () => openSettings('git') },
                     { label: t('settings.integrations'), icon: 'lucide:link', action: () => openSettings('integrations') },
+                    { label: t('settings.credentials'), icon: 'lucide:key-round', action: () => openSettings('credentials') },
                 ],
             },
             { separator: true },

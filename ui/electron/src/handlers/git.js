@@ -232,4 +232,5 @@ module.exports = function (addon) {
     ipcMain.handle('gitbox:saveTextFile', async (_, defaultName, content) => fileActionsCmd.saveTextFile(defaultName, content));
     ipcMain.handle('gitbox:openTextFile', async () => fileActionsCmd.openTextFile());
     ipcMain.handle('gitbox:fetchText', async (_, url) => fileActionsCmd.fetchText(url));
+    ipcMain.handle('gitbox:cachePreview', async (_, url) => fileActionsCmd.cachePreview(url));
 };

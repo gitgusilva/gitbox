@@ -53,7 +53,7 @@ async function handleSaveGitConfig() {
     </div>
     <div class="flex items-center gap-3 pt-2">
         <Button variant="primary" :loading="isSavingGit" @click="handleSaveGitConfig">
-            {{ isSavingGit ? t('common.loading') : 'Save Configuration' }}
+            {{ isSavingGit ? t('common.loading') : t('settings.save_git_config') }}
         </Button>
         <div v-if="saveSuccess" class="text-green-400 flex items-center gap-1.5 text-xs font-medium animate-in fade-in duration-300">
             <Icon icon="lucide:check-circle-2" class="w-4 h-4" />

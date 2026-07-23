@@ -10,7 +10,10 @@ export class GitHubProvider extends BaseIntegrationProvider {
     readonly id = 'github';
     readonly name = 'GitHub';
     readonly icon = 'mdi:github';
-    readonly color = '#24292e';
+    // GitHub's brand is monochrome near-black, which vanishes on a dark surface.
+    // Track the theme's strong-text token instead: near-white on dark themes,
+    // near-black (≈ the brand) on light ones — visible on any background.
+    readonly color = 'rgb(var(--gb-text-strong))';
 
     private readonly clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
 

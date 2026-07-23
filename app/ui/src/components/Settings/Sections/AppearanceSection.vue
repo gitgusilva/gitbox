@@ -6,7 +6,7 @@
  * a JSON file. To customize a theme, export it, edit the JSON, and import it
  * back — there is no in-app editor.
  */
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import {
@@ -16,10 +16,13 @@ import {
 import {
   registryThemes, registryLoading, registryError,
   ensureRegistry, refreshRegistry, installRegistryTheme,
+  previewCache, resolvePreview,
 } from '../../../services/themeRegistry';
 import type { RegistryEntry } from '../../../services/themeRegistry';
 import type { ThemeColors, GitboxTheme } from '../../../types/theme';
 import { showToast } from '../../../services/toastService';
+import { getItem, setItem } from '../../../services/storageService';
+import Tooltip from '../../Common/Tooltip.vue';
 
 const { t } = useI18n();
 
@@ -29,6 +32,10 @@ const { t } = useI18n();
 const search = ref('');
 const typeFilter = ref<'all' | 'dark' | 'light'>('all');
 const installingId = ref<string | null>(null);
+
+// Preview URLs that failed to load (404, offline, broken host). A card whose
+// image errors falls back to the colour-swatch tile instead of showing a broken
+// image, so a missing screenshot never leaves a hole in the gallery.
 
 onMounted(() => { ensureRegistry(); });
 
@@ -79,14 +86,36 @@ const galleryCards = computed<ThemeCard[]>(() => {
   return cards;
 });
 
+// Favorites are keyed by name+type so they survive install (registry -> local).
+const FAVORITES_KEY = 'gitbox_theme_favorites';
+function loadFavorites(): Set<string> {
+  try { const raw = getItem(FAVORITES_KEY); return new Set<string>(raw ? JSON.parse(raw) : []); } catch { return new Set(); }
+}
+const favorites = ref<Set<string>>(loadFavorites());
+const isFavorite = (c: ThemeCard) => favorites.value.has(keyOf(c.name, c.type));
+function toggleFavorite(c: ThemeCard) {
+  const k = keyOf(c.name, c.type);
+  const next = new Set(favorites.value);
+  if (next.has(k)) next.delete(k); else next.add(k);
+  favorites.value = next;
+  setItem(FAVORITES_KEY, JSON.stringify([...next]));
+}
+
 const filteredCards = computed(() => {
   const q = search.value.trim().toLowerCase();
-  return galleryCards.value.filter((c) => {
+  const list = galleryCards.value.filter((c) => {
     if (typeFilter.value !== 'all' && c.type !== typeFilter.value) return false;
     if (!q) return true;
     return `${c.name} ${c.author ?? ''}`.toLowerCase().includes(q);
   });
+  // Favorites first; stable sort keeps the original order within each group.
+  return list.sort((a, b) => (isFavorite(b) ? 1 : 0) - (isFavorite(a) ? 1 : 0));
 });
+
+// Warm the disk cache for every visible preview so images render offline.
+watch(galleryCards, (cards) => {
+  for (const c of cards) if (c.previewUrl) resolvePreview(c.previewUrl);
+}, { immediate: true });
 
 const isActive = (c: ThemeCard) => !!c.local && activeTheme.value.id === c.local.id;
 
@@ -191,19 +220,51 @@ async function onInstall(entry: RegistryEntry) {
              class="group rounded-lg border overflow-hidden flex flex-col cursor-pointer transition-all select-none"
              :class="isActive(card) ? 'border-accent ring-1 ring-accent/40' : 'border-line hover:border-line-strong'">
           <div class="relative aspect-[720/460] bg-surface overflow-hidden">
-            <img v-if="card.previewUrl" :src="card.previewUrl" :alt="card.name" loading="lazy" draggable="false" class="w-full h-full object-cover object-top pointer-events-none select-none" />
-            <div v-else class="w-full h-full flex items-center justify-center gap-1.5 p-3" :style="{ background: card.colors.bg }">
-              <span v-for="k in swatchKeys" :key="k" class="w-5 h-5 rounded border border-black/10 dark:border-white/10" :style="{ background: card.colors[k] }" />
+            <img v-if="card.previewUrl && previewCache[card.previewUrl]" :src="previewCache[card.previewUrl]!" :alt="card.name" draggable="false" class="w-full h-full object-cover object-top pointer-events-none select-none" />
+            <!-- Skeleton while the preview is still resolving (real loading only). -->
+            <div v-else-if="card.previewUrl && previewCache[card.previewUrl] === undefined" class="w-full h-full bg-surface-hover animate-pulse" />
+            <!-- Colors fallback: shown only after loading finished with no image, or when the theme has no preview. -->
+            <div v-else class="w-full h-full flex flex-col pointer-events-none" :style="{ background: card.colors.bg }">
+              <div class="flex items-center gap-1 px-2 py-1.5" :style="{ background: card.colors.bgElevated, borderBottom: `1px solid ${card.colors.border}` }">
+                <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ background: card.colors.accent }" />
+                <span class="h-1.5 rounded-full w-2/5" :style="{ background: card.colors.textMuted, opacity: 0.5 }" />
+              </div>
+              <div class="flex-1 px-2.5 py-2 flex flex-col justify-center gap-[6px]">
+                <div class="flex items-center gap-1.5">
+                  <span class="h-1.5 w-3 rounded-sm shrink-0" :style="{ background: card.colors.textMuted, opacity: 0.6 }" />
+                  <span class="h-1.5 rounded-sm" :style="{ background: card.colors.text, width: '55%', opacity: 0.85 }" />
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="h-1.5 w-3 rounded-sm shrink-0" :style="{ background: card.colors.added }" />
+                  <span class="h-1.5 rounded-sm" :style="{ background: card.colors.added, width: '42%', opacity: 0.7 }" />
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="h-1.5 w-3 rounded-sm shrink-0" :style="{ background: card.colors.removed }" />
+                  <span class="h-1.5 rounded-sm" :style="{ background: card.colors.removed, width: '50%', opacity: 0.7 }" />
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="h-1.5 w-3 rounded-sm shrink-0" :style="{ background: card.colors.modified }" />
+                  <span class="h-1.5 rounded-sm" :style="{ background: card.colors.text, width: '62%', opacity: 0.75 }" />
+                </div>
+              </div>
             </div>
             <span class="absolute top-1.5 right-1.5 text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-overlay/85 text-content-muted">{{ card.type }}</span>
             <div v-if="isActive(card)" class="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-accent text-accent-fg flex items-center justify-center">
               <Icon icon="lucide:check" class="w-3 h-3" />
             </div>
-            <button v-if="card.local && !card.local.builtin" @click.stop="deleteTheme(card.local.id)"
-                    class="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-content-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    :title="t('common.delete')">
-              <Icon icon="lucide:x" class="w-3 h-3" />
-            </button>
+            <Tooltip v-if="card.local && !card.local.builtin" :text="t('common.delete')" position="top" class="absolute bottom-1.5 right-1.5">
+              <button @click.stop="card.local && deleteTheme(card.local.id)"
+                      class="w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-content-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Icon icon="lucide:x" class="w-3 h-3" />
+              </button>
+            </Tooltip>
+            <Tooltip :text="isFavorite(card) ? t('appearance.unfavorite') : t('appearance.favorite')" position="top" class="absolute bottom-1.5 left-1.5">
+              <button @click.stop="toggleFavorite(card)"
+                      class="w-5 h-5 rounded flex items-center justify-center bg-overlay/80 transition-all"
+                      :class="isFavorite(card) ? 'text-accent' : 'text-content-muted opacity-0 group-hover:opacity-100 hover:text-content'">
+                <Icon icon="lucide:star" class="w-3 h-3" :class="isFavorite(card) ? 'fill-current' : ''" />
+              </button>
+            </Tooltip>
           </div>
           <div class="p-2 flex flex-col gap-1">
             <div class="flex items-center justify-between gap-1">

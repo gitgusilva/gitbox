@@ -82,7 +82,10 @@ function handleClose() {
                     
                     <Tab id="integrations" :label="t('settings.integrations')" icon="lucide:link">
                         <IntegrationsSection />
-                        <div class="mt-8"><CredentialsSection /></div>
+                    </Tab>
+
+                    <Tab id="credentials" :label="t('settings.credentials')" icon="lucide:key-round">
+                        <CredentialsSection />
                     </Tab>
                 </div>
             </ScrollArea>

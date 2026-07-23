@@ -109,6 +109,37 @@ class FileActions extends Command {
         return { saved: true, path: filePath };
     }
 
+    /**
+     * Disk-cached theme preview image. Returns a base64 data URL (never a remote
+     * URL), so images survive offline and the renderer never shows a broken image.
+     * Returns null on failure (renderer then falls back to a colors-based preview).
+     */
+    async cachePreview(url) {
+        if (!/^https:\/\//i.test(String(url))) return null;
+        const crypto = require('crypto');
+        const { app } = require('electron');
+        const dir = path.join(app.getPath('userData'), 'theme-previews');
+        const ext = (String(url).split(/[?#]/)[0].split('.').pop() || 'png').toLowerCase();
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+        const file = path.join(dir, `${crypto.createHash('sha1').update(String(url)).digest('hex')}.${ext}`);
+
+        try {
+            const buf = await fs.promises.readFile(file);
+            return `data:${mime};base64,${buf.toString('base64')}`;
+        } catch (e) { /* not cached yet */ }
+
+        try {
+            const res = await fetch(url, { redirect: 'follow' });
+            if (!res.ok) return null;
+            const buf = Buffer.from(await res.arrayBuffer());
+            await fs.promises.mkdir(dir, { recursive: true });
+            await fs.promises.writeFile(file, buf);
+            return `data:${mime};base64,${buf.toString('base64')}`;
+        } catch (e) {
+            return null;
+        }
+    }
+
     /** Fetch a remote text resource over HTTPS (used for the theme registry). */
     async fetchText(url) {
         if (!/^https:\/\//i.test(String(url))) throw new Error('Only https URLs are allowed');
