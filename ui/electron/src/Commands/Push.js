@@ -12,15 +12,15 @@ class Push extends Command {
      * Push changes to remote
      */
     async execute(repoPath, remoteName, branchName, setUpstream, force, pushTags, forceWithLease) {
-        const { getTokenForRemote } = require('./AuthUtils');
-            try {
-                const remote = remoteName || 'origin';
-                const token = getTokenForRemote(this.addon, repoPath, remote);
-                // addon.push now returns a Promise (runs off the main thread).
-                return await this.addon.push(repoPath, remote, token, branchName || '', !!force, !!pushTags, !!setUpstream, !!forceWithLease);
-            } catch (e) {
-                throw new Error(e.message);
-            }
+        const { remoteAuth, explainAuthError } = require('./AuthUtils');
+        const remote = remoteName || 'origin';
+        const { url, token, username, source } = await remoteAuth(this.addon, repoPath, remote);
+        try {
+            // addon.push now returns a Promise (runs off the main thread).
+            return await this.addon.push(repoPath, remote, token, branchName || '', !!force, !!pushTags, !!setUpstream, !!forceWithLease, username);
+        } catch (e) {
+            throw explainAuthError(e, url, 'push to', source);
+        }
     }
 }
 

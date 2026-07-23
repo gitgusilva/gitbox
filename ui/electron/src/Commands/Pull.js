@@ -12,13 +12,13 @@ class Pull extends Command {
      * Pull changes from remote
      */
     async execute(repoPath, remoteName) {
-        const { getTokenForRemote } = require('./AuthUtils');
-            try {
-                const remote = remoteName || 'origin';
-                const token = getTokenForRemote(this.addon, repoPath, remote);
-                // addon.pull now returns a Promise (runs off the main thread).
-                return await this.addon.pull(repoPath, remote, token);
-            } catch (e) { throw new Error(e.message); }
+        const { remoteAuth, explainAuthError } = require('./AuthUtils');
+        const remote = remoteName || 'origin';
+        const { url, token, username, source } = await remoteAuth(this.addon, repoPath, remote);
+        try {
+            // addon.pull now returns a Promise (runs off the main thread).
+            return await this.addon.pull(repoPath, remote, token, username);
+        } catch (e) { throw explainAuthError(e, url, 'pull from', source); }
     }
 }
 
