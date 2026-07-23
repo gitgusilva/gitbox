@@ -377,7 +377,26 @@
     "whats_new_full_release": "Ver la release completa",
     "view_changelog": "Ver notas de la versión",
     "update_download": "Descargar",
-    "update_later": "Más tarde"
+    "update_later": "Más tarde",
+    "credentials": "Credenciales de servidor",
+    "credentials_description": "Para servidores git donde GitBox no puede iniciar sesión solo — un GitLab propio, Gitea, Azure DevOps. Se guardan por host y se usan en fetch, pull, push y clone.",
+    "credentials_host": "Host",
+    "credentials_host_placeholder": "git.miempresa.com (o pega la URL de clonado)",
+    "credentials_host_normalized": "Se guardará como {host}",
+    "credentials_username": "Usuario",
+    "credentials_username_placeholder": "Tu nombre de cuenta en ese servidor",
+    "credentials_token": "Token de acceso o contraseña",
+    "credentials_token_placeholder": "Personal access token",
+    "credentials_no_user": "sin usuario",
+    "credentials_saved": "Credenciales guardadas para {host}",
+    "credentials_remove_title": "Quitar credenciales",
+    "credentials_remove_msg": "¿Quitar las credenciales guardadas de {host}? Las operaciones remotas en ese servidor dejarán de autenticarse.",
+    "credentials_git_overrides": "Tu configuración de Git ya responde por este host ({helper}) y tiene prioridad — esta entrada queda como reserva.",
+    "credentials_protection_os": "Los tokens se cifran con el llavero de tu sistema operativo — la clave nunca llega al disco.",
+    "credentials_protection_weak": "No se encontró llavero del sistema, así que el cifrado usa una clave incorporada. Evita una lectura casual, pero no es protección real — instala gnome-keyring o kwallet.",
+    "credentials_protection_none": "El cifrado no está disponible en esta máquina, así que los tokens se guardan en texto plano en un archivo que solo tu usuario puede leer.",
+    "credentials_transport_warning": "Prefiere un token de acceso antes que tu contraseña, y https:// antes que http:// — en http el token viaja en texto claro.",
+    "credentials_unencrypted_tag": "sin cifrado"
   },
   "time": {
     "just_now": "Recién",
@@ -593,6 +612,17 @@
     "where_to_clone_to": "Dónde clonar",
     "url": "URL",
     "clone_the_repo": "¡Clonar el repositorio!",
+    "clone_auth": "Autenticación (repositorios privados)",
+    "clone_auth_hint": "Si este repositorio es privado, introduce las credenciales de su servidor. Déjalo vacío para repositorios públicos o cuando GitBox ya tiene una credencial guardada o un ayudante de credenciales de git para este host.",
+    "clone_auth_ssh": "Esta es una URL SSH — se autentica con tus claves SSH (ssh-agent o ~/.ssh), no con usuario y contraseña.",
+    "clone_auth_save_note": "Estas credenciales se guardan cifradas para este host, para que fetch y push sigan funcionando después.",
+    "test_credentials": "Probar credenciales",
+    "testing": "Probando…",
+    "test_credentials_ok": "Credenciales válidas",
+    "username": "Usuario",
+    "password": "Contraseña / token",
+    "username_placeholder": "p. ej. el usuario de tu cuenta",
+    "password_placeholder": "contraseña o token de acceso",
     "remote_no_integration": "El remoto del repositorio actual no coincide con ninguna integración conectada.",
     "load_repo_info_failed": "Error al cargar la información del repositorio.",
     "cannot_determine_provider": "No se puede determinar el proveedor de este repositorio.",
@@ -842,10 +872,21 @@
     "switch_project_n": "Ir al proyecto 1–9",
     "toggle_terminal": "Alternar terminal",
     "settings": "Configuración",
-    "shortcuts_sheet": "Atajos de teclado"
+    "shortcuts_sheet": "Atajos de teclado",
+    "clone_repo": "Clonar un repositorio",
+    "init_repo": "Inicializar un repositorio"
   },
   "sync": {
     "no_remote_title": "Sin remoto configurado",
     "no_remote_body": "Añade un remoto a este repositorio para hacer fetch, pull o push."
+  },
+  "credential_prompt": {
+    "title": "Autenticación requerida",
+    "needed": "{host} necesita un usuario y contraseña (o token de acceso) para continuar.",
+    "rejected": "{host} rechazó las credenciales guardadas. Ingrésalas de nuevo — el token puede haber expirado.",
+    "remember": "Recordar en este dispositivo",
+    "remember_on": "Guardado localmente, cifrado con el keychain del sistema — nunca sale de esta máquina, y no volvemos a preguntar por este host.",
+    "remember_off": "Solo para esta sesión (askpass) — no se escribe nada en disco, y volveremos a preguntar la próxima vez que abras GitBox.",
+    "connect": "Iniciar sesión"
   }
 }

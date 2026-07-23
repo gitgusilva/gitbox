@@ -435,7 +435,26 @@
     "whats_new_full_release": "Ver a release completa",
     "view_changelog": "Ver notas da versão",
     "update_download": "Baixar",
-    "update_later": "Depois"
+    "update_later": "Depois",
+    "credentials": "Credenciais de servidor",
+    "credentials_description": "Para servidores git onde o GitBox não consegue entrar sozinho — GitLab próprio, Gitea, Azure DevOps. Ficam salvas por host e valem para fetch, pull, push e clone.",
+    "credentials_host": "Host",
+    "credentials_host_placeholder": "git.minhaempresa.com (ou cole a URL de clone)",
+    "credentials_host_normalized": "Será salvo como {host}",
+    "credentials_username": "Usuário",
+    "credentials_username_placeholder": "Seu nome de conta naquele servidor",
+    "credentials_token": "Token de acesso ou senha",
+    "credentials_token_placeholder": "Personal access token",
+    "credentials_no_user": "sem usuário",
+    "credentials_saved": "Credenciais salvas para {host}",
+    "credentials_remove_title": "Remover credenciais",
+    "credentials_remove_msg": "Remover as credenciais salvas de {host}? As operações remotas nesse servidor deixarão de autenticar.",
+    "credentials_git_overrides": "Sua configuração do Git já responde por este host ({helper}) e tem prioridade — esta entrada fica como reserva.",
+    "credentials_protection_os": "Os tokens são criptografados com o chaveiro do seu sistema operacional — a chave nunca vai para o disco.",
+    "credentials_protection_weak": "Nenhum chaveiro do sistema encontrado, então a criptografia cai para uma chave embutida. Impede uma leitura casual, mas não é proteção real — instale gnome-keyring ou kwallet.",
+    "credentials_protection_none": "Criptografia indisponível nesta máquina, então os tokens ficam em texto puro num arquivo que só o seu usuário consegue ler.",
+    "credentials_transport_warning": "Prefira um token de acesso à sua senha, e https:// a http:// — em http o token trafega em texto claro.",
+    "credentials_unencrypted_tag": "sem criptografia"
   },
   "time": {
     "just_now": "Agora mesmo",
@@ -651,6 +670,17 @@
     "where_to_clone_to": "Onde clonar",
     "url": "URL",
     "clone_the_repo": "Clonar o repositório!",
+    "clone_auth": "Autenticação (repositórios privados)",
+    "clone_auth_hint": "Se este repositório for privado, informe as credenciais do servidor. Deixe em branco para repositórios públicos ou quando o GitBox já tem uma credencial salva ou um helper de credenciais do git para este host.",
+    "clone_auth_ssh": "Esta é uma URL SSH — ela autentica com suas chaves SSH (ssh-agent ou ~/.ssh), não com usuário e senha.",
+    "clone_auth_save_note": "Estas credenciais são salvas criptografadas para este host, para que fetch e push continuem funcionando depois.",
+    "test_credentials": "Testar credenciais",
+    "testing": "Testando…",
+    "test_credentials_ok": "Credenciais válidas",
+    "username": "Usuário",
+    "password": "Senha / token",
+    "username_placeholder": "ex.: o usuário da sua conta",
+    "password_placeholder": "senha ou token de acesso",
     "remote_no_integration": "O remoto do repositório atual não corresponde a nenhuma integração conectada.",
     "load_repo_info_failed": "Falha ao carregar as informações do repositório.",
     "cannot_determine_provider": "Não foi possível determinar o provedor deste repositório.",
@@ -894,10 +924,21 @@
     "switch_project_n": "Ir para o projeto 1–9",
     "toggle_terminal": "Alternar terminal",
     "settings": "Configurações",
-    "shortcuts_sheet": "Atalhos de teclado"
+    "shortcuts_sheet": "Atalhos de teclado",
+    "clone_repo": "Clonar um repositório",
+    "init_repo": "Inicializar um repositório"
   },
   "sync": {
     "no_remote_title": "Nenhum remoto configurado",
     "no_remote_body": "Adicione um remoto a este repositório para buscar, puxar ou enviar."
+  },
+  "credential_prompt": {
+    "title": "Autenticação necessária",
+    "needed": "{host} precisa de usuário e senha (ou token de acesso) para continuar.",
+    "rejected": "{host} recusou as credenciais salvas. Informe novamente — o token pode ter expirado.",
+    "remember": "Lembrar neste dispositivo",
+    "remember_on": "Guardado localmente, criptografado pelo keychain do sistema — nunca sai desta máquina, e não perguntamos de novo para este host.",
+    "remember_off": "Mantido só nesta sessão (askpass) — nada é gravado em disco, e perguntamos de novo na próxima vez que você abrir o GitBox.",
+    "connect": "Entrar"
   }
 }

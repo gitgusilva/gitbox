@@ -401,7 +401,26 @@
     "whats_new_full_release": "View the full release",
     "view_changelog": "View release notes",
     "update_download": "Download",
-    "update_later": "Later"
+    "update_later": "Later",
+    "credentials": "Server credentials",
+    "credentials_description": "For git servers GitBox can't sign in to automatically — a self-hosted GitLab, Gitea, Azure DevOps. Saved per host and used for fetch, pull, push and clone.",
+    "credentials_host": "Host",
+    "credentials_host_placeholder": "git.mycompany.com (or paste the clone URL)",
+    "credentials_host_normalized": "Will be saved as {host}",
+    "credentials_username": "Username",
+    "credentials_username_placeholder": "Your account name on that server",
+    "credentials_token": "Access token or password",
+    "credentials_token_placeholder": "Personal access token",
+    "credentials_no_user": "no username",
+    "credentials_saved": "Credentials saved for {host}",
+    "credentials_remove_title": "Remove credentials",
+    "credentials_remove_msg": "Remove the saved credentials for {host}? Remote operations on that server will stop authenticating.",
+    "credentials_git_overrides": "Your Git configuration already answers for this host ({helper}) and takes precedence — this entry is a fallback.",
+    "credentials_protection_os": "Tokens are encrypted with your operating system's keychain — the key never touches disk.",
+    "credentials_protection_weak": "No system keyring found, so encryption falls back to a built-in key. It stops a casual read but is not real protection — install gnome-keyring or kwallet.",
+    "credentials_protection_none": "Encryption is unavailable on this machine, so tokens are stored as plain text in a file only your user can read.",
+    "credentials_transport_warning": "Prefer an access token over your password, and https:// over http:// — on http the token travels in the clear.",
+    "credentials_unencrypted_tag": "not encrypted"
   },
   "history_menu": {
     "visibility_graph": "Visibility in Graph",
@@ -651,6 +670,17 @@
     "where_to_clone_to": "Where to clone to",
     "url": "URL",
     "clone_the_repo": "Clone the repo!",
+    "clone_auth": "Authentication (private repositories)",
+    "clone_auth_hint": "If this repository is private, enter the credentials for its server. Leave empty for public repositories or when GitBox already has a saved credential or a git credential helper for this host.",
+    "clone_auth_ssh": "This is an SSH URL — it authenticates with your SSH keys (ssh-agent or ~/.ssh), not a username and password.",
+    "clone_auth_save_note": "These credentials are saved encrypted for this host so future fetch and push keep working.",
+    "test_credentials": "Test credentials",
+    "testing": "Testing…",
+    "test_credentials_ok": "Credentials are valid",
+    "username": "Username",
+    "password": "Password / token",
+    "username_placeholder": "e.g. your account username",
+    "password_placeholder": "password or access token",
     "remote_no_integration": "Current repository remote does not match any connected integration.",
     "load_repo_info_failed": "Failed to load repository info.",
     "cannot_determine_provider": "Cannot determine provider for this repository.",
@@ -894,10 +924,21 @@
     "switch_project_n": "Jump to project 1–9",
     "toggle_terminal": "Toggle terminal",
     "settings": "Settings",
-    "shortcuts_sheet": "Keyboard shortcuts"
+    "shortcuts_sheet": "Keyboard shortcuts",
+    "clone_repo": "Clone a repository",
+    "init_repo": "Initialize a repository"
   },
   "sync": {
     "no_remote_title": "No remote configured",
     "no_remote_body": "Add a remote to this repository to fetch, pull or push."
+  },
+  "credential_prompt": {
+    "title": "Authentication required",
+    "needed": "{host} needs a username and password (or access token) to continue.",
+    "rejected": "{host} refused the saved credentials. Enter them again — the token may have expired.",
+    "remember": "Remember on this device",
+    "remember_on": "Stored locally, encrypted through your OS keychain — it never leaves this machine, and you won't be asked again for this host.",
+    "remember_off": "Kept only for this session (askpass) — nothing is written to disk, and you'll be asked again next time you open GitBox.",
+    "connect": "Sign in"
   }
 }
