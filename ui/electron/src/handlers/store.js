@@ -10,7 +10,18 @@ module.exports = function (app, storePath) {
     function getStore() {
         if (cache) return cache;
         try { cache = JSON.parse(fs.readFileSync(storePath, 'utf-8')); }
-        catch (e) { cache = {}; }
+        catch (e) {
+            // Unreadable but non-empty means damaged, not absent. Starting from
+            // {} is right (the app must open), but the next write would erase
+            // whatever was in there — keep a copy so it can be recovered.
+            try {
+                if (fs.existsSync(storePath) && fs.statSync(storePath).size > 0) {
+                    fs.copyFileSync(storePath, `${storePath}.corrupt`);
+                    console.error('[Store] unreadable config kept at', `${storePath}.corrupt`);
+                }
+            } catch (_) { /* best effort */ }
+            cache = {};
+        }
         return cache;
     }
 
@@ -21,8 +32,18 @@ module.exports = function (app, storePath) {
     }
     function flush() {
         if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
-        try { fs.writeFileSync(storePath, JSON.stringify(cache || {})); }
-        catch (e) { console.error('[Store] write failed:', e); }
+        // Write to a sibling temp file and rename over the target: rename is
+        // atomic, so a crash or a kill mid-write can no longer leave a truncated
+        // (0-byte) config behind — which silently wiped every setting, including
+        // the connected accounts, and made remote operations fail to authenticate.
+        const tmp = `${storePath}.tmp`;
+        try {
+            fs.writeFileSync(tmp, JSON.stringify(cache || {}));
+            fs.renameSync(tmp, storePath);
+        } catch (e) {
+            console.error('[Store] write failed:', e);
+            try { fs.unlinkSync(tmp); } catch (_) { /* nothing to clean up */ }
+        }
     }
 
     ipcMain.on('store:get', (event, key) => {

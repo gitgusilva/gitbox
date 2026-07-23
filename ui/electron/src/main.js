@@ -1,8 +1,19 @@
 const { app, ipcMain, shell, dialog, session } = require('electron');
 const path = require('path');
+
+// MUST run before anything resolves app.getPath('userData') — Electron caches
+// that path on first access, so a later setName() is silently ignored. When this
+// sat further down, the packaged build (logger resolves userData at require
+// time) used <appData>/gitbox while dev (logger writes to the repo instead)
+// used <appData>/GitBox: two separate stores, so an account connected in one
+// build looked disconnected in the other and remote ops failed to authenticate.
+app.setName('GitBox');
+
 const addon = require('gitbox-addon');
 const { isDev, PROJECT_ROOT } = require('./paths');
 const { logger, instrumentIpc, installCrashHandlers } = require('./logger');
+const { adoptLegacyStore } = require('./storeMigration');
+const credentialStore = require('./credentialStore');
 
 // Install as early as possible so nothing that can crash the app goes unlogged.
 installCrashHandlers(app);
@@ -23,8 +34,6 @@ const { registerUpdater } = require('./updater');
 const { setupProtocol } = require('./protocol');
 const { createWindow, getMainWindow } = require('./windows/index');
 
-app.setName('GitBox');
-
 logger.info('[Main] Initializing GitBox...');
 let pty;
 try {
@@ -35,6 +44,20 @@ try {
 }
 
 const storePath = path.join(app.getPath('userData'), 'gitbox_config.json');
+
+// Settings written by builds that ran before the setName fix live under the old
+// directory name. Bring them across once so nobody loses their integrations,
+// repos and preferences on upgrade.
+adoptLegacyStore(app, storePath);
+
+// Access tokens out of the (world-readable) settings file and into the encrypted
+// store. Must happen BEFORE registerStoreHandlers, which caches the file in
+// memory — a later rewrite here would be clobbered by that cache on next write.
+const movedCredentials = credentialStore.migrateFromSettings(storePath);
+if (movedCredentials) {
+  logger.info(`[Credentials] encrypted ${movedCredentials} saved credential(s) out of the settings file`);
+}
+credentialStore.protectSettingsFile(storePath);
 
 registerStoreHandlers(app, storePath);
 registerWindowHandlers();
