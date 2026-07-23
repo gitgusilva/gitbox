@@ -8,18 +8,35 @@
 # into libgit2, which links into gitbox_addon.node — leaving NO external .so
 # beyond libc/libstdc++. Portable AppImage + Flatpak + Windows from one recipe.
 #
-# SSH (git@ URLs) is a later phase (static libssh2); HTTPS covers token auth.
+# SSH (git@ URLs) works too: libssh2 is built statically against the same
+# mbedTLS, so no OpenSSL and no system libssh2 are required at runtime.
 #
-# Re-runnable. Override versions with LIBGIT2_TAG / MBEDTLS_TAG.
+# Re-runnable. Override versions with LIBGIT2_TAG / MBEDTLS_TAG / LIBSSH2_TAG /
+# OPENSSL_TAG.
+#
+# BUILD MACHINE REQUIREMENTS: cmake, a C/C++ toolchain, and perl with the
+# modules OpenSSL's Configure needs. Debian/Ubuntu ship them with perl itself;
+# Fedora splits them out, so there:
+#   sudo dnf install perl-FindBin perl-IPC-Cmd perl-File-Compare \
+#                    perl-File-Copy perl-Pod-Html
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIBGIT2_TAG="${LIBGIT2_TAG:-v1.9.4}"
 MBEDTLS_TAG="${MBEDTLS_TAG:-v3.6.6}"
+LIBSSH2_TAG="${LIBSSH2_TAG:-libssh2-1.11.1}"
+OPENSSL_TAG="${OPENSSL_TAG:-openssl-3.5.4}"
 
 MBED_SRC="$HERE/mbedtls/src"
 MBED_BUILD="$HERE/mbedtls/build"
 MBED_PREFIX="$HERE/mbedtls/install"
+
+SSL_SRC="$HERE/openssl/src"
+SSL_PREFIX="$HERE/openssl/install"
+
+SSH_SRC="$HERE/libssh2/src"
+SSH_BUILD="$HERE/libssh2/build"
+SSH_PREFIX="$HERE/libssh2/install"
 
 SRC="$HERE/libgit2/src"
 BUILD="$HERE/libgit2/build"
@@ -45,7 +62,54 @@ cmake --build "$MBED_BUILD" --parallel "$(nproc)"
 cmake --install "$MBED_BUILD"
 if [ -d "$MBED_PREFIX/lib64" ] && [ ! -e "$MBED_PREFIX/lib" ]; then ln -s lib64 "$MBED_PREFIX/lib"; fi
 
-# ----- 2. static libgit2 with HTTPS=mbedTLS ---------------------------------
+# ----- 2. static OpenSSL (crypto backend for libssh2 only) ------------------
+# HTTPS keeps using mbedTLS; SSH cannot. libssh2's mbedTLS backend defines
+# LIBSSH2_ED25519 as 0 and only parses the modern "OPENSSH PRIVATE KEY" format
+# for ECDSA — so an ed25519 key (ssh-keygen's default) or an RSA key written by
+# OpenSSH 7.8+ would simply be rejected. Verified against a real server: ECDSA
+# authenticated, RSA-in-OpenSSH-format did not. OpenSSL covers every key type
+# users actually have, so it is built statically here and linked into libssh2.
+echo ">> OpenSSL $OPENSSL_TAG  ->  $SSL_PREFIX"
+if [ ! -f "$SSL_SRC/Configure" ]; then
+  rm -rf "$SSL_SRC"
+  git clone --depth 1 --branch "$OPENSSL_TAG" \
+    https://github.com/openssl/openssl.git "$SSL_SRC"
+fi
+if [ ! -f "$SSL_PREFIX/lib/libcrypto.a" ] && [ ! -f "$SSL_PREFIX/lib64/libcrypto.a" ]; then
+  rm -rf "$SSL_PREFIX"
+  ( cd "$SSL_SRC" && \
+    ./Configure no-shared no-tests no-docs no-legacy \
+      --prefix="$SSL_PREFIX" --openssldir="$SSL_PREFIX/ssl" && \
+    make -j"$(nproc)" && make install_sw )
+fi
+if [ -d "$SSL_PREFIX/lib64" ] && [ ! -e "$SSL_PREFIX/lib" ]; then ln -s lib64 "$SSL_PREFIX/lib"; fi
+
+# ----- 3. static libssh2 (SSH transport for git@ URLs) ----------------------
+echo ">> libssh2 $LIBSSH2_TAG  ->  $SSH_PREFIX"
+if [ ! -f "$SSH_SRC/CMakeLists.txt" ]; then
+  rm -rf "$SSH_SRC"
+  git clone --depth 1 --branch "$LIBSSH2_TAG" \
+    https://github.com/libssh2/libssh2.git "$SSH_SRC"
+fi
+rm -rf "$SSH_BUILD" "$SSH_PREFIX"
+cmake -S "$SSH_SRC" -B "$SSH_BUILD" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX="$SSH_PREFIX" \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DCMAKE_PREFIX_PATH="$SSL_PREFIX" \
+  -DOPENSSL_ROOT_DIR="$SSL_PREFIX" \
+  -DOPENSSL_USE_STATIC_LIBS=ON \
+  -DCRYPTO_BACKEND=OpenSSL \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DBUILD_STATIC_LIBS=ON \
+  -DBUILD_EXAMPLES=OFF \
+  -DBUILD_TESTING=OFF \
+  -DENABLE_ZLIB_COMPRESSION=OFF
+cmake --build "$SSH_BUILD" --parallel "$(nproc)"
+cmake --install "$SSH_BUILD"
+if [ -d "$SSH_PREFIX/lib64" ] && [ ! -e "$SSH_PREFIX/lib" ]; then ln -s lib64 "$SSH_PREFIX/lib"; fi
+
+# ----- 4. static libgit2 with HTTPS=mbedTLS + SSH=libssh2 -------------------
 echo ">> libgit2 $LIBGIT2_TAG  ->  $PREFIX"
 if [ ! -f "$SRC/CMakeLists.txt" ]; then
   rm -rf "$SRC"
@@ -57,13 +121,13 @@ cmake -S "$SRC" -B "$BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$PREFIX" \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-  -DCMAKE_PREFIX_PATH="$MBED_PREFIX" \
+  -DCMAKE_PREFIX_PATH="$MBED_PREFIX;$SSH_PREFIX" \
   -DMBEDTLS_ROOT_DIR="$MBED_PREFIX" \
   -DBUILD_SHARED_LIBS=OFF \
   -DBUILD_TESTS=OFF \
   -DBUILD_CLI=OFF \
   -DBUILD_EXAMPLES=OFF \
-  -DUSE_SSH=OFF \
+  -DUSE_SSH=libssh2 \
   -DUSE_HTTPS=mbedTLS \
   -DUSE_NTLMCLIENT=OFF \
   -DUSE_SHA1=CollisionDetection \

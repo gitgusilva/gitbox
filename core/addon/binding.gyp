@@ -26,6 +26,7 @@
         ["OS=='linux'", {
           "libraries": [
             "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
+            "<(module_root_dir)/vendor/libssh2/install/lib/libssh2.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a",
@@ -39,6 +40,7 @@
         ["OS=='mac'", {
           "libraries": [
             "<(module_root_dir)/vendor/libgit2/install/lib/libgit2.a",
+            "<(module_root_dir)/vendor/libssh2/install/lib/libssh2.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedtls.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedx509.a",
             "<(module_root_dir)/vendor/mbedtls/install/lib/libmbedcrypto.a"

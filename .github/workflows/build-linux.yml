@@ -43,19 +43,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build build-essential \
-            rpm libarchive-tools libfuse2
+            rpm libarchive-tools libfuse2 \
+            perl
 
-      # The vendored static libs are expensive (~10 min) and depend only on the
-      # build script + the libgit2/mbedTLS tags pinned inside it.
-      - name: Cache vendored libgit2 + mbedTLS
+      # The vendored static libs are expensive (~20 min now that OpenSSL is in
+      # the set) and depend only on the build script + the tags pinned inside it.
+      - name: Cache vendored libgit2 + mbedTLS + OpenSSL + libssh2
         uses: actions/cache@v4
         with:
           path: |
             core/addon/vendor/libgit2/install
             core/addon/vendor/mbedtls/install
+            core/addon/vendor/openssl/install
+            core/addon/vendor/libssh2/install
           key: vendor-libs-linux-${{ hashFiles('core/addon/vendor/build-libgit2.sh') }}
 
-      - name: Build vendored libgit2 + mbedTLS (static)
+      - name: Build vendored libgit2 + mbedTLS + OpenSSL + libssh2 (static)
         run: ./core/addon/vendor/build-libgit2.sh
 
       # The addon points libgit2 at a bundled CA store (it ships mbedTLS, which

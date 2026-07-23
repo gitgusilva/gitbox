@@ -90,6 +90,12 @@ cmake -S $Src -B $Build -G $Gen `
   -DBUILD_TESTS=OFF `
   -DBUILD_CLI=OFF `
   -DBUILD_EXAMPLES=OFF `
+  # SSH stays off on Windows for now. Enabling it needs the same static OpenSSL
+  # the Linux recipe builds (libssh2's WinCNG backend defines LIBSSH2_ED25519 as
+  # 0, so it would reject the key type most users have), and that build has to
+  # be validated on a real Windows runner first — including matching the static
+  # CRT (/MT) these libs use, which OpenSSL does not pick by default. Until
+  # then Windows authenticates over HTTPS, and the app says so.
   -DUSE_SSH=OFF `
   -DUSE_HTTPS=mbedTLS `
   -DWINHTTP=OFF `

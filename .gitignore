@@ -44,3 +44,8 @@ domain/
 # Vendored libgit2 (built via core/addon/vendor/build-libgit2.sh)
 core/addon/vendor/libgit2/
 core/addon/vendor/mbedtls/
+core/addon/vendor/openssl/
+core/addon/vendor/libssh2/
+
+# Sibling themes registry cloned in for local work — its own repo, not part of GitBox
+gitbox-themes/
