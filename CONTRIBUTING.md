@@ -24,10 +24,10 @@ Thank you for your interest in contributing to GitBox! This project is built wit
 ## Development Setup
 
 ### Build Requirements
-- Node.js 18+
+- Node.js 20+
 - npm
-- C++ compiler (gcc/clang or MSVC)
-- libgit2 development headers (for Linux source builds)
+- C++ compiler (gcc/clang or MSVC), CMake, Ninja and Perl
+- libgit2 is not a system dependency: it is built statically from `core/addon/vendor`
 
 ### Architecture
 - `app/ui`: Vue 3 frontend.

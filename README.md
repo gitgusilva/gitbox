@@ -10,75 +10,65 @@
 [![latest](https://img.shields.io/github/v/release/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/releases/latest)
 [![downloads](https://img.shields.io/github/downloads/gitgusilva/gitbox/total)](https://github.com/gitgusilva/gitbox/releases)
 
-GitBox is a lightweight, high-performance GUI client for Git, built with **Vue 3**, **Electron**, and a custom **C++ Addon** powered by **libgit2**. It focuses on speed, memory efficiency, and a premium developer experience.
+A fast, self-contained Git GUI built with Vue 3, Electron and a C++ addon over libgit2.
+No `git` binary required: clone, fetch, pull and push run natively, over HTTPS and SSH.
 
 ## Features
 
-- **High Performance**: Native Git operations via a specialized C++ addon and libgit2.
-- **Premium UI**: Modern, glassmorphic design with full Dark Mode support and smooth micro-animations.
-- **Visual History**: Integrated commit graph with a virtualized list for handling thousands of commits instantaneously.
-- **Keyboard Centric**: Native global shortcuts for almost every action (Terminal, Settings, Search, navigation).
-- **Integrated Terminal**: Fully-featured terminal sessions (xterm.js + node-pty) integrated directly into your workspace.
-- **Tabbed Workspace**: Manage multiple repositories simultaneously with a native-feel tab interface.
-- **Monaco Editor**: High-fidelity diff viewing and code inspection powered by the Monaco Editor.
-- **Localization**: Multi-language support (English, Brazilian Portuguese, Spanish).
-- **Optimized Refresh**: Smart background polling that hibernates when the app is in the background to save CPU and RAM.
+- **Visual history** — commit graph with a virtualized list, multi-branch filtering, and Monaco-powered diffs
+- **Tabbed workspaces** — several repositories at once, grouped into colour-coded projects
+- **Integrated terminal** — real shell sessions (xterm.js + node-pty) in the bottom panel
+- **Merge conflicts** — side-by-side resolution in its own window
+- **Remotes** — per-host credentials in an encrypted store, plus pull requests and repository statistics
+- **Themeable** — design-token themes with an in-app editor and a community theme registry
+- **Localized** — English, Brazilian Portuguese and Spanish
 
-## Installation
+## Install
 
-GitBox is currently in active development. Pre-built binaries for Windows and Linux will be available in the [Releases](https://github.com/gitgusilva/gitbox/releases) section soon.
+Download the latest build from [Releases](https://github.com/gitgusilva/gitbox/releases/latest):
 
-### Requirements
-- **Self-contained**: GitBox uses `libgit2` internally and does not require a local Git installation.
-- **Linux**: Build tools (gcc/clang) and `libgit2` development headers are only required when building from source.
-
-For a full list of legal notices and third-party software used in this project, please see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
-
-## Building from Source
-
-If you want to contribute or build GitBox yourself, follow these steps:
-
-### 1. Prerequisites
-Ensure you have **Node.js** (v18+), **npm**, and a **C++ compiler** (gcc/clang or MSVC) installed.
-
-### 2. Build the C++ Addon
-```bash
-cd core/addon
-npm install
-npm run build
-```
-
-### 3. Run the Application
-```bash
-cd ui/electron
-npm install
-npm run dev
-```
-
-## Shortcuts
-
-| Shortcut | Action |
+| Platform | Formats |
 | --- | --- |
-| `Ctrl + J` | Toggle Integrated Terminal |
-| `Ctrl + /` | Open Keyboard Shortcuts Map |
-| `Ctrl + ,` | Open Application Settings |
-| `Ctrl + F` | Search (UI context dependent) |
-| `Arrow Up/Down` | Navigate Commits/Files |
+| Linux | `.AppImage`, `.deb`, `.rpm`, `.pacman` |
+| Windows | `.exe` (NSIS), `.msi` |
 
-## Third-party Components
+The AppImage and the Windows installer update themselves from GitHub Releases;
+`.deb`, `.rpm` and `.pacman` are updated by your package manager. GitBox bundles
+libgit2 and its TLS stack, so there is nothing else to install — a local Git is
+not required.
 
-GitBox is made possible by several incredible open-source projects. For a full list of dependencies and their respective licenses, please refer to [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+## Building from source
+
+Requires Node.js 20+, npm, a C++ toolchain (gcc/clang or MSVC), CMake, Ninja and Perl.
+
+```bash
+# 1. Static libgit2 + mbedTLS + libssh2 + OpenSSL (~20 min, cached afterwards).
+#    On Windows: core/addon/vendor/build-libgit2.ps1
+./core/addon/vendor/build-libgit2.sh
+
+# 2. CA bundle for native HTTPS (mbedTLS has no system trust store).
+mkdir -p core/addon/certs
+curl -fsSL https://curl.se/ca/cacert.pem -o core/addon/certs/cacert.pem
+
+# 3. Native addon.
+npm --prefix core/addon install && npm --prefix core/addon run build
+
+# 4. UI + app. `dev` starts Vite and Electron together.
+npm --prefix app/ui install
+npm --prefix ui/electron install && npm --prefix ui/electron run dev
+```
+
+Packaging targets live in `ui/electron/package.json`; the release pipeline is in
+[.github/workflows](.github/workflows).
 
 ## Contributing
 
-We welcome contributions from the community! To get started, please read our [CONTRIBUTING.md](CONTRIBUTING.md) guide for details on our workflow, coding standards, and how to submit pull requests.
-
-## Contributors
-
-Thank you to all the people who have contributed to this project!
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and coding standards.
+Third-party dependencies and their licenses are listed in
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 [![Contributors](https://contrib.rocks/image?repo=gitgusilva/gitbox&columns=20)](https://github.com/gitgusilva/gitbox/graphs/contributors)
 
 ## License
 
-GitBox is licensed under the MIT License. See the [LICENSE](LICENSE) file for the full text.
+MIT — see [LICENSE](LICENSE).
