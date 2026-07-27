@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { getItem } from '../storageService';
 import { useLanguage } from '../languageService';
+import i18n from '../../i18n';
 import { AIResponse } from './core/types';
 import { BaseAIProvider } from './core/BaseProvider';
 import { GeminiProvider } from './providers/GeminiProvider';
@@ -70,7 +71,15 @@ export async function explainChanges(diff: string, locale: string = 'en'): Promi
     if (needsKey && !apiKey) return { text: '', error: 'API Key not configured' };
 
     const language = getLanguagePromptName(locale);
-    return provider.explainChanges(diff, language, apiKey);
+    // The section headings come from the app's own translations, not from the
+    // model: told only to answer in another language, it still echoed the English
+    // headings the prompt was written with.
+    const t = i18n.global.t as (key: string) => string;
+    return provider.explainChanges(diff, language, apiKey, {
+        summary: t('history_detail.ai_section_summary'),
+        changes: t('history_detail.ai_section_changes'),
+        risks: t('history_detail.ai_section_risks'),
+    });
 }
 
 /**

@@ -1,4 +1,4 @@
-import { AIProvider, AIResponse } from './types';
+import { AIProvider, AIResponse, ExplainSections } from './types';
 
 export abstract class BaseAIProvider implements AIProvider {
     abstract id: string;
@@ -25,25 +25,27 @@ DIFF:
 ${diff}`;
     }
 
-    protected buildExplainPrompt(diff: string, language: string): string {
+    protected buildExplainPrompt(diff: string, language: string, sections: ExplainSections): string {
         return `You are a senior engineer performing a professional, analytical code review of the following change. Produce a clear, well-structured explanation a reviewer can trust.
 
 LANGUAGE: Write the ENTIRE response in ${language}. This is mandatory regardless of the language of the code, identifiers, or diff. Do not answer in English unless ${language} is English.
 
-STRUCTURE (use concise markdown):
-## Summary
+STRUCTURE (use concise markdown). The three headings below are already written in
+${language} — reproduce them EXACTLY as given, character for character, and do not
+translate, reword or replace them:
+## ${sections.summary}
 1-2 sentences on the overall purpose and impact.
 
-## Changes by file
+## ${sections.changes}
 For each significant file, one bullet: \`path\` — what changed and, crucially, WHY.
 
-## Impact & risks
+## ${sections.risks}
 Behavior changes, edge cases, migrations, performance/security implications, or things to double-check. Omit this section entirely if there is genuinely nothing noteworthy.
 
 RULES:
 - Explain intent and consequences, not a line-by-line readout of the diff.
 - Be precise, concise and professional. No filler.
-- Write the entire response in ${language}.
+- Write the entire response in ${language}, headings included.
 
 DIFF:
 ${diff}`;
@@ -53,8 +55,8 @@ ${diff}`;
         return this.generate(this.buildCommitPrompt(diff, language), apiKey);
     }
 
-    async explainChanges(diff: string, language: string, apiKey: string): Promise<AIResponse> {
-        return this.generate(this.buildExplainPrompt(diff, language), apiKey);
+    async explainChanges(diff: string, language: string, apiKey: string, sections: ExplainSections): Promise<AIResponse> {
+        return this.generate(this.buildExplainPrompt(diff, language, sections), apiKey);
     }
 
     /**

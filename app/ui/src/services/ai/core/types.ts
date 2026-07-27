@@ -9,6 +9,19 @@ export interface AIResponse {
 }
 
 /**
+ * Section headings for the commit analysis, already translated by the app.
+ *
+ * They are handed to the model rather than left to it: asked only to "answer in
+ * Portuguese", every provider still copied the English headings written in the
+ * prompt, so the analysis came back with English titles over Portuguese text.
+ */
+export interface ExplainSections {
+    summary: string;
+    changes: string;
+    risks: string;
+}
+
+/**
  * Interface that all AI providers must implement.
  */
 export interface AIProvider {
@@ -32,5 +45,5 @@ export interface AIProvider {
     /**
      * Specifically generates an explanation of changes.
      */
-    explainChanges(diff: string, language: string, apiKey: string): Promise<AIResponse>;
+    explainChanges(diff: string, language: string, apiKey: string, sections: ExplainSections): Promise<AIResponse>;
 }
