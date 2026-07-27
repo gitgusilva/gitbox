@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('gitbox', {
 
   // Per-file actions (Local Changes context menu)
   openPath: (fullPath) => ipcRenderer.invoke('gitbox:openPath', fullPath),
+  openInTerminal: (dirPath, toolId) => ipcRenderer.invoke('gitbox:openInTerminal', dirPath, toolId),
   revealInFolder: (fullPath) => ipcRenderer.invoke('gitbox:revealInFolder', fullPath),
   assumeUnchanged: (repoPath, filePath, assume) => ipcRenderer.invoke('gitbox:assumeUnchanged', repoPath, filePath, assume),
   stashFile: (repoPath, filePath, message, options) => ipcRenderer.invoke('gitbox:stashFile', repoPath, filePath, message, options),

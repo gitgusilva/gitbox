@@ -205,6 +205,8 @@ export interface GitboxAPI {
     statistics: (repoPath: string, sinceMonths?: number) => Promise<GitStatistics>;
     openPath: (fullPath: string) => Promise<boolean>;
     revealInFolder: (fullPath: string) => Promise<boolean>;
+    /** Opens an OS terminal at `dirPath` with the tool configured in Settings. */
+    openInTerminal: (dirPath: string, toolId?: string) => Promise<{ ok: boolean; tool?: string; reason?: string; error?: string; pid?: number }>;
     assumeUnchanged: (repoPath: string, filePath: string, assume: boolean) => Promise<boolean>;
     stashFile: (repoPath: string, filePath: string | string[], message?: string, options?: { keepIndex?: boolean; includeUntracked?: boolean }) => Promise<boolean>;
     savePatch: (repoPath: string, filePath: string | string[], staged?: boolean) => Promise<{ saved: boolean; path?: string }>;

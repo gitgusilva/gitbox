@@ -2,7 +2,31 @@ const { ipcMain, dialog, shell, app } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
+
+/**
+ * Terminals offered in Settings and used by "open external terminal".
+ *
+ * `args(dir)` is what makes the terminal actually start IN the repository:
+ * inheriting the spawn cwd works for most of them, but not reliably for the
+ * client/server ones (gnome-terminal talks to gnome-terminal-server), so the
+ * ones with a flag get it explicitly. `gitbox` is the built-in panel, not a
+ * program — it is filtered out before anything is spawned.
+ */
+const TERMINALS = [
+    { id: 'gitbox', cmd: 'echo', label: 'GitBox Integrated Terminal' },
+    { id: 'gnome-terminal', cmd: 'gnome-terminal', label: 'GNOME Terminal', args: d => [`--working-directory=${d}`] },
+    { id: 'ghostty', cmd: 'ghostty', label: 'Ghostty', args: d => [`--working-directory=${d}`] },
+    { id: 'konsole', cmd: 'konsole', label: 'Konsole', args: d => ['--workdir', d] },
+    { id: 'kitty', cmd: 'kitty', label: 'Kitty', args: d => ['--directory', d] },
+    { id: 'alacritty', cmd: 'alacritty', label: 'Alacritty', args: d => ['--working-directory', d] },
+    { id: 'wezterm', cmd: 'wezterm', label: 'WezTerm', args: d => ['start', '--cwd', d] },
+    { id: 'tilix', cmd: 'tilix', label: 'Tilix', args: d => [`--working-directory=${d}`] },
+    { id: 'terminator', cmd: 'terminator', label: 'Terminator', args: d => [`--working-directory=${d}`] },
+    { id: 'foot', cmd: 'foot', label: 'foot', args: d => [`--working-directory=${d}`] },
+    { id: 'xterm', cmd: 'xterm', label: 'xterm' },
+    { id: 'x-terminal-emulator', cmd: 'x-terminal-emulator', label: 'System Default' }
+];
 
 // GUI-launched apps (desktop entry / AppImage / rpm) inherit a minimal PATH — often
 // just /usr/bin:/bin — so `which code` fails even when the tool is installed. Recover
@@ -15,8 +39,22 @@ function augmentedPath() {
     if (process.platform !== 'win32') {
         try {
             const shellBin = process.env.SHELL || '/bin/bash';
-            const out = execFileSync(shellBin, ['-lic', 'printf %s "$PATH"'], { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] });
-            if (out && out.trim()) p = out.trim();
+            // An INTERACTIVE login shell is needed (many people set PATH in
+            // .zshrc/.bashrc, which a non-interactive shell never reads) — but the
+            // same files also PRINT things: fastfetch, neofetch, motd banners. That
+            // output shares stdout with the value, and taking stdout as-is turned
+            // PATH into 2.5 KB of ANSI art, so every spawn using it died with
+            // ENAMETOOLONG. Fence the value and read only what is between markers.
+            const out = execFileSync(
+                shellBin,
+                ['-lic', 'printf "\\n__GITBOX_PATH__%s__GITBOX_END__\\n" "$PATH"'],
+                { encoding: 'utf8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] }
+            );
+            const fenced = /__GITBOX_PATH__([\s\S]*?)__GITBOX_END__/.exec(out || '');
+            const value = fenced && fenced[1].trim();
+            // Reject anything that isn't plausibly a PATH (control chars, escape
+            // sequences) rather than poisoning every child process with it.
+            if (value && value.includes('/') && !/[\n\r]/.test(value)) p = value;
         } catch { /* fall back to process PATH */ }
     }
     const home = os.homedir();
@@ -73,6 +111,45 @@ module.exports = function (isDev, rootPath) {
 
     ipcMain.handle('gitbox:getAppVersion', async () => app.getVersion());
 
+    /**
+     * Opens a terminal at `dirPath`, using the one picked in Settings and falling
+     * back to the first one installed. Only ids from TERMINALS can be launched —
+     * the renderer never gets to name an arbitrary program to spawn.
+     */
+    ipcMain.handle('gitbox:openInTerminal', async (_, dirPath, toolId) => {
+        if (!dirPath || !fs.existsSync(dirPath)) return { ok: false, reason: 'no-path' };
+
+        const launch = (cmd, args) => {
+            try {
+                const child = spawn(cmd, args, {
+                    cwd: dirPath,
+                    env: { ...process.env, PATH: augmentedPath() },
+                    detached: true,
+                    stdio: 'ignore'
+                });
+                child.unref();
+                return { ok: true, tool: cmd, pid: child.pid };
+            } catch (e) {
+                return { ok: false, reason: 'spawn-failed', error: String(e && e.message || e) };
+            }
+        };
+
+        if (process.platform === 'darwin') return launch('open', ['-a', 'Terminal', dirPath]);
+        if (process.platform === 'win32') {
+            return checkTool('wt.exe')
+                ? launch('wt.exe', ['-d', dirPath])
+                : launch('cmd.exe', ['/c', 'start', 'cmd.exe']);
+        }
+
+        // The configured one first, then anything else that is installed.
+        const chosen = TERMINALS.find(t => t.id === toolId && t.id !== 'gitbox');
+        const candidates = [chosen, ...TERMINALS.filter(t => t.id !== 'gitbox' && t !== chosen)].filter(Boolean);
+        const found = candidates.find(t => checkTool(t.cmd) || (t.flatpak && checkTool(t.flatpak)));
+        if (!found) return { ok: false, reason: 'not-found' };
+
+        return launch(found.cmd, found.args ? found.args(dirPath) : []);
+    });
+
     // Synchronous debug marker — writes straight to disk (appendFileSync flushes
     // immediately) so a mark survives even a native crash right after it.
     ipcMain.on('debug:mark', (event, label) => {
@@ -127,20 +204,7 @@ module.exports = function (isDev, rootPath) {
             { id: 'notepad++', cmd: 'notepad++', label: 'Notepad++' }
         ];
 
-        const defaultTerminals = [
-            { id: 'gitbox', cmd: 'echo', label: 'GitBox Integrated Terminal' },
-            { id: 'gnome-terminal', cmd: 'gnome-terminal', label: 'GNOME Terminal' },
-            { id: 'ghostty', cmd: 'ghostty', label: 'Ghostty' },
-            { id: 'konsole', cmd: 'konsole', label: 'Konsole' },
-            { id: 'kitty', cmd: 'kitty', label: 'Kitty' },
-            { id: 'alacritty', cmd: 'alacritty', label: 'Alacritty' },
-            { id: 'wezterm', cmd: 'wezterm', label: 'WezTerm' },
-            { id: 'tilix', cmd: 'tilix', label: 'Tilix' },
-            { id: 'terminator', cmd: 'terminator', label: 'Terminator' },
-            { id: 'foot', cmd: 'foot', label: 'foot' },
-            { id: 'xterm', cmd: 'xterm', label: 'xterm' },
-            { id: 'x-terminal-emulator', cmd: 'x-terminal-emulator', label: 'System Default' }
-        ];
+        const defaultTerminals = TERMINALS;
 
         const defaultMerge = [
             { id: 'meld', cmd: 'meld', flatpak: 'org.gnome.meld', label: 'Meld' },
