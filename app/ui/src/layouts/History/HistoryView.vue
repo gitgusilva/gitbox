@@ -27,7 +27,7 @@ import {
 import { appendCommitGraph, createGraphState, GraphState } from '../../GraphBuilder';
 import { GraphNode, Commit } from '../../types/git';
 import { generalSettings } from '../../services/settingsService';
-import { currentTheme } from '../../services/themeService';
+import { activeTheme } from '../../services/themeService';
 import { contextMenu, requestConfirm, requestInput } from '../../services/modalService';
 import { showToast } from '../../services/toastService';
 
@@ -323,18 +323,31 @@ watch(log, (newLog, oldLog) => {
   }
 }, { immediate: true });
 
-// Recolor the whole graph when the theme changes (lane colors are read from the
-// CSS palette at build time, so a switch needs a rebuild).
-watch(currentTheme, () => {
-  const l = log.value;
-  if (!l || l.length === 0) return;
-  graphState = createGraphState();
-  const map = new Map<string, GraphNode>();
-  const headId = branches.value.find(b => b.is_head)?.target || null;
-  const effHead = headId && l.some(c => c.id === headId) ? headId : null;
-  appendCommitGraph(map, graphState, l, effHead, graphRoots(l));
-  graphOutput.value = map;
-});
+/**
+ * Re-lay the graph when the theme's lane palette changes.
+ *
+ * The palette is resolved from the CSS vars while the nodes are being built, so
+ * each node ends up carrying a literal `rgb(...)`. Switching theme (or editing a
+ * graph colour in the Appearance editor) repaints everything else through the
+ * vars, but the graph kept the colours of whatever theme was active when the log
+ * loaded. Watch only the graph tokens — any other colour change is irrelevant
+ * here, and this rebuild is O(commits loaded).
+ */
+watch(
+  () => {
+    const c = activeTheme.value.colors;
+    return [c.graph1, c.graph2, c.graph3, c.graph4, c.graph5, c.graph6, c.graph7, c.graph8, c.graphMarker].join('|');
+  },
+  () => {
+    if (!log.value.length) return;
+    const headId = branches.value.find(b => b.is_head)?.target || null;
+    const effHead = headId && log.value.some(c => c.id === headId) ? headId : null;
+    graphState = createGraphState();
+    const map = new Map<string, GraphNode>();
+    appendCommitGraph(map, graphState, log.value, effHead, graphRoots(log.value));
+    graphOutput.value = map;
+  }
+);
 
 const commitRefsMap = computed(() => {
   const map = new Map<string, { name: string, type: 'branch' | 'tag' | 'remote', isHead?: boolean }[]>();

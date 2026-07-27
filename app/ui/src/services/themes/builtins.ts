@@ -34,6 +34,13 @@ export const GITBOX_DARK: GitboxTheme = {
         added: '#22C55E',
         removed: '#EF4444',
         modified: '#57B0FF',
+        // The palette the app shipped with — kept as-is so the default theme is
+        // unchanged. Every theme carries its own from here on: leaving them out
+        // silently falls back to DEFAULT_GRAPH_COLORS, which is why the graph
+        // used to look identical under every theme.
+        graph1: '#1E88E5', graph2: '#FFAB00', graph3: '#00E676', graph4: '#D500F9',
+        graph5: '#FF3D00', graph6: '#00B0FF', graph7: '#1DE9B6', graph8: '#F50057',
+        graphMarker: '#1E1E1E',
     },
     typography: { ...DEFAULT_TYPOGRAPHY },
 };
@@ -61,6 +68,11 @@ export const GITBOX_LIGHT: GitboxTheme = {
         added: '#1A7F37',
         removed: '#CF222E',
         modified: '#0969DA',
+        // Darker and more saturated than the dark theme's: the neon lanes that
+        // read well on #1E1E1E wash out against white.
+        graph1: '#0969DA', graph2: '#BF8700', graph3: '#1A7F37', graph4: '#8250DF',
+        graph5: '#CF222E', graph6: '#0598BC', graph7: '#117F6E', graph8: '#BF3989',
+        graphMarker: '#FFFFFF',
     },
     typography: { ...DEFAULT_TYPOGRAPHY },
 };
@@ -78,6 +90,9 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
             bg: '#282A36', bgElevated: '#21222C', bgOverlay: '#343746', surfaceHover: '#3A3C4E',
             border: '#191A21', borderStrong: '#44475A', textStrong: '#F8F8F2', text: '#F8F8F2', textMuted: '#6272A4',
             accent: '#BD93F9', accentHover: '#CBA6FA', accentFg: '#282A36', added: '#50FA7B', removed: '#FF5555', modified: '#8BE9FD',
+            graph1: '#BD93F9', graph2: '#FFB86C', graph3: '#50FA7B', graph4: '#FF79C6',
+            graph5: '#FF5555', graph6: '#8BE9FD', graph7: '#F1FA8C', graph8: '#D6ACFF',
+            graphMarker: '#282A36',
         },
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
@@ -88,6 +103,9 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
             bg: '#282C34', bgElevated: '#21252B', bgOverlay: '#2C313A', surfaceHover: '#333842',
             border: '#181A1F', borderStrong: '#3B4048', textStrong: '#FFFFFF', text: '#ABB2BF', textMuted: '#5C6370',
             accent: '#61AFEF', accentHover: '#7CC0F5', accentFg: '#282C34', added: '#98C379', removed: '#E06C75', modified: '#61AFEF',
+            graph1: '#61AFEF', graph2: '#E5C07B', graph3: '#98C379', graph4: '#C678DD',
+            graph5: '#E06C75', graph6: '#56B6C2', graph7: '#D19A66', graph8: '#BE5046',
+            graphMarker: '#282C34',
         },
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
@@ -98,6 +116,9 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
             bg: '#2E3440', bgElevated: '#3B4252', bgOverlay: '#434C5E', surfaceHover: '#4C566A',
             border: '#3B4252', borderStrong: '#4C566A', textStrong: '#ECEFF4', text: '#D8DEE9', textMuted: '#7B88A1',
             accent: '#88C0D0', accentHover: '#8FBCBB', accentFg: '#2E3440', added: '#A3BE8C', removed: '#BF616A', modified: '#81A1C1',
+            graph1: '#88C0D0', graph2: '#EBCB8B', graph3: '#A3BE8C', graph4: '#B48EAD',
+            graph5: '#BF616A', graph6: '#81A1C1', graph7: '#8FBCBB', graph8: '#D08770',
+            graphMarker: '#2E3440',
         },
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
@@ -108,6 +129,9 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
             bg: '#272822', bgElevated: '#1E1F1C', bgOverlay: '#34352F', surfaceHover: '#3E3D32',
             border: '#1E1F1C', borderStrong: '#49483E', textStrong: '#FFFFFF', text: '#F8F8F2', textMuted: '#75715E',
             accent: '#66D9EF', accentHover: '#8AE4F2', accentFg: '#272822', added: '#A6E22E', removed: '#F92672', modified: '#66D9EF',
+            graph1: '#66D9EF', graph2: '#E6DB74', graph3: '#A6E22E', graph4: '#AE81FF',
+            graph5: '#F92672', graph6: '#FD971F', graph7: '#4EC9B0', graph8: '#FF6188',
+            graphMarker: '#272822',
         },
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
@@ -118,6 +142,10 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
             bg: '#FDF6E3', bgElevated: '#EEE8D5', bgOverlay: '#FDF6E3', surfaceHover: '#E7E0CC',
             border: '#EEE8D5', borderStrong: '#D8D0B8', textStrong: '#073642', text: '#657B83', textMuted: '#93A1A1',
             accent: '#268BD2', accentHover: '#3A9BE0', accentFg: '#FDF6E3', added: '#859900', removed: '#DC322F', modified: '#268BD2',
+            // Solarized ships exactly eight accent colors, all tuned for this bg.
+            graph1: '#268BD2', graph2: '#B58900', graph3: '#859900', graph4: '#6C71C4',
+            graph5: '#DC322F', graph6: '#2AA198', graph7: '#D33682', graph8: '#CB4B16',
+            graphMarker: '#FDF6E3',
         },
         typography: { ...DEFAULT_TYPOGRAPHY },
     },

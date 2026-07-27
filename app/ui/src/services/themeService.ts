@@ -2,7 +2,19 @@ import { ref, computed, watch } from 'vue';
 import { getItem, setItem } from './storageService';
 import type { GitboxTheme, ThemeColors, ThemeTypography, ThemeMeta } from '../types/theme';
 import { COLOR_VARS, DEFAULT_GRAPH_COLORS } from '../types/theme';
-import { BUILTIN_THEMES, DEFAULT_DARK_ID, DEFAULT_LIGHT_ID, DEFAULT_TYPOGRAPHY } from './themes/builtins';
+import { BUILTIN_THEMES, DEFAULT_DARK_ID, DEFAULT_LIGHT_ID, DEFAULT_TYPOGRAPHY, GITBOX_DARK, GITBOX_LIGHT } from './themes/builtins';
+
+/** The graph keys, and only those, taken from the default theme of a given type. */
+const GRAPH_KEYS: (keyof ThemeColors)[] = [
+    'graph1', 'graph2', 'graph3', 'graph4', 'graph5', 'graph6', 'graph7', 'graph8', 'graphMarker',
+];
+
+export function graphFallback(type: 'light' | 'dark'): Record<string, string> {
+    const base = (type === 'light' ? GITBOX_LIGHT : GITBOX_DARK).colors;
+    const out: Record<string, string> = { ...DEFAULT_GRAPH_COLORS };
+    GRAPH_KEYS.forEach((key) => { if (base[key]) out[key] = base[key]!; });
+    return out;
+}
 
 // --- Persistent state -------------------------------------------------------
 
@@ -88,9 +100,12 @@ function applyGitboxTheme(theme: GitboxTheme) {
     root.classList.add(theme.type);
 
     const style = root.style;
-    // Graph colors are optional per theme — fall back to the shared default palette
-    // so the CSS vars are always defined.
-    const colors: Record<string, string> = { ...DEFAULT_GRAPH_COLORS, ...theme.colors };
+    // Graph colors are optional per theme — fall back so the CSS vars are always
+    // defined. The fallback follows the theme's TYPE, not one fixed palette: the
+    // shared default is tuned for a dark background, and handing it to a light
+    // theme (a community import, or a fork made before themes carried a palette)
+    // put neon lanes on white. Those themes now borrow the matching default's.
+    const colors: Record<string, string> = { ...graphFallback(theme.type), ...theme.colors };
     (Object.keys(COLOR_VARS) as (keyof ThemeColors)[]).forEach((key) => {
         const hex = colors[key];
         if (hex) style.setProperty(COLOR_VARS[key], hexToChannels(hex));
