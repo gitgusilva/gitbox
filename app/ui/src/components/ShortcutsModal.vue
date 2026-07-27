@@ -12,6 +12,7 @@ import { useI18n } from 'vue-i18n';
 import { isShortcutsModalOpen } from '../services/modalService';
 import { getShortcutsRegistry, type ShortcutMeta } from '../services/shortcutService';
 import Modal from './Common/Modal.vue';
+import ScrollArea from './Common/ScrollArea.vue';
 import SearchInput from './Common/SearchInput.vue';
 
 const { t } = useI18n();
@@ -68,48 +69,55 @@ const total = computed(() => groups.value.reduce((n, g) => n + g.items.length, 0
     icon="lucide:keyboard"
     iconColor="text-accent"
     width="720px"
-    maxHeight="80vh"
+    height="80vh"
+    :scroll-body="false"
   >
-    <div class="v-stack min-h-0">
+    <!-- A definite height plus an inner scroller, like the other list modals
+         (Blame, File history): under the modal's default body the list simply
+         grew past the dialog and was clipped, with no way to reach the rest.
+         The search box stays out of the scroller so it doesn't scroll away. -->
+    <div class="flex-1 min-h-0 v-stack">
       <div class="px-6 py-4 border-b border-line bg-surface shrink-0">
         <SearchInput v-model="query" :placeholder="t('shortcuts.search')" />
       </div>
 
-      <div class="px-6 py-5">
-        <div v-if="total === 0" class="py-10 center text-xs text-content-muted">
-          {{ t('shortcuts.empty') }}
-        </div>
+      <ScrollArea class="flex-1 min-h-0">
+        <div class="px-6 py-5">
+          <div v-if="total === 0" class="py-10 center text-xs text-content-muted">
+            {{ t('shortcuts.empty') }}
+          </div>
 
-        <!-- Two columns so a long list stays readable instead of scrolling forever -->
-        <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6 items-start">
-          <section v-for="g in groups" :key="g.category" class="v-stack gap-2">
-            <div class="h-stack items-center gap-2">
-              <Icon :icon="CATEGORY_ICONS[g.category]" class="w-3.5 h-3.5 text-accent shrink-0" />
-              <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted">
-                {{ t('shortcuts.categories.' + g.category) }}
-              </span>
-              <div class="h-px bg-line flex-1"></div>
-            </div>
-
-            <div
-              v-for="(item, idx) in g.items" :key="idx"
-              class="h-stack items-center justify-between gap-3 px-3 py-2 rounded-lg bg-surface border border-line/50"
-            >
-              <span class="text-[11px] font-medium text-content min-w-0 truncate">{{ labelOf(item) }}</span>
-              <!-- "+" between keys: "ALT 1…9" side by side reads as two separate
-                   keys rather than one combination. -->
-              <div class="h-stack items-center gap-1 shrink-0">
-                <template v-for="(key, kIdx) in keysOf(item)" :key="kIdx">
-                  <span v-if="kIdx > 0" class="text-[10px] font-bold text-content-muted/60 select-none">+</span>
-                  <kbd
-                    class="bg-app border border-line text-content-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold min-w-[20px] text-center"
-                  >{{ key }}</kbd>
-                </template>
+          <!-- Two columns so a long list stays readable instead of scrolling forever -->
+          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6 items-start">
+            <section v-for="g in groups" :key="g.category" class="v-stack gap-2">
+              <div class="h-stack items-center gap-2">
+                <Icon :icon="CATEGORY_ICONS[g.category]" class="w-3.5 h-3.5 text-accent shrink-0" />
+                <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted">
+                  {{ t('shortcuts.categories.' + g.category) }}
+                </span>
+                <div class="h-px bg-line flex-1"></div>
               </div>
-            </div>
-          </section>
+
+              <div
+                v-for="(item, idx) in g.items" :key="idx"
+                class="h-stack items-center justify-between gap-3 px-3 py-2 rounded-lg bg-surface border border-line/50"
+              >
+                <span class="text-[11px] font-medium text-content min-w-0 truncate">{{ labelOf(item) }}</span>
+                <!-- "+" between keys: "ALT 1…9" side by side reads as two separate
+                     keys rather than one combination. -->
+                <div class="h-stack items-center gap-1 shrink-0">
+                  <template v-for="(key, kIdx) in keysOf(item)" :key="kIdx">
+                    <span v-if="kIdx > 0" class="text-[10px] font-bold text-content-muted/60 select-none">+</span>
+                    <kbd
+                      class="bg-app border border-line text-content-muted px-1.5 py-0.5 rounded text-[10px] uppercase font-bold min-w-[20px] text-center"
+                    >{{ key }}</kbd>
+                  </template>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   </Modal>
 </template>

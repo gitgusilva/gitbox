@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Switching to a blank tab no longer leaves the previous repository loaded, where the menu and sync actions acted on a repository the tab wasn't showing
 - Settings return to the top of the page when you switch sections, instead of keeping the previous section's scroll position
 - The sidebar and the history filter bar use the same filter icon
+- The keyboard shortcuts sheet scrolls: the list ran past the dialog and the rest was unreachable
 
 ## v1.1.5
 ### Fixed
