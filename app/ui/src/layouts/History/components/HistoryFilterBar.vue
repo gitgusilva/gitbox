@@ -49,7 +49,9 @@ function label(ref: string) {
 
 <template>
   <div class="shrink-0 h-9 flex items-center gap-1 border-b border-line bg-surface px-2 select-none">
-    <Icon icon="lucide:filter" class="text-content-muted text-[11px] shrink-0" />
+    <Tooltip :text="t('history.filter_bar_label')" position="bottom" class="shrink-0">
+      <Icon icon="lucide:filter" class="text-content-muted text-[11px]" />
+    </Tooltip>
 
     <!-- Scrollable badge strip -->
     <div ref="scrollContainer" class="flex-1 flex items-center gap-1.5 overflow-x-auto filterbar-scroll min-w-0">
