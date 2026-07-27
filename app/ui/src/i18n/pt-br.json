@@ -139,7 +139,12 @@
     "changes": "MUDANÇAS",
     "files": "ARQUIVOS",
     "committer": "COMMITTER",
-    "temp_filter_hint": "Temporário — clique no olho da branch para fixá-la no filtro"
+    "temp_filter_hint": "Temporário — clique no olho da branch para fixá-la no filtro",
+    "filter_branch_add": "Filtrar o histórico por esta branch",
+    "filter_branch_remove": "Remover esta branch do filtro do histórico",
+    "filter_tag_add": "Filtrar o histórico por esta tag",
+    "filter_tag_remove": "Remover esta tag do filtro do histórico",
+    "filter_bar_label": "Filtro ativo do histórico"
   },
   "changes": {
     "unstaged": "NÃO PREPARADOS",
@@ -337,6 +342,10 @@
     "user_name": "Nome de Usuário",
     "git_config_saved": "Salvo no git config global (~/.gitconfig)",
     "save_git_config": "Salvar Configuração",
+    "avatar_title": "Foto do perfil",
+    "avatar_hint": "O GitBox mostra a foto que o Gravatar tem para o seu e-mail do git — a mesma usada no histórico de commits. Ela não fica guardada aqui: para definir ou trocar, entre no Gravatar com este endereço.",
+    "avatar_link": "Abrir o Gravatar",
+    "avatar_no_email": "Preencha o e-mail para ver a foto vinculada a ele.",
     "notifications": "Notificações",
     "notifications_enabled": "Mostrar notificações (toasts)",
     "notification_position": "Posição das notificações",
@@ -623,7 +632,10 @@
     "ai_explain_title": "AI — Análise do Commit",
     "ai_generating": "Analisando as alterações…",
     "ai_no_diff": "Nenhum diff disponível para este commit.",
-    "ai_no_response": "Sem resposta do provedor de AI."
+    "ai_no_response": "Sem resposta do provedor de AI.",
+    "ai_section_summary": "Resumo",
+    "ai_section_changes": "Mudanças por arquivo",
+    "ai_section_risks": "Impacto e riscos"
   },
   "modal": {
     "success": "Sucesso",
@@ -934,7 +946,9 @@
   },
   "sync": {
     "no_remote_title": "Nenhum remoto configurado",
-    "no_remote_body": "Adicione um remoto a este repositório para buscar, puxar ou enviar."
+    "no_remote_body": "Adicione um remoto a este repositório para buscar, puxar ou enviar.",
+    "to_pull": "1 commit para puxar | {count} commits para puxar",
+    "to_push": "1 commit para enviar | {count} commits para enviar"
   },
   "credential_prompt": {
     "title": "Autenticação necessária",

@@ -105,7 +105,12 @@
     "changes": "CHANGES",
     "files": "FILES",
     "committer": "COMMITTER",
-    "temp_filter_hint": "Temporary — click the branch’s eye to keep it in the filter"
+    "temp_filter_hint": "Temporary — click the branch’s eye to keep it in the filter",
+    "filter_branch_add": "Filter history to this branch",
+    "filter_branch_remove": "Remove this branch from the history filter",
+    "filter_tag_add": "Filter history to this tag",
+    "filter_tag_remove": "Remove this tag from the history filter",
+    "filter_bar_label": "Active history filter"
   },
   "changes": {
     "unstaged": "UNSTAGED",
@@ -303,6 +308,10 @@
     "user_name": "User Name",
     "git_config_saved": "Saved to global git config (~/.gitconfig)",
     "save_git_config": "Save Configuration",
+    "avatar_title": "Profile photo",
+    "avatar_hint": "GitBox shows the photo Gravatar has for your git email — the same one used in the commit history. It is not stored here: to set or change it, sign in to Gravatar with this address.",
+    "avatar_link": "Open Gravatar",
+    "avatar_no_email": "Fill in your email to see the photo linked to it.",
     "notifications": "Notifications",
     "notifications_enabled": "Show notifications (toasts)",
     "notification_position": "Notification position",
@@ -623,7 +632,10 @@
     "ai_explain_title": "AI — Commit Analysis",
     "ai_generating": "Analyzing changes…",
     "ai_no_diff": "No diff available for this commit.",
-    "ai_no_response": "No response from the AI provider."
+    "ai_no_response": "No response from the AI provider.",
+    "ai_section_summary": "Summary",
+    "ai_section_changes": "Changes by file",
+    "ai_section_risks": "Impact & risks"
   },
   "modal": {
     "success": "Success",
@@ -934,7 +946,9 @@
   },
   "sync": {
     "no_remote_title": "No remote configured",
-    "no_remote_body": "Add a remote to this repository to fetch, pull or push."
+    "no_remote_body": "Add a remote to this repository to fetch, pull or push.",
+    "to_pull": "1 commit to pull | {count} commits to pull",
+    "to_push": "1 commit to push | {count} commits to push"
   },
   "credential_prompt": {
     "title": "Authentication required",

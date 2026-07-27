@@ -122,7 +122,12 @@
     "changes": "CAMBIOS",
     "files": "ARCHIVOS",
     "committer": "COMMITTER",
-    "temp_filter_hint": "Temporal — haz clic en el ojo de la rama para fijarla en el filtro"
+    "temp_filter_hint": "Temporal — haz clic en el ojo de la rama para fijarla en el filtro",
+    "filter_branch_add": "Filtrar el historial por esta rama",
+    "filter_branch_remove": "Quitar esta rama del filtro del historial",
+    "filter_tag_add": "Filtrar el historial por esta etiqueta",
+    "filter_tag_remove": "Quitar esta etiqueta del filtro del historial",
+    "filter_bar_label": "Filtro activo del historial"
   },
   "changes": {
     "unstaged": "SIN PREPARAR",
@@ -297,6 +302,10 @@
     "user_name": "Nombre de Usuario",
     "git_config_saved": "Guardado en la config global de git (~/.gitconfig)",
     "save_git_config": "Guardar Configuración",
+    "avatar_title": "Foto de perfil",
+    "avatar_hint": "GitBox muestra la foto que Gravatar tiene para tu correo de git — la misma que aparece en el historial de commits. No se guarda aquí: para ponerla o cambiarla, entra en Gravatar con esta dirección.",
+    "avatar_link": "Abrir Gravatar",
+    "avatar_no_email": "Completa el correo para ver la foto vinculada a él.",
     "notifications": "Notificaciones",
     "notifications_enabled": "Mostrar notificaciones (toasts)",
     "notification_position": "Posición de las notificaciones",
@@ -565,7 +574,10 @@
     "ai_explain_title": "AI — Análisis del Commit",
     "ai_generating": "Analizando los cambios…",
     "ai_no_diff": "No hay diff disponible para este commit.",
-    "ai_no_response": "Sin respuesta del proveedor de AI."
+    "ai_no_response": "Sin respuesta del proveedor de AI.",
+    "ai_section_summary": "Resumen",
+    "ai_section_changes": "Cambios por archivo",
+    "ai_section_risks": "Impacto y riesgos"
   },
   "modal": {
     "success": "Éxito",
@@ -882,7 +894,9 @@
   },
   "sync": {
     "no_remote_title": "Sin remoto configurado",
-    "no_remote_body": "Añade un remoto a este repositorio para hacer fetch, pull o push."
+    "no_remote_body": "Añade un remoto a este repositorio para hacer fetch, pull o push.",
+    "to_pull": "1 commit para traer | {count} commits para traer",
+    "to_push": "1 commit para enviar | {count} commits para enviar"
   },
   "credential_prompt": {
     "title": "Autenticación requerida",
