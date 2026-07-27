@@ -1,6 +1,21 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.6
+### Added
+- "Open in external terminal" and "Open in file manager" now work from the main menu, with the `Alt+T` / `Alt+O` shortcuts it already advertised. The terminal is the one picked in Settings, falling back to whichever is installed
+- Git settings show the Gravatar photo linked to your git email — the same one the history uses — with a link to manage it on Gravatar
+- Tooltips on the sidebar's filter toggle and on the ahead/behind counters, which now say how many commits there are to pull and to push
+
+### Fixed
+- The commit graph follows the active theme: every built-in theme has its own lane palette instead of all of them sharing one, and editing a graph colour in the Appearance editor recolours the graph without a reload
+- Off-branch commits, the dot outline and the merge glyph no longer use hardcoded greys and whites that clashed with light and custom themes
+- The title bar stays usable while a dialog is open — the backdrop covered the drag region and the minimize/maximize/close buttons, leaving the window impossible to move or close
+- The AI commit analysis keeps its section headings in the selected language instead of returning English titles over translated text
+- Switching to a blank tab no longer leaves the previous repository loaded, where the menu and sync actions acted on a repository the tab wasn't showing
+- Settings return to the top of the page when you switch sections, instead of keeping the previous section's scroll position
+- The sidebar and the history filter bar use the same filter icon
+
 ## v1.1.5
 ### Fixed
 - A repository that was moved, renamed or deleted no longer leaves a raw `could not find repository at '…'` error on screen: the tab is closed, the stale branches, history and graph are cleared and the entry is dropped from the recent list
