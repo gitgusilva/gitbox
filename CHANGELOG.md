@@ -1,6 +1,16 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.5
+### Fixed
+- A repository that was moved, renamed or deleted no longer leaves a raw `could not find repository at '…'` error on screen: the tab is closed, the stale branches, history and graph are cleared and the entry is dropped from the recent list
+- Opening a folder that is not a Git repository says so, instead of opening it and showing the previous repository's data
+- Terminals no longer lose their scrollback when the window is minimized, the panel is hidden or you switch between sessions
+- Terminal output is no longer lost while another window (the merge editor) is in front
+- Maximizing the terminal panel now fills the whole content area, like the Command Log
+- History columns: the Author/Time dividers follow the cursor, can't be dragged past the list, and shrink with it instead of pushing the date column out of view
+- Panel and column sizes are remembered across restarts
+
 ## v1.1.4
 ### Added
 - Remote authentication: GitBox saves per-host credentials in an encrypted store and reuses them for fetch, pull and push over HTTPS and SSH, so you sign in once. Manage them from Settings › Credentials
