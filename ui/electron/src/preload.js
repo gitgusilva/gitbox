@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld('gitbox', {
   // ==========================================
   // File System
   // ==========================================
+  probeRepo: (repoPath) => ipcRenderer.invoke('gitbox:probeRepo', repoPath),
   listFiles: (repoPath) => ipcRenderer.invoke('gitbox:listFiles', repoPath),
   getFileContent: (repoPath, filePath) => ipcRenderer.invoke('gitbox:getFileContent', repoPath, filePath),
   saveFile: (repoPath, filePath, content) => ipcRenderer.invoke('gitbox:saveFile', repoPath, filePath, content),

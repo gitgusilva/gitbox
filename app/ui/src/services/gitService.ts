@@ -1,7 +1,8 @@
 import { ref, computed, shallowRef, watch } from 'vue';
 import { getItem, setItem } from './storageService';
 import { generalSettings } from './settingsService';
-import { activeWorkspaceId, workspaces, removeWorkspace, updateWorkspace } from './workspaceService';
+import { activeWorkspaceId, workspaces, removeWorkspace, updateWorkspace, recentRepositories } from './workspaceService';
+import { probeRepoPath, looksLikeRepoPathFailure } from './repoProbe';
 import {
     GitStatusEntry,
     Branch,
@@ -313,6 +314,112 @@ watch(() => {
     }
 }, { immediate: true });
 
+/**
+ * Wipe every piece of repository-derived state.
+ *
+ * Everything the views read has to be listed here. When a repo goes away — moved,
+ * deleted, or the user picked a folder that turned out not to be one — the
+ * branches, history, graph, stashes and file lists of the PREVIOUS repo would
+ * otherwise stay on screen, reading as if they belonged to the new path.
+ */
+export function resetRepoData() {
+    status.value = [];
+    branches.value = [];
+    remotes.value = [];
+    tags.value = [];
+    stashes.value = [];
+    submodules.value = [];
+    log.value = [];
+    logHasMore.value = false;
+    isLoadingMoreLog.value = false;
+    repoState.value = 'clean';
+    userName.value = '';
+    userEmail.value = '';
+    selectedCommits.value = [];
+    selectedFile.value = '';
+    selectedFiles.value = [];
+    selectedStash.value = null;
+    selectedStashFile.value = '';
+    // Back to "follow the checked-out branch" so the next repo opened in this tab
+    // isn't filtered by a ref that only existed in the old one.
+    logFilterAuto.value = true;
+    selectedLogRefs.value = [];
+}
+
+/**
+ * A git call failed with something that smells like "this path is not a
+ * repository (anymore)". Confirm it against the filesystem and, if true, take the
+ * repo down cleanly:
+ *
+ *  - the folder VANISHED (moved or renamed, the common case): close it — the tab
+ *    is reset to the empty state, which is the "open a repository" screen — and
+ *    drop it from the recent list, since that entry can no longer be opened;
+ *  - the folder is THERE but isn't a repository: keep the tab so the user can see
+ *    which folder they picked, and just say so.
+ *
+ * Either way the stale repository data is cleared. Returns true when it handled
+ * the failure, so callers can skip their normal error reporting.
+ */
+const reportedUnavailable = new Set<string>();
+
+export async function handleUnavailableRepo(path: string, workspaceId?: string | null): Promise<boolean> {
+    if (!path) return false;
+
+    const probe = await probeRepoPath(path);
+    if (probe.exists && probe.isRepo) return false; // still openable — a different failure
+
+    const t = i18n.global.t as (key: string, named?: Record<string, unknown>) => string;
+    // Every tab on that path is dead, not just the one that happened to fail.
+    const targetIds = new Set(workspaces.value.filter(w => w.path === path).map(w => w.id));
+    if (targetIds.size === 0 && (workspaceId || activeWorkspaceId.value)) {
+        targetIds.add((workspaceId || activeWorkspaceId.value) as string);
+    }
+
+    const gone = !probe.exists;
+
+    // Detach the repo BEFORE clearing: the per-repo persistence (history filter,
+    // commit draft) keys off repoPath, and must not be rewritten for a repo that
+    // still exists somewhere else on disk.
+    if (gone && repoPath.value === path) repoPath.value = '';
+    resetRepoData();
+
+    if (gone) {
+        for (const id of targetIds) {
+            updateWorkspace(id, {
+                name: '',
+                path: '',
+                isSubmodule: false,
+                parentName: undefined,
+                parentPath: undefined
+            });
+        }
+        recentRepositories.value = recentRepositories.value.filter(r => r.path !== path);
+    }
+
+    const title = gone ? t('repo.missing_title') : t('repo.not_a_repo_title');
+    const body = gone ? t('repo.missing_body', { path }) : t('repo.not_a_repo_body', { path });
+
+    // The banner is idempotent, the toast and the log entry are not: a tab left on
+    // a folder that isn't a repo keeps polling, and telling the user once a minute
+    // is nagging. Say it once per path — `loadRepoData` forgets the path as soon
+    // as it loads successfully again.
+    error.value = body;
+    if (!reportedUnavailable.has(path)) {
+        reportedUnavailable.add(path);
+        addLog(title, 'Error', 'error', { details: body });
+        const { showToast } = await import('./toastService');
+        showToast(title, body, 'error');
+    }
+
+    return true;
+}
+
+/** Same check, for a failure we already have in hand. */
+async function handledAsUnavailableRepo(err: unknown, path: string, workspaceId?: string | null): Promise<boolean> {
+    if (!looksLikeRepoPathFailure(messageOf(err))) return false;
+    return handleUnavailableRepo(path, workspaceId);
+}
+
 let pollingTimer: any = null;
 
 // Actions
@@ -374,16 +481,16 @@ export async function loadRepoData(showLoader = false, targetWorkspaceId?: strin
         if (status.value.length > 0 && !selectedFile.value) {
             selectedFile.value = status.value[0].path;
         }
+
+        // It loaded: whatever we reported about this path before no longer holds.
+        reportedUnavailable.delete(rp);
     } catch (err: any) {
-        error.value = String(err);
-        if (error.value.includes('failed to resolve path') || error.value.includes('No such file or directory')) {
-            const idToReset = targetWorkspaceId || activeWorkspaceId.value;
-            if (idToReset) {
-                updateWorkspace(idToReset, { name: '', path: '' });
-                const { showToast } = await import('./toastService');
-                showToast('Error', 'Repository path not found. Current tab reset.', 'error');
-            }
-        }
+        // The repo may simply not be there anymore (moved/renamed/deleted) or the
+        // folder may not be a repository at all — that has its own handling:
+        // clear the stale data, tell the user, close the tab when the path is gone.
+        if (await handledAsUnavailableRepo(err, rp, targetWorkspaceId || activeWorkspaceId.value)) return;
+        error.value = messageOf(err);
+        addLog('Failed to load repository', 'Error', 'error', { details: error.value });
     } finally {
         if (showLoader) isLoadingData.value = false;
     }
@@ -467,10 +574,13 @@ export const isLoading = ref(false);
 /** Light refresh: re-reads only the working-tree status. */
 export async function refreshStatus() {
     if (!repoPath.value.trim() || !window.gitbox) return;
+    const rp = repoPath.value;
     try {
-        status.value = await window.gitbox.status(repoPath.value);
-    } catch {
-        /* ignore — a transient status read failure shouldn't surface as an error */
+        status.value = await window.gitbox.status(rp);
+    } catch (err) {
+        // A transient status read failure shouldn't surface as an error — but the
+        // repo disappearing under the poll must not be swallowed either.
+        await handledAsUnavailableRepo(err, rp);
     }
 }
 
@@ -611,6 +721,9 @@ async function runAction(action: () => unknown, refresh: 'status' | 'full' = 'st
         if (isAuthPromptFailure(err)) {
             // The askpass dialog was shown (and cancelled or exhausted). No banner.
             reportHandled(actionName || 'Git action', err, 'Authentication needed — the credential prompt was shown.');
+        } else if (await handledAsUnavailableRepo(err, repoPath.value)) {
+            // The repo moved/vanished mid-action: already reported, tab reset.
+            reportHandled(actionName || 'Git action', err, 'The repository is no longer available at that path.');
         } else if (isHandledFailure(err)) {
             reportHandled(actionName || 'Git action', err, 'Handled by the app — see the dialog that opened.');
         } else {

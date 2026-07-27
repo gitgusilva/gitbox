@@ -1,6 +1,8 @@
 import { ref, watch, computed } from 'vue';
 import { getItem, setItem, removeItem } from './storageService';
 import { generalSettings } from './settingsService';
+import { probeRepoPath } from './repoProbe';
+import i18n from '../i18n';
 import {
     projects,
     activeProjectId,
@@ -237,12 +239,28 @@ export function addNewTab() {
     return addWorkspace('', '', 'transparent');
 }
 
+/**
+ * Opens a folder the user picked, but only if it really is a repository.
+ *
+ * Picking the wrong folder used to open a tab that kept showing the PREVIOUS
+ * repo's branches, history and graph while every git call failed behind the
+ * scenes. Check first, say what's wrong, and leave the current tab alone.
+ */
 export async function addWorkspaceFlow() {
     if (!window.gitbox) return null;
     const path = await window.gitbox.selectFolder();
-    if (path) {
-        openRepository(path);
-        return true;
+    if (!path) return false;
+
+    const probe = await probeRepoPath(path);
+    if (!probe.isRepo) {
+        const t = i18n.global.t as (key: string, named?: Record<string, unknown>) => string;
+        const title = probe.exists ? t('repo.not_a_repo_title') : t('repo.missing_title');
+        const body = probe.exists ? t('repo.not_a_repo_body', { path }) : t('repo.missing_body', { path });
+        const { showToast } = await import('./toastService');
+        showToast(title, body, 'error');
+        return false;
     }
-    return false;
+
+    openRepository(path);
+    return true;
 }

@@ -221,6 +221,9 @@ export interface GitboxAPI {
     setConfig: (repoPath: string, userName: string, userEmail: string) => Promise<boolean>;
     getGlobalConfig: () => Promise<{ userName: string, userEmail: string }>;
     setGlobalConfig: (userName: string, userEmail: string) => Promise<boolean>;
+    /** Is this path still openable as a repository? Distinguishes "moved/deleted"
+     *  (exists: false) from "folder is not a repo" (exists: true, isRepo: false). */
+    probeRepo: (repoPath: string) => Promise<{ exists: boolean; isRepo: boolean }>;
     listFiles: (repoPath: string, refName?: string) => Promise<string[]>;
     getFileContent: (repoPath: string, filePath: string) => Promise<string>;
     saveFile: (repoPath: string, filePath: string, content: string) => Promise<void>;

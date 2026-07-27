@@ -944,5 +944,11 @@
     "remember_on": "Stored locally, encrypted through your OS keychain — it never leaves this machine, and you won't be asked again for this host.",
     "remember_off": "Kept only for this session (askpass) — nothing is written to disk, and you'll be asked again next time you open GitBox.",
     "connect": "Sign in"
+  },
+  "repo": {
+    "missing_title": "Repository not found",
+    "missing_body": "The repository at \"{path}\" no longer exists — it was moved, renamed or deleted. The tab was closed.",
+    "not_a_repo_title": "Not a Git repository",
+    "not_a_repo_body": "\"{path}\" is not a Git repository. Nothing to show: pick another folder or initialize a repository there."
   }
 }

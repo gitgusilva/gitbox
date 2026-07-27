@@ -10,6 +10,7 @@ global.window.gitbox = {
     getSubmodules: vi.fn(),
     getConfig: vi.fn(),
     log: vi.fn(),
+    probeRepo: vi.fn(),
 } as any
 
 // Mock i18n. `createI18n` has to be part of the mock: services that import the
