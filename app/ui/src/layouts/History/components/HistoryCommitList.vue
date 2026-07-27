@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import CommitGraph from '../../../components/CommitGraph.vue';
@@ -28,6 +28,52 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// --- Columns -------------------------------------------------------------
+/** Narrowest the (flexible) subject column may get. */
+const SUBJECT_MIN = 100;
+/** Narrowest a dragged column may get — mirrors each Resizer's `min`. */
+const COLUMN_MIN = 60;
+/** Horizontal padding of the header/row grids (`px-3` twice). */
+const GRID_PAD = 24;
+
+const listEl = ref<HTMLElement | null>(null);
+let widthObserver: ResizeObserver | null = null;
+
+/** One template for the header and every row, so they can never drift apart. */
+const gridTemplate = computed(
+  () => `minmax(${SUBJECT_MIN}px, 1fr) ${historyAuthorWidth.value}px ${historyDateWidth.value}px`
+);
+
+/**
+ * Keep the fixed columns inside the list.
+ *
+ * Widths survive restarts and the list narrows on its own (the detail panel
+ * opens, the window shrinks, the sidebar grows). Without this the two fixed
+ * tracks kept their px sizes, overflowed the row and the date column simply
+ * disappeared behind `overflow-x-hidden`. Shrink them proportionally instead.
+ */
+function clampColumns(available: number) {
+  const room = available - GRID_PAD - SUBJECT_MIN;
+  if (room <= COLUMN_MIN * 2) return; // list too narrow to clamp sensibly
+  const total = historyAuthorWidth.value + historyDateWidth.value;
+  if (total <= room) return;
+
+  const scale = room / total;
+  historyAuthorWidth.value = Math.max(COLUMN_MIN, Math.floor(historyAuthorWidth.value * scale));
+  historyDateWidth.value = Math.max(COLUMN_MIN, Math.floor(historyDateWidth.value * scale));
+}
+
+onMounted(() => {
+  if (!listEl.value) return;
+  widthObserver = new ResizeObserver(entries => {
+    const w = entries[0]?.contentRect.width ?? 0;
+    if (w > 0) clampColumns(w);
+  });
+  widthObserver.observe(listEl.value);
+});
+
+onUnmounted(() => widthObserver?.disconnect());
 
 /** Native scroll container reference (avoids SimpleBar fragment root issues) */
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -79,22 +125,37 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col min-h-0 border-r border-line min-w-0 bg-app relative">
-    
+  <div ref="listEl" class="flex-1 flex flex-col min-h-0 border-r border-line min-w-0 bg-app relative">
+
     <!-- Column Header (h-[42px] to line up with the detail panel's title bar) -->
     <div class="grid items-center h-[42px] border-b border-line bg-surface px-3 font-bold text-[10px] text-content-muted select-none uppercase tracking-widest shrink-0"
-         :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px` }">
+         :style="{ gridTemplateColumns: gridTemplate }">
        <div class="py-2 flex items-center justify-center gap-2 min-w-0 overflow-hidden"
             @mouseenter="startMarquee($event, '.hdr-title')" @mouseleave="stopMarquee($event, '.hdr-title')">
          <span class="truncate hdr-title">{{ t('history.subject') }}</span>
        </div>
-        <div class="py-2 relative pl-2 pr-4 overflow-hidden">
+        <!-- Each handle sits on the LEFT edge of its column and drags inverted.
+             With a `1fr` subject column, a fixed column's RIGHT edge never moves
+             (the subject absorbs the change) — only its left edge does. A handle
+             on the right edge therefore stayed put while the column grew under
+             the cursor, which is what made the columns feel unresizable.
+             `reserve` keeps the subject column at its 100px minimum plus the
+             other fixed column, so a drag can't push the date column out of the
+             list. -->
+        <!-- The handles straddle the column line (-3px of a 6px grip) instead of
+             sitting fully inside the column, so aiming at the line works from
+             either side. That needs the cells to not clip them. -->
+        <div class="py-2 relative pl-2 pr-4 border-l border-line">
           <span class="block truncate">{{ t('history.author') }}</span>
-          <Resizer :target="layoutRefs.historyAuthorWidth" :options="{ min: 60 }" class="absolute right-0 top-0 bottom-0 z-30" />
+          <Resizer :target="layoutRefs.historyAuthorWidth"
+                   :options="{ invert: true, min: COLUMN_MIN, clampToContainer: true, reserve: SUBJECT_MIN + GRID_PAD + historyDateWidth }"
+                   class="absolute -left-[3px] top-0 bottom-0 z-30" />
         </div>
-        <div class="py-2 pl-2 pr-4 relative overflow-hidden">
+        <div class="py-2 pl-2 pr-4 relative border-l border-line">
           <span class="block truncate">{{ t('history.time') }}</span>
-          <Resizer :target="layoutRefs.historyDateWidth" :options="{ min: 60 }" class="absolute right-0 top-0 bottom-0 z-30" />
+          <Resizer :target="layoutRefs.historyDateWidth"
+                   :options="{ invert: true, min: COLUMN_MIN, clampToContainer: true, reserve: SUBJECT_MIN + GRID_PAD + historyAuthorWidth }"
+                   class="absolute -left-[3px] top-0 bottom-0 z-30" />
         </div>
     </div>
     
@@ -113,7 +174,7 @@ defineExpose({
             :key="c.id"
             :id="'commit-' + c.id"
             class="grid px-3 items-center text-[11px] relative group"
-            :style="{ gridTemplateColumns: `minmax(100px, 1fr) ${historyAuthorWidth}px ${historyDateWidth}px`, height: `${ROW_HEIGHT}px` }"
+            :style="{ gridTemplateColumns: gridTemplate, height: `${ROW_HEIGHT}px` }"
             :class="selectedIdSet.has(c.id)
               ? 'bg-accent/20 text-content-strong shadow-inner'
               : 'hover:bg-surface-hover text-content'"
