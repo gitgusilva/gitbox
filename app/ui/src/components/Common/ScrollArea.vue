@@ -10,6 +10,7 @@
  *
  * All class / style / data-* attributes are forwarded to the SimpleBar root.
  */
+import { ref } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
 
@@ -19,10 +20,27 @@ defineProps<{
   /** Hide the scrollbar thumb until the user hovers (default: true = auto-hide) */
   autoHide?: boolean;
 }>();
+
+const bar = ref<any>(null);
+
+/**
+ * Jump back to the top — for callers that swap the content out underneath, where
+ * keeping the old offset lands the user in the middle of something new.
+ *
+ * SimpleBar scrolls an inner wrapper, not its root, so setting scrollTop on the
+ * element this component renders would do nothing; the instance exposes that
+ * wrapper as `scrollElement`.
+ */
+function scrollToTop() {
+  const el = bar.value?.scrollElement as HTMLElement | undefined;
+  if (el) el.scrollTop = 0;
+}
+
+defineExpose({ scrollToTop });
 </script>
 
 <template>
-  <SimpleBar v-bind="$attrs" :auto-hide="autoHide !== false">
+  <SimpleBar ref="bar" v-bind="$attrs" :auto-hide="autoHide !== false">
     <slot />
   </SimpleBar>
 </template>

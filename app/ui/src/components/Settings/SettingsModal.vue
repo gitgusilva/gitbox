@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted } from 'vue';
 import { settingsActiveSection } from '../../services/modalService';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
@@ -28,6 +28,14 @@ const initialHistoryCount = ref(2000);
 
 onMounted(() => {
     initialHistoryCount.value = generalSettings.value.historyCount;
+});
+
+// Every section shares one scroller, so switching tabs kept the previous
+// section's offset — a short tab opened already scrolled past its own heading,
+// or blank if the new content is shorter than where the old one left off.
+const scrollArea = ref<{ scrollToTop: () => void } | null>(null);
+watch(settingsActiveSection, () => {
+    nextTick(() => scrollArea.value?.scrollToTop());
 });
 
 function handleClose() {
@@ -65,7 +73,7 @@ function handleClose() {
                     <Icon icon="lucide:x" class="text-lg" />
                 </button>
             </header>
-            <ScrollArea class="flex-1" style="min-height: 0;">
+            <ScrollArea ref="scrollArea" class="flex-1" style="min-height: 0;">
                 <div class="p-8 pb-12 max-w-2xl mx-auto">
                     <Tab id="general" :label="t('settings.general')" icon="lucide:settings">
                         <GeneralSection @close="handleClose()" />
