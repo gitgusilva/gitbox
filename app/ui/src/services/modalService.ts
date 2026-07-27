@@ -1,4 +1,16 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+
+/**
+ * How many modal overlays are on screen (maintained by Common/Modal.vue, which
+ * every dialog in the app goes through).
+ *
+ * The overlay is `fixed inset-0`, so it also covers the custom title bar — and
+ * with it the drag region and the minimize/maximize/close buttons, leaving the
+ * window impossible to move or close while a dialog is open. The toolbar reads
+ * this to lift itself above the backdrop and grey out its own contents.
+ */
+export const openModalCount = ref(0);
+export const isModalOpen = computed(() => openModalCount.value > 0);
 
 export const confirmModal = ref<{
     title: string,

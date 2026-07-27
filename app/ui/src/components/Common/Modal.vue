@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { watch, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { cn } from '../../utils/cn';
+import { openModalCount } from '../../services/modalService';
 import ScrollArea from './ScrollArea.vue';
 
 interface Props {
@@ -36,6 +38,18 @@ function close() {
   emit('update:modelValue', false);
   emit('close');
 }
+
+// Keep the app-wide "a dialog is covering the window" counter in sync. Counted
+// once per instance (never twice, never left dangling when the component is torn
+// down while open) — the title bar depends on it to stay usable.
+let counted = false;
+function setCounted(open: boolean) {
+  if (open === counted) return;
+  counted = open;
+  openModalCount.value += open ? 1 : -1;
+}
+watch(() => props.modelValue, value => setCounted(!!value), { immediate: true });
+onUnmounted(() => setCounted(false));
 </script>
 
 <template>

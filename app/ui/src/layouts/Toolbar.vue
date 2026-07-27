@@ -9,7 +9,8 @@ import {
   addWorkspace,
   updateWorkspace
 } from '../services/workspaceService';
-import { repoPath, loadRepoData, isLoadingData, activeTab } from '../services/gitService';
+import { repoPath, loadRepoData, isLoadingData, activeTab, isTerminalOpen, reportError } from '../services/gitService';
+import { generalSettings } from '../services/settingsService';
 import { ref, watch, onMounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
@@ -129,7 +130,7 @@ onMounted(() => {
 });
 
 import { addNewTab, addWorkspaceFlow } from '../services/workspaceService';
-import { contextMenu, requestInput, isSettingsOpen, settingsActiveSection, repoActionModal } from '../services/modalService';
+import { contextMenu, requestInput, isSettingsOpen, settingsActiveSection, repoActionModal, isModalOpen } from '../services/modalService';
 
 async function handleAddWorkspaceFlow() {
   addNewTab();
@@ -155,6 +156,10 @@ onMounted(() => {
         if (activeWorkspaceId.value) removeWorkspace(activeWorkspaceId.value);
     }, { titleKey: 'shortcuts.close_tab', category: 'tabs' });
     registerShortcut('ctrl+o', () => addWorkspaceFlow(), { titleKey: 'shortcuts.open_repo', category: 'tabs' });
+    // The main menu advertises these two next to the entries; they were never
+    // registered, so the shortcuts it promised did nothing.
+    registerShortcut('alt+t', () => openExternalTerminal(), { titleKey: 'workspace.open_external_terminal', category: 'app' });
+    registerShortcut('alt+o', () => openInFileManager(), { titleKey: 'workspace.open_in_file_manager', category: 'app' });
     registerShortcut('ctrl+q', () => handleClose(), { titleKey: 'shortcuts.quit', category: 'app' });
 
     // Projects. Deliberately NOT Ctrl+Alt+arrows (the GNOME workspace switcher
@@ -246,6 +251,43 @@ function openSettings(section: string) {
     isSettingsOpen.value = true;
 }
 
+/**
+ * Opens the active repository in the OS file manager. Both this and
+ * `openExternalTerminal` were menu entries wired to an empty action; they are
+ * no-ops without a repo, and the menu greys them out in that state.
+ */
+async function openInFileManager() {
+    if (!repoPath.value) return;
+    try {
+        const ok = await window.gitbox.openPath(repoPath.value);
+        if (!ok) throw new Error(`The system could not open ${repoPath.value}`);
+    } catch (err) {
+        reportError('Failed: Open in file manager', err);
+    }
+}
+
+/** Opens an OS terminal at the repository, using the tool set in Settings. */
+async function openExternalTerminal() {
+    if (!repoPath.value) return;
+    const tool = generalSettings.value.externalTerminal;
+
+    // "GitBox Integrated Terminal" is the first entry of the Settings list — when
+    // it is the one picked, honour it instead of launching another program.
+    // Anything else (including the unconfigured default) goes to the OS terminal;
+    // the main process falls back to whichever one is installed.
+    if (tool === 'gitbox') {
+        isTerminalOpen.value = true;
+        return;
+    }
+
+    try {
+        const result = await window.gitbox.openInTerminal(repoPath.value, tool);
+        if (!result?.ok) throw new Error(result?.error || `No terminal emulator available (${result?.reason || 'unknown'})`);
+    } catch (err) {
+        reportError('Failed: Open external terminal', err);
+    }
+}
+
 function openMainMenu(e: MouseEvent) {
     contextMenu.value = {
         x: e.clientX,
@@ -263,8 +305,8 @@ function openMainMenu(e: MouseEvent) {
             { separator: true },
             { label: t('project.title'), icon: 'lucide:folders', shortcut: 'Ctrl+Shift+P', action: () => toggleProjectMenu() },
             { separator: true },
-            { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', action: () => {} },
-            { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', action: () => {} },
+            { label: t('workspace.open_external_terminal'), shortcut: 'Alt+T', disabled: !repoPath.value, action: () => openExternalTerminal() },
+            { label: t('workspace.open_in_file_manager'), shortcut: 'Alt+O', disabled: !repoPath.value, action: () => openInFileManager() },
             { separator: true },
             // Command Log / Statistics panels only make sense inside a repo.
             ...(repoPath.value ? [
@@ -360,12 +402,24 @@ watch(activeWorkspaceId, async (val) => {
 </script>
 
 <template>
-  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none relative" style="-webkit-app-region: drag;">
+  <!-- While a dialog is open this strip is lifted above the modal backdrop
+       (which is z-[100]): it carries the window's drag region and the buttons, and
+       a backdrop covering them left the window impossible to move, minimize or
+       close. It is only lifted then, so normal stacking is untouched. -->
+  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none relative"
+       :class="isModalOpen ? 'z-[120]' : ''"
+       style="-webkit-app-region: drag;">
 
     <!-- Active project accent. Anchored to the TOP edge: the tabs sit on the
          bottom edge (items-end), so a strip down there cut across them and their
          rounded corners. Up here the line is free and reads as a window accent. -->
     <div class="absolute top-0 left-0 right-0 h-[2px] pointer-events-none z-30" :style="{ backgroundColor: activeProjectColor }"></div>
+
+    <!-- Dialog veil: matches the modal backdrop so the bar still reads as
+         "behind the dialog", and swallows clicks on the menu/tabs — switching
+         repository under an open dialog would re-target it at another repo.
+         Stays a drag region, and sits below the window controls. -->
+    <div v-if="isModalOpen" class="absolute inset-0 z-20 bg-black/70" style="-webkit-app-region: drag;"></div>
 
     <ProjectMenu v-if="isProjectMenuOpen" :x="projectMenuX" @close="isProjectMenuOpen = false" />
     
@@ -391,7 +445,7 @@ watch(activeWorkspaceId, async (val) => {
     <!-- Tabs -->
     <div class="flex flex-1 min-w-0 h-full relative group/tabs mr-8" style="-webkit-app-region: drag;">
         <SimpleBar ref="tabsContainer" class="flex-1 min-w-0 h-full w-full custom-toolbar-sb" @wheel.prevent="onTabScroll">
-            <TransitionGroup name="tab-drag" tag="div" class="flex h-full items-end pl-2 min-w-max">
+            <TransitionGroup :name="draggingId ? 'tab-drag' : 'tab-static'" tag="div" class="flex h-full items-end pl-2 min-w-max">
                 <div v-for="ws in workspaces" :key="ws.id"
                      :id="`workspace-tab-${ws.id}`"
                      @click="setActiveWorkspace(ws.id)"
@@ -427,8 +481,10 @@ watch(activeWorkspaceId, async (val) => {
             </TransitionGroup>
         </SimpleBar>
 
-        <!-- Right Controls (Arrows +) -->
-        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-surface z-20" style="-webkit-app-region: no-drag;">
+        <!-- Right Controls (Arrows +). z-10, like the left actions: it only has to
+             sit above the tabs scrolling under it. At z-20 it tied with the dialog
+             veil and, being later in the DOM, stayed lit on top of it. -->
+        <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-surface z-10" style="-webkit-app-region: no-drag;">
              <Tooltip :text="t('ui.scroll_left')" position="bottom">
                <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(-200)">
                    <Icon icon="lucide:chevron-left" class="w-4 h-4" />
@@ -447,8 +503,11 @@ watch(activeWorkspaceId, async (val) => {
         </div>
     </div>
 
-    <!-- Right Window Controls -->
-    <div class="flex h-full" style="-webkit-app-region: no-drag;">
+    <!-- Right Window Controls. Above the veil (z-20) so they keep working — and
+         keep looking active — while a dialog is open, but BELOW the project accent
+         strip (z-30): at the same z they won on DOM order, and their hover
+         background painted over the coloured line at the top edge. -->
+    <div class="flex h-full relative z-[25]" style="-webkit-app-region: no-drag;">
         <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMinimize">
             <Icon icon="lucide:minus" class="w-4 h-4" />
         </div>
