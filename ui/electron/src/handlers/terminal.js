@@ -1,4 +1,4 @@
-const { ipcMain, BrowserWindow } = require('electron');
+const { ipcMain } = require('electron');
 const os = require('os');
 const fs = require('fs');
 
@@ -6,7 +6,7 @@ module.exports = function (pty) {
     const ptyProcesses = {};
     let ptyCounter = 1;
 
-    ipcMain.handle('terminal:spawn', (_, repoPath) => {
+    ipcMain.handle('terminal:spawn', (event, repoPath) => {
         const id = ptyCounter++;
         console.log('[Terminal] Spawning process for:', repoPath);
         let shellInstance = os.platform() === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash');
@@ -26,15 +26,31 @@ module.exports = function (pty) {
 
         ptyProcesses[id] = ptyProcess;
 
-        ptyProcess.onData((data) => {
-            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-            if (win) win.webContents.send('terminal:data', id, data);
-        });
+        // Output goes back to the renderer that ASKED for this shell, not to
+        // whatever window happens to be focused. Routing by focus lost output
+        // whenever another window took over (the merge editor opens its own) or
+        // the app was in the background — bytes delivered to a window that has no
+        // xterm for that id are gone for good, which is why terminals came back
+        // with holes in their scrollback after minimizing or switching around.
+        const owner = event.sender;
+        const send = (channel, ...args) => {
+            if (!owner.isDestroyed()) owner.send(channel, ...args);
+        };
+
+        ptyProcess.onData((data) => send('terminal:data', id, data));
 
         ptyProcess.onExit(() => {
-            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-            if (win) win.webContents.send('terminal:exit', id);
+            send('terminal:exit', id);
             delete ptyProcesses[id];
+        });
+
+        // The window owning this shell went away (closed/reloaded): nothing can
+        // read it anymore, so don't leave the process running forever.
+        owner.once('destroyed', () => {
+            if (ptyProcesses[id]) {
+                try { ptyProcesses[id].kill(); } catch { /* already gone */ }
+                delete ptyProcesses[id];
+            }
         });
 
         return id;

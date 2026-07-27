@@ -9,7 +9,14 @@ import Resizer from '../components/Common/Resizer.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
 import ScrollArea from '../components/Common/ScrollArea.vue';
 import { terminalHeight, terminalListWidth, layoutRefs } from '../services/layoutService';
-import { terminals, activeTerminalId, bindTerminalListeners, cleanupTerminal } from '../services/terminalStore';
+import {
+    terminals,
+    activeTerminalId,
+    activeTerminal,
+    bindTerminalListeners,
+    fitTerminal,
+    revealTerminal
+} from '../services/terminalStore';
 import '@xterm/xterm/css/xterm.css';
 
 const { t } = useI18n();
@@ -20,13 +27,12 @@ let resizeObserver: ResizeObserver | null = null;
 
 const isMaximized = ref(false);
 
+// Only ever fit the terminal the user is looking at. The hidden ones measure 0
+// (v-show), and fitting those is what used to shred their scrollback — see
+// fitTerminal() in the store.
 const fitActiveTerminal = () => {
     if (!isTerminalOpen.value) return;
-    const inst = terminals.value.find(t => t.id === activeTerminalId.value);
-    if (inst && inst.fitAddon && inst.term) {
-        inst.fitAddon.fit();
-        window.gitbox.resizeTerminal(inst.id, inst.term.cols, inst.term.rows);
-    }
+    fitTerminal(activeTerminal());
 };
 
 // Coalesce refits to one per frame so dragging the resizer (which fires many
@@ -111,7 +117,10 @@ const setTerminalRef = (el: any, id: number) => {
         // xterm DOM (with its scrollback intact) to the fresh container.
         el.appendChild(inst.term.element);
     }
-    inst.fitAddon?.fit();
+    // Vue re-invokes inline function refs on every patch, for EVERY terminal in
+    // the v-for — including the ones `v-show` has hidden. Fitting those measures
+    // a zero-size element, so restrict it to the visible one.
+    if (id === activeTerminalId.value) fitTerminal(inst);
 };
 
 watch(repoPath, async (newPath) => {
@@ -126,9 +135,9 @@ watch(isTerminalOpen, async (isOpen) => {
             await addTerminal();
         }
         await nextTick();
-        fitActiveTerminal();
-        const inst = terminals.value.find(t => t.id === activeTerminalId.value);
-        if (inst && inst.term) inst.term.focus();
+        const inst = activeTerminal();
+        revealTerminal(inst);
+        inst?.term?.focus();
     }
 });
 
@@ -139,10 +148,14 @@ watch([isMaximized, terminalHeight, terminalListWidth], () => {
     scheduleFit();
 });
 
-// Switching terminal tabs re-shows a v-show-hidden xterm whose grid measured
-// against a 0-size element; refit it once it's visible so it reflows correctly.
+// Switching terminal tabs re-shows a v-show-hidden xterm that was never fitted
+// while hidden — refit AND repaint it now that it can be measured.
 watch(activeTerminalId, () => {
-    nextTick(() => fitActiveTerminal());
+    nextTick(() => {
+        const inst = activeTerminal();
+        revealTerminal(inst);
+        if (isTerminalOpen.value) inst?.term?.focus();
+    });
 });
 
 // Maximizing swaps the panel to `absolute inset-0`; the grid must be recomputed
@@ -153,9 +166,16 @@ watch(isMaximized, () => {
     nextTick(() => {
         fitActiveTerminal();
         requestAnimationFrame(() => fitActiveTerminal());
-        setTimeout(() => fitActiveTerminal(), 60);
+        setTimeout(() => revealTerminal(activeTerminal()), 60);
     });
 });
+
+// Coming back from a minimized/hidden window: the container was unmeasurable the
+// whole time it was away, so re-measure and repaint once it is on screen again.
+const onVisibilityChange = () => {
+    if (document.hidden || !isTerminalOpen.value) return;
+    requestAnimationFrame(() => revealTerminal(activeTerminal()));
+};
 
 onMounted(() => {
     // Data/exit listeners live in the store (bound once) so PTY output keeps
@@ -170,12 +190,17 @@ onMounted(() => {
     setTimeout(() => {
         if (panelEl.value) resizeObserver?.observe(panelEl.value);
     }, 100);
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onVisibilityChange);
 });
 
 onUnmounted(() => {
     // Do NOT kill the terminals here — the store keeps them alive so the running
     // shells + scrollback survive a remount (re-attached in setTerminalRef).
     resizeObserver?.disconnect();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('focus', onVisibilityChange);
 });
 
 const handleTerminalResize = () => {
@@ -188,9 +213,12 @@ const handleTerminalResize = () => {
     <!-- Persistent bottom panel (VSCode-style). Rendered inline at the bottom of the
          main content area; when maximized it becomes absolute inset-0 to fill that
          whole area (over the tab views, but not the sidebar/toolbar/footer). -->
-    <div ref="panelEl" v-show="isTerminalOpen" class="bg-app flex flex-col relative transition-none"
+    <!-- `relative` must NOT sit in the static class list: Tailwind emits `.relative`
+         AFTER `.absolute`, so having both would keep the panel in flow (height
+         auto = collapsed) and maximize would do nothing. -->
+    <div ref="panelEl" v-show="isTerminalOpen" class="bg-app flex flex-col transition-none"
          :style="isMaximized ? {} : { height: terminalHeight + 'px' }"
-         :class="isMaximized ? 'absolute inset-0 z-40' : 'flex-shrink-0 border-t border-line'">
+         :class="isMaximized ? 'absolute inset-0 z-40' : 'relative flex-shrink-0 border-t border-line'">
              
             <!-- Resize Handle (Top) -->
             <Resizer vertical v-if="!isMaximized" 
@@ -248,7 +276,7 @@ const handleTerminalResize = () => {
                 <ScrollArea class="bg-app border-l border-line flex flex-shrink-0 min-h-0" :style="{ width: terminalListWidth + 'px', height: '100%' }">
                     <div class="flex flex-col flex-shrink-0">
                         <div v-for="t in terminals" :key="t.id"
-                             @click="activeTerminalId = t.id; fitActiveTerminal()"
+                             @click="activeTerminalId = t.id"
                              class="h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors group relative"
                              :class="activeTerminalId === t.id ? 'bg-surface text-accent' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
                              <Icon icon="lucide:terminal-square" class="w-3.5 h-3.5 flex-shrink-0" />
