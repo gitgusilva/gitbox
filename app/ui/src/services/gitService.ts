@@ -296,6 +296,9 @@ watch(selectedLogRefs, persistLogFilter, { deep: true });
 // branch list is available — here we only restore refs + the auto/custom flag.
 watch(() => {
     const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
+    // '' when the active tab is a blank one, null when no tab resolves at all
+    // (boot, restore, a project switch mid-flight). The two are NOT the same:
+    // only the first means "the user is looking at an empty tab".
     return ws ? ws.path : null;
 }, (newPath) => {
     if (newPath && newPath !== repoPath.value) {
@@ -311,6 +314,13 @@ watch(() => {
         selectedFiles.value = [];
 
         loadRepoData(true);
+    } else if (newPath === '' && repoPath.value) {
+        // A blank tab — the "open a repository" screen. The previous repo stayed
+        // loaded here: `repoPath` still pointed at it, so anything reading it
+        // (the main menu's "open in file manager"/"external terminal", the sync
+        // actions) silently acted on a repository this tab isn't showing.
+        repoPath.value = '';
+        resetRepoData();
     }
 }, { immediate: true });
 
