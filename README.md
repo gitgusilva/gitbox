@@ -77,8 +77,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and coding standards.
 Third-party dependencies and their licenses are listed in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
-[![Contributors](https://contrib.rocks/image?repo=gitgusilva/gitbox&columns=20)](https://github.com/gitgusilva/gitbox/graphs/contributors)
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
