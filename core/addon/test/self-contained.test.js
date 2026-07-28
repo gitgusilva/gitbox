@@ -128,7 +128,10 @@ function dynamicDeps(file) {
 function runtimeExports(file) {
     const exports = new Set();
     for (const line of run('ldd', [file]).split('\n')) {
-        const m = line.match(/=>\s*(\/\S+)/);
+        // "libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x…)" plus the dynamic
+        // loader's own "/lib64/ld-linux-x86-64.so.2 (0x…)" line, which has no
+        // "=>" — miss it and __tls_get_addr looks like an unresolved import.
+        const m = line.match(/=>\s*(\/\S+)/) || line.match(/^\s*(\/\S+)\s+\(0x/);
         if (!m) continue;
         for (const sym of run('nm', ['-D', '--defined-only', m[1]]).split('\n')) {
             const name = sym.trim().split(/\s+/).pop();
@@ -143,107 +146,112 @@ const EXPORTS = ['status', 'log', 'branches', 'fetch', 'pull', 'push', 'clone', 
 const built = fs.existsSync(ADDON);
 const canInspect = tool('nm') && (process.platform !== 'linux' || tool('readelf'));
 
-test('native addon self-containment', { skip: built ? false : `${ADDON} not built — run npm run build first` }, (t) => {
-    t.test('imports nothing from the vendored crypto/git libraries (issue #1)', (t) => {
-        if (!canInspect) return t.skip('nm/readelf unavailable on this host');
+const skip = built ? false : `${ADDON} not built — run "npm run build" first`;
 
-        const leaked = importedSymbols(ADDON).filter((s) => VENDORED_SYMBOLS.some((re) => re.test(s)));
+// Keep these checks flat. node 20 (what CI runs) does not await subtests
+// declared inside a synchronous parent test: it cancels them and reports
+// "test did not finish before its parent", so a nested suite passes locally on
+// node 22+ while quietly running one of six checks on CI.
 
-        assert.deepStrictEqual(
-            leaked,
-            [],
-            `The addon expects the host to provide ${leaked.length} symbol(s) that should be ` +
-                `statically linked into it: ${leaked.slice(0, 12).join(', ')}. This is issue #1: an ` +
-                `archive is missing from binding.gyp's libraries list (libssh2 needs the vendored ` +
-                `libcrypto.a after it), so the app dies at startup under Electron with ` +
-                `"undefined symbol: ${leaked[0]}".`,
+test('imports nothing from the vendored crypto/git libraries (issue #1)', { skip }, (t) => {
+    if (!canInspect) return t.skip('nm/readelf unavailable on this host');
+
+    const leaked = importedSymbols(ADDON).filter((s) => VENDORED_SYMBOLS.some((re) => re.test(s)));
+
+    assert.deepStrictEqual(
+        leaked,
+        [],
+        `The addon expects the host to provide ${leaked.length} symbol(s) that should be ` +
+            `statically linked into it: ${leaked.slice(0, 12).join(', ')}. This is issue #1: an ` +
+            `archive is missing from binding.gyp's libraries list (libssh2 needs the vendored ` +
+            `libcrypto.a after it), so the app dies at startup under Electron with ` +
+            `"undefined symbol: ${leaked[0]}".`,
+    );
+});
+
+test('every imported symbol resolves from the C runtime or N-API', { skip }, (t) => {
+    if (process.platform !== 'linux' || !canInspect || !tool('ldd')) {
+        return t.skip('ldd-based resolution check runs on Linux only');
+    }
+
+    const available = runtimeExports(ADDON);
+    const unresolved = importedSymbols(ADDON).filter(
+        (s) => !available.has(s) && !/^(napi_|node_api_)/.test(s),
+    );
+
+    assert.deepStrictEqual(
+        unresolved,
+        [],
+        `Imported symbols that no linked library provides: ${unresolved.join(', ')}. ` +
+            `They would only resolve if the host process happened to have a matching ` +
+            `library mapped in — exactly the fragility behind issue #1.`,
+    );
+});
+
+test('links no shared library beyond the C/C++ runtime', { skip }, (t) => {
+    const allowed = ALLOWED_DEPS[process.platform];
+    if (!allowed) return t.skip(`no dependency allowlist for ${process.platform}`);
+    if (process.platform === 'win32' && !tool('dumpbin')) return t.skip('dumpbin unavailable');
+
+    const unexpected = dynamicDeps(ADDON).filter((dep) => !allowed.some((re) => re.test(dep)));
+
+    assert.deepStrictEqual(
+        unexpected,
+        [],
+        `The addon must not depend on system libraries: ${unexpected.join(', ')}. ` +
+            `GitBox ships no git/libgit2/OpenSSL runtime, so anything here breaks the ` +
+            `AppImage and every distro whose version differs.`,
+    );
+});
+
+test('statically contains libgit2, libssh2, mbedTLS and OpenSSL', { skip }, (t) => {
+    if (!canInspect) return t.skip('nm unavailable on this host');
+    if (process.platform === 'win32') return t.skip('SSH/OpenSSL are not enabled on Windows yet');
+
+    const defined = definedSymbols(ADDON);
+    // One representative symbol per vendored library. EVP_des_ede3_cbc is
+    // the one issue #1 reported missing, so it is the canary here.
+    for (const symbol of [
+        'git_libgit2_init',
+        'libssh2_session_init_ex',
+        'mbedtls_ssl_init',
+        'EVP_des_ede3_cbc',
+    ]) {
+        assert.ok(
+            defined.has(symbol),
+            `${symbol} is not compiled into the addon — its library was dropped from ` +
+                `binding.gyp or built without the feature.`,
         );
-    });
+    }
+});
 
-    t.test('every imported symbol resolves from the C runtime or N-API', (t) => {
-        if (process.platform !== 'linux' || !canInspect || !tool('ldd')) {
-            return t.skip('ldd-based resolution check runs on Linux only');
-        }
+// Node-API keeps the addon ABI-stable, so this loads under any node or Electron
+// version — the point is that it loads at all.
+test('loads and exposes the native git API', { skip }, () => {
+    const addon = require(ADDON);
+    for (const fn of EXPORTS) assert.strictEqual(typeof addon[fn], 'function', `missing export: ${fn}`);
+});
 
-        const available = runtimeExports(ADDON);
-        const unresolved = importedSymbols(ADDON).filter(
-            (s) => !available.has(s) && !/^(napi_|node_api_)/.test(s),
-        );
+// The runtime that actually broke in issue #1. Weaker than the audits above (a
+// host with a compatible libcrypto already mapped into the process can mask a
+// missing archive), but it is the exact failing path users hit.
+test('loads inside Electron, the runtime that ships BoringSSL', { skip }, (t) => {
+    const electron = electronBinary();
+    if (!electron) return t.skip('no electron binary installed under ui/electron');
 
-        assert.deepStrictEqual(
-            unresolved,
-            [],
-            `Imported symbols that no linked library provides: ${unresolved.join(', ')}. ` +
-                `They would only resolve if the host process happened to have a matching ` +
-                `library mapped in — exactly the fragility behind issue #1.`,
-        );
-    });
+    const probe = spawnSync(
+        electron,
+        ['-e', `console.log(Object.keys(require(${JSON.stringify(ADDON)})).join(','))`],
+        { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+    );
 
-    t.test('links no shared library beyond the C/C++ runtime', (t) => {
-        const allowed = ALLOWED_DEPS[process.platform];
-        if (!allowed) return t.skip(`no dependency allowlist for ${process.platform}`);
-        if (process.platform === 'win32' && !tool('dumpbin')) return t.skip('dumpbin unavailable');
-
-        const unexpected = dynamicDeps(ADDON).filter((dep) => !allowed.some((re) => re.test(dep)));
-
-        assert.deepStrictEqual(
-            unexpected,
-            [],
-            `The addon must not depend on system libraries: ${unexpected.join(', ')}. ` +
-                `GitBox ships no git/libgit2/OpenSSL runtime, so anything here breaks the ` +
-                `AppImage and every distro whose version differs.`,
-        );
-    });
-
-    t.test('statically contains libgit2, libssh2, mbedTLS and OpenSSL', (t) => {
-        if (!canInspect) return t.skip('nm unavailable on this host');
-        if (process.platform === 'win32') return t.skip('SSH/OpenSSL are not enabled on Windows yet');
-
-        const defined = definedSymbols(ADDON);
-        // One representative symbol per vendored library. EVP_des_ede3_cbc is
-        // the one issue #1 reported missing, so it is the canary here.
-        for (const symbol of [
-            'git_libgit2_init',
-            'libssh2_session_init_ex',
-            'mbedtls_ssl_init',
-            'EVP_des_ede3_cbc',
-        ]) {
-            assert.ok(
-                defined.has(symbol),
-                `${symbol} is not compiled into the addon — its library was dropped from ` +
-                    `binding.gyp or built without the feature.`,
-            );
-        }
-    });
-
-    // Node-API keeps the addon ABI-stable, so this loads under any node or
-    // Electron version — the point is that it loads at all.
-    t.test('loads and exposes the native git API', () => {
-        const addon = require(ADDON);
-        for (const fn of EXPORTS) assert.strictEqual(typeof addon[fn], 'function', `missing export: ${fn}`);
-    });
-
-    // The runtime that actually broke in issue #1. Weaker than the audit above
-    // (a host with a compatible libcrypto already mapped into the process can
-    // mask a missing archive), but it is the exact failing path users hit.
-    t.test('loads inside Electron, the runtime that ships BoringSSL', (t) => {
-        const electron = electronBinary();
-        if (!electron) return t.skip('no electron binary installed under ui/electron');
-
-        const probe = spawnSync(
-            electron,
-            ['-e', `console.log(Object.keys(require(${JSON.stringify(ADDON)})).join(','))`],
-            { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
-        );
-
-        assert.strictEqual(
-            probe.status,
-            0,
-            `Electron could not load the addon: ${(probe.stderr || '').trim()}`,
-        );
-        const keys = probe.stdout.trim().split('\n').pop().split(',');
-        for (const fn of EXPORTS) assert.ok(keys.includes(fn), `missing export: ${fn}`);
-    });
+    assert.strictEqual(
+        probe.status,
+        0,
+        `Electron could not load the addon: ${(probe.stderr || '').trim()}`,
+    );
+    const keys = probe.stdout.trim().split('\n').pop().split(',');
+    for (const fn of EXPORTS) assert.ok(keys.includes(fn), `missing export: ${fn}`);
 });
 
 function electronBinary() {
