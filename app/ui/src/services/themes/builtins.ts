@@ -136,6 +136,19 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
     {
+        id: 'preset-solarized-osaka', name: 'Solarized Osaka', type: 'dark', builtin: true,
+        meta: { version: '1.0.0', author: 'GitBox', description: 'A clean dark Solarized theme inspired by craftzdog/solarized-osaka.nvim.' },
+        colors: {
+            bg: '#00141A', bgElevated: '#002B36', bgOverlay: '#073642', surfaceHover: '#0A3B47',
+            border: '#073642', borderStrong: '#586E75', textStrong: '#FDF6E3', text: '#839496', textMuted: '#657B83',
+            accent: '#268BD2', accentHover: '#2AA198', accentFg: '#00141A', added: '#859900', removed: '#DC322F', modified: '#268BD2',
+            graph1: '#268BD2', graph2: '#2AA198', graph3: '#859900', graph4: '#B58900',
+            graph5: '#CB4B16', graph6: '#DC322F', graph7: '#D33682', graph8: '#6C71C4',
+            graphMarker: '#00141A',
+        },
+        typography: { ...DEFAULT_TYPOGRAPHY },
+    },
+    {
         id: 'preset-solarized-light', name: 'Solarized Light', type: 'light', builtin: true,
         meta: { version: '1.0.0', author: 'GitBox', description: 'Precision colors for machines and people.' },
         colors: {
