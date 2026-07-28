@@ -107,6 +107,19 @@ jobs:
         working-directory: ui/electron
         run: npm ci --ignore-scripts
 
+      # Built here (not left to electron-builder) so the audit below runs before
+      # a tag push publishes the installers. See build-linux.yml for the why.
+      - name: Build native addon for Electron
+        working-directory: ui/electron
+        run: npx electron-rebuild --only gitbox-addon --force
+
+      # Guards issue #1. On Windows this checks the addon imports no DLL beyond
+      # the system set (dumpbin comes from the MSVC environment above); the
+      # symbol-level audit needs nm and skips itself here.
+      - name: Verify the native addon is self-contained
+        working-directory: core/addon
+        run: npm test
+
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then
       # packages the NSIS and MSI targets declared in package.json.

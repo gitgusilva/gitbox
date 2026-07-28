@@ -110,6 +110,22 @@ jobs:
         working-directory: ui/electron
         run: npm ci --ignore-scripts
 
+      # Compile the addon against Electron's ABI here, before packaging, purely
+      # so the audit below can gate the release: on a tag push electron-builder
+      # publishes as it packages, so a check that runs afterwards is too late.
+      # electron-builder's own @electron/rebuild step then finds it up to date.
+      - name: Build native addon for Electron
+        working-directory: ui/electron
+        run: npx electron-rebuild --only gitbox-addon --force
+
+      # Guards issue #1. The addon must carry libgit2/libssh2/mbedTLS/OpenSSL
+      # inside itself; when an archive is missing from binding.gyp nothing fails
+      # at build time — the app just dies on the user's machine with
+      # "undefined symbol: EVP_des_ede3_cbc".
+      - name: Verify the native addon is self-contained
+        working-directory: core/addon
+        run: npm test
+
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then
       # packages the AppImage/deb/rpm/pacman targets declared in package.json.
