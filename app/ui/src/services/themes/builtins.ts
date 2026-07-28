@@ -136,6 +136,19 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
     {
+        id: 'preset-catppuccin-mocha', name: 'Catppuccin Mocha', type: 'dark', builtin: true,
+        meta: { version: '1.0.0', author: 'GitBox', description: 'Soothing pastel theme for the high-spirited.' },
+        colors: {
+            bg: '#1E1E2E', bgElevated: '#181825', bgOverlay: '#313244', surfaceHover: '#45475A',
+            border: '#313244', borderStrong: '#585B70', textStrong: '#CDD6F4', text: '#BAC2DE', textMuted: '#7F849C',
+            accent: '#89B4FA', accentHover: '#74C7EC', accentFg: '#1E1E2E', added: '#A6E3A1', removed: '#F38BA8', modified: '#89B4FA',
+            graph1: '#89B4FA', graph2: '#94E2D5', graph3: '#A6E3A1', graph4: '#F9E2AF',
+            graph5: '#FAB387', graph6: '#F38BA8', graph7: '#F5C2E7', graph8: '#CBA6F7',
+            graphMarker: '#1E1E2E',
+        },
+        typography: { ...DEFAULT_TYPOGRAPHY },
+    },
+    {
         id: 'preset-solarized-light', name: 'Solarized Light', type: 'light', builtin: true,
         meta: { version: '1.0.0', author: 'GitBox', description: 'Precision colors for machines and people.' },
         colors: {
