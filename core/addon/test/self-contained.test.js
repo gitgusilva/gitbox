@@ -19,6 +19,11 @@
 // authoritative test here is the static import audit, not a runtime load.
 //
 // Run with: npm test   (from core/addon, after building the addon)
+//
+// That script names this file explicitly. It is the only form that works
+// everywhere: cmd.exe does not expand "test/*.test.js", `--test <dir>` works on
+// node 20 but not 24, and `--test <glob>` works on 24 but not 20. New test
+// files have to be added to the script by hand.
 
 const test = require('node:test');
 const assert = require('node:assert');
