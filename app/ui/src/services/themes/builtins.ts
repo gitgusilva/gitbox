@@ -136,6 +136,19 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
     {
+        id: 'preset-gruvbox-dark', name: 'Gruvbox Dark', type: 'dark', builtin: true,
+        meta: { version: '1.0.0', author: 'GitBox', description: 'Retro groove color scheme with warm earthy tones.' },
+        colors: {
+            bg: '#282828', bgElevated: '#3C3836', bgOverlay: '#32302F', surfaceHover: '#504945',
+            border: '#504945', borderStrong: '#665C54', textStrong: '#EBDBB2', text: '#D5C4A1', textMuted: '#A89984',
+            accent: '#83A598', accentHover: '#458588', accentFg: '#282828', added: '#B8BB26', removed: '#FB4934', modified: '#83A598',
+            graph1: '#83A598', graph2: '#8EC07C', graph3: '#B8BB26', graph4: '#FABD2F',
+            graph5: '#FE8019', graph6: '#FB4934', graph7: '#D3869B', graph8: '#D79921',
+            graphMarker: '#282828',
+        },
+        typography: { ...DEFAULT_TYPOGRAPHY },
+    },
+    {
         id: 'preset-solarized-light', name: 'Solarized Light', type: 'light', builtin: true,
         meta: { version: '1.0.0', author: 'GitBox', description: 'Precision colors for machines and people.' },
         colors: {
