@@ -1,17 +1,23 @@
-# GitBox
+<h1 align="center">
+  <img src="images/logo.png" width="64" align="middle" alt="" />
+  &nbsp;GitBox
+</h1>
 
 <p align="center">
-  <img src="images/logo.png" width="128" alt="GitBox Logo" />
+  A fast, self-contained Git GUI built with Vue 3, Electron and a C++ addon over libgit2.<br />
+  No <code>git</code> binary required — clone, fetch, pull and push run natively over HTTPS and SSH.
 </p>
 
-[![stars](https://img.shields.io/github/stars/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/stargazers)
-[![forks](https://img.shields.io/github/forks/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/forks)
-[![license](https://img.shields.io/github/license/gitgusilva/gitbox.svg)](LICENSE)
-[![latest](https://img.shields.io/github/v/release/gitgusilva/gitbox.svg)](https://github.com/gitgusilva/gitbox/releases/latest)
-[![downloads](https://img.shields.io/github/downloads/gitgusilva/gitbox/total)](https://github.com/gitgusilva/gitbox/releases)
+<p align="center">
+  <a href="https://github.com/gitgusilva/gitbox/releases/latest"><img src="https://img.shields.io/github/v/release/gitgusilva/gitbox.svg" alt="Latest release" /></a>
+  <a href="https://github.com/gitgusilva/gitbox/releases"><img src="https://img.shields.io/github/downloads/gitgusilva/gitbox/total" alt="Downloads" /></a>
+  <a href="https://github.com/gitgusilva/gitbox/stargazers"><img src="https://img.shields.io/github/stars/gitgusilva/gitbox.svg" alt="Stars" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/gitgusilva/gitbox.svg" alt="License" /></a>
+</p>
 
-A fast, self-contained Git GUI built with Vue 3, Electron and a C++ addon over libgit2.
-No `git` binary required: clone, fetch, pull and push run natively, over HTTPS and SSH.
+<p align="center">
+  <img src="site/public/screenshots/history.png" width="880" alt="GitBox showing a repository's commit history with the branch graph" />
+</p>
 
 ## Features
 
@@ -36,6 +42,10 @@ The AppImage and the Windows installer update themselves from GitHub Releases;
 `.deb`, `.rpm` and `.pacman` are updated by your package manager. GitBox bundles
 libgit2 and its TLS stack, so there is nothing else to install — a local Git is
 not required.
+
+The Linux packages are built on Ubuntu 22.04, so they need glibc 2.35 or newer
+(Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+). SSH remotes (`git@…`) work on
+Linux; the Windows build authenticates over HTTPS for now.
 
 ## Building from source
 
