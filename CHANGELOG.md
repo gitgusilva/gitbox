@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.1.7
+### Fixed
+- GitBox failed to start on Linux with `undefined symbol: EVP_des_ede3_cbc`, reported on Ubuntu 24.04 and affecting v1.1.4 through v1.1.6. The native addon never linked the vendored static OpenSSL that libssh2 needs, so it borrowed those symbols from whatever the host had already loaded — and Electron ships BoringSSL, which does not provide them ([#1](https://github.com/gitgusilva/gitbox/issues/1))
+
+### Improved
+- The addon's build is audited for self-containment before packaging: the test suite checks the imported symbols of the built binary instead of only loading it, because on a machine with a system libcrypto the broken binary loads fine
+- Linux and Windows builds run on every pull request, so a packaging break is caught before a tag publishes it
+
 ## v1.1.6
 ### Added
 - "Open in external terminal" and "Open in file manager" now work from the main menu, with the `Alt+T` / `Alt+O` shortcuts it already advertised. The terminal is the one picked in Settings, falling back to whichever is installed
