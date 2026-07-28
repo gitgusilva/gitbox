@@ -14,6 +14,37 @@ on:
   push:
     tags:
       - "v*"
+  # Pull requests build and verify but never publish (the --publish flag below
+  # only says "always" for a tag).
+  #
+  # paths-ignore, not paths: the default is to build, and only what is provably
+  # documentation is exempt. An allow-list would silently skip CI for any new
+  # code directory nobody remembered to add.
+  #
+  # This still means some PRs get no run at all, so do NOT mark this workflow as
+  # a required status check — a required check that never runs leaves the PR
+  # stuck on "Expected — waiting for status" forever. To have both, drop the
+  # filter and gate the expensive steps with an `if:` on the changed paths
+  # instead, so the check always reports a conclusion.
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "site/**"
+      - "images/**"
+      - "LICENSE"
+
+# One build per ref: a new push to a PR supersedes the one still running.
+#
+# cancel-in-progress is deliberately limited to pull requests. A tag build ends
+# in `electron-builder --publish always`, and killing that mid-upload can leave
+# the GitHub Release with a latest-linux.yml pointing at assets that were never
+# finished uploading — which is exactly what electron-updater then hands to
+# every installed client.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
@@ -94,6 +125,22 @@ jobs:
       - name: Install Electron deps
         working-directory: ui/electron
         run: npm ci --ignore-scripts
+
+      # Compile the addon against Electron's ABI here, before packaging, purely
+      # so the audit below can gate the release: on a tag push electron-builder
+      # publishes as it packages, so a check that runs afterwards is too late.
+      # electron-builder's own @electron/rebuild step then finds it up to date.
+      - name: Build native addon for Electron
+        working-directory: ui/electron
+        run: npx electron-rebuild --only gitbox-addon --force
+
+      # Guards issue #1. The addon must carry libgit2/libssh2/mbedTLS/OpenSSL
+      # inside itself; when an archive is missing from binding.gyp nothing fails
+      # at build time — the app just dies on the user's machine with
+      # "undefined symbol: EVP_des_ede3_cbc".
+      - name: Verify the native addon is self-contained
+        working-directory: core/addon
+        run: npm test
 
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then

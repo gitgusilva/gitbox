@@ -5,7 +5,8 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
-    "build": "node-gyp rebuild"
+    "build": "node-gyp rebuild",
+    "test": "node --test test/self-contained.test.js"
   },
   "dependencies": {
     "bindings": "^1.5.0",

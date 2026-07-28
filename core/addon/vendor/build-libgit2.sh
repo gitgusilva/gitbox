@@ -69,6 +69,10 @@ if [ -d "$MBED_PREFIX/lib64" ] && [ ! -e "$MBED_PREFIX/lib" ]; then ln -s lib64 
 # OpenSSH 7.8+ would simply be rejected. Verified against a real server: ECDSA
 # authenticated, RSA-in-OpenSSH-format did not. OpenSSL covers every key type
 # users actually have, so it is built statically here and linked into libssh2.
+#
+# NOTE: libcrypto.a must ALSO be listed in binding.gyp after libssh2.a. Linking
+# libssh2 alone leaves its EVP_* references to the host process (issue #1), and
+# Electron's BoringSSL does not provide them.
 echo ">> OpenSSL $OPENSSL_TAG  ->  $SSL_PREFIX"
 if [ ! -f "$SSL_SRC/Configure" ]; then
   rm -rf "$SSL_SRC"

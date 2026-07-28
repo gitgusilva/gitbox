@@ -15,6 +15,22 @@ on:
   push:
     tags:
       - "v*"
+  # Same rules as build-linux.yml: PRs build and verify, never publish, and the
+  # filter exempts documentation rather than allow-listing code.
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - "site/**"
+      - "images/**"
+      - "LICENSE"
+
+# One build per ref, cancelling superseded PR runs only — never a publishing tag
+# build. See build-linux.yml for why.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
@@ -95,6 +111,19 @@ jobs:
       - name: Install Electron deps
         working-directory: ui/electron
         run: npm ci --ignore-scripts
+
+      # Built here (not left to electron-builder) so the audit below runs before
+      # a tag push publishes the installers. See build-linux.yml for the why.
+      - name: Build native addon for Electron
+        working-directory: ui/electron
+        run: npx electron-rebuild --only gitbox-addon --force
+
+      # Guards issue #1. On Windows this checks the addon imports no DLL beyond
+      # the system set (dumpbin comes from the MSVC environment above); the
+      # symbol-level audit needs nm and skips itself here.
+      - name: Verify the native addon is self-contained
+        working-directory: core/addon
+        run: npm test
 
       # electron-builder runs @electron/rebuild first (compiling gitbox_addon
       # and node-pty against Electron via node-gyp + the vendored libs), then
