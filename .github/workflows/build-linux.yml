@@ -14,6 +14,21 @@ on:
   push:
     tags:
       - "v*"
+  # Pull requests build and verify but never publish (the --publish flag below
+  # only says "always" for a tag). The paths filter keeps doc-only PRs from
+  # spending ~20 min packaging four installers; note that a required status
+  # check on this workflow would block those PRs forever, so if you make it
+  # required, drop the filter.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "app/**"
+      - "ui/**"
+      - "domain/**"
+      - "shared/**"
+      - ".github/workflows/build-linux.yml"
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with

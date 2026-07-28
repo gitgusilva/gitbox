@@ -15,6 +15,17 @@ on:
   push:
     tags:
       - "v*"
+  # Same rules as build-linux.yml: PRs build and verify, never publish.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "app/**"
+      - "ui/**"
+      - "domain/**"
+      - "shared/**"
+      - ".github/workflows/build-windows.yml"
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
