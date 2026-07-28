@@ -15,20 +15,36 @@ on:
     tags:
       - "v*"
   # Pull requests build and verify but never publish (the --publish flag below
-  # only says "always" for a tag). The paths filter keeps doc-only PRs from
-  # spending ~20 min packaging four installers; note that a required status
-  # check on this workflow would block those PRs forever, so if you make it
-  # required, drop the filter.
+  # only says "always" for a tag).
+  #
+  # paths-ignore, not paths: the default is to build, and only what is provably
+  # documentation is exempt. An allow-list would silently skip CI for any new
+  # code directory nobody remembered to add.
+  #
+  # This still means some PRs get no run at all, so do NOT mark this workflow as
+  # a required status check — a required check that never runs leaves the PR
+  # stuck on "Expected — waiting for status" forever. To have both, drop the
+  # filter and gate the expensive steps with an `if:` on the changed paths
+  # instead, so the check always reports a conclusion.
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "app/**"
-      - "ui/**"
-      - "domain/**"
-      - "shared/**"
-      - ".github/workflows/build-linux.yml"
+    paths-ignore:
+      - "**.md"
+      - "site/**"
+      - "images/**"
+      - "LICENSE"
+
+# One build per ref: a new push to a PR supersedes the one still running.
+#
+# cancel-in-progress is deliberately limited to pull requests. A tag build ends
+# in `electron-builder --publish always`, and killing that mid-upload can leave
+# the GitHub Release with a latest-linux.yml pointing at assets that were never
+# finished uploading — which is exactly what electron-updater then hands to
+# every installed client.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with

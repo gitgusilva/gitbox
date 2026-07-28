@@ -15,17 +15,22 @@ on:
   push:
     tags:
       - "v*"
-  # Same rules as build-linux.yml: PRs build and verify, never publish.
+  # Same rules as build-linux.yml: PRs build and verify, never publish, and the
+  # filter exempts documentation rather than allow-listing code.
   pull_request:
     branches:
       - main
-    paths:
-      - "core/**"
-      - "app/**"
-      - "ui/**"
-      - "domain/**"
-      - "shared/**"
-      - ".github/workflows/build-windows.yml"
+    paths-ignore:
+      - "**.md"
+      - "site/**"
+      - "images/**"
+      - "LICENSE"
+
+# One build per ref, cancelling superseded PR runs only — never a publishing tag
+# build. See build-linux.yml for why.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Needed for electron-builder to upload artifacts to the GitHub Release on a
 # tag push. The default GITHUB_TOKEN is read-only, so publishing fails with
