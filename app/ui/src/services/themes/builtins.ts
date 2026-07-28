@@ -136,6 +136,19 @@ export const BUNDLED_THEMES: GitboxTheme[] = [
         typography: { ...DEFAULT_TYPOGRAPHY },
     },
     {
+        id: 'preset-solarized-dark', name: 'Solarized Dark', type: 'dark', builtin: true,
+        meta: { version: '1.0.0', author: 'GitBox', description: 'Precision colors for machines and people.' },
+        colors: {
+            bg: '#002B36', bgElevated: '#073642', bgOverlay: '#002B36', surfaceHover: '#0A3B47',
+            border: '#073642', borderStrong: '#586E75', textStrong: '#FDF6E3', text: '#839496', textMuted: '#586E75',
+            accent: '#268BD2', accentHover: '#3A9BE0', accentFg: '#002B36', added: '#859900', removed: '#DC322F', modified: '#268BD2',
+            graph1: '#268BD2', graph2: '#2AA198', graph3: '#859900', graph4: '#B58900',
+            graph5: '#CB4B16', graph6: '#DC322F', graph7: '#D33682', graph8: '#6C71C4',
+            graphMarker: '#002B36',
+        },
+        typography: { ...DEFAULT_TYPOGRAPHY },
+    },
+    {
         id: 'preset-solarized-light', name: 'Solarized Light', type: 'light', builtin: true,
         meta: { version: '1.0.0', author: 'GitBox', description: 'Precision colors for machines and people.' },
         colors: {
