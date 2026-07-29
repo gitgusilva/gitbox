@@ -1,16 +1,36 @@
 import { computed, ref } from 'vue';
 
 /**
- * How many modal overlays are on screen (maintained by Common/Modal.vue, which
- * every dialog in the app goes through).
+ * The modal overlays on screen, oldest first (maintained by Common/Modal.vue,
+ * which every dialog in the app goes through).
+ *
+ * A stack rather than a counter because order matters: Escape must close the
+ * dialog on top and leave the ones underneath alone. Each dialog holds an opaque
+ * token, so two instances of the same component never collide.
  *
  * The overlay is `fixed inset-0`, so it also covers the custom title bar — and
  * with it the drag region and the minimize/maximize/close buttons, leaving the
  * window impossible to move or close while a dialog is open. The toolbar reads
- * this to lift itself above the backdrop and grey out its own contents.
+ * `isModalOpen` to lift itself above the backdrop and grey out its own contents.
  */
-export const openModalCount = ref(0);
-export const isModalOpen = computed(() => openModalCount.value > 0);
+const modalStack = ref<symbol[]>([]);
+
+export const openModalCount = computed(() => modalStack.value.length);
+export const isModalOpen = computed(() => modalStack.value.length > 0);
+
+export function pushModal(token: symbol) {
+    modalStack.value = [...modalStack.value, token];
+}
+
+export function popModal(token: symbol) {
+    const i = modalStack.value.lastIndexOf(token);
+    if (i > -1) modalStack.value = modalStack.value.filter((_, n) => n !== i);
+}
+
+/** True for the dialog currently on top — the only one Escape should close. */
+export function isTopmostModal(token: symbol) {
+    return modalStack.value[modalStack.value.length - 1] === token;
+}
 
 export const confirmModal = ref<{
     title: string,
