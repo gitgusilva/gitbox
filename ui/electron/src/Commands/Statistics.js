@@ -85,13 +85,22 @@ class Statistics extends Command {
         try {
             ({ stdout } = await this.execGit(repoPath, args, { maxBuffer: 1024 * 1024 * 128 }));
         } catch (e) {
-            return { authors: [], monthly: [], weekday: new Array(7).fill(0), hourly: new Array(24).fill(0), totalAdded: 0, totalDeleted: 0 };
+            return {
+                authors: [], monthly: [],
+                weekday: new Array(7).fill(0), hourly: new Array(24).fill(0),
+                weekdayByAuthor: {}, hourlyByAuthor: {},
+                totalAdded: 0, totalDeleted: 0,
+            };
         }
 
         const authors = new Map();     // key -> { name, email, commits, added, deleted, lines }
         const months = new Map();      // 'YYYY-MM' -> { month, total, commits, byAuthor: {name: lines} }
         const weekday = new Array(7).fill(0);   // 0 = Sunday
         const hourly = new Array(24).fill(0);
+        // Same buckets split per author, so the Statistics view can filter each
+        // chart by contributor without recomputing anything in the main process.
+        const weekdayByAuthor = {};    // name -> number[7]
+        const hourlyByAuthor = {};     // name -> number[24]
         let totalAdded = 0;
         let totalDeleted = 0;
 
@@ -117,14 +126,20 @@ class Statistics extends Command {
                 weekday[d.getDay()]++;
                 hourly[d.getHours()]++;
 
+                if (!weekdayByAuthor[name]) weekdayByAuthor[name] = new Array(7).fill(0);
+                if (!hourlyByAuthor[name]) hourlyByAuthor[name] = new Array(24).fill(0);
+                weekdayByAuthor[name][d.getDay()]++;
+                hourlyByAuthor[name][d.getHours()]++;
+
                 let a = authors.get(curKey);
                 if (!a) { a = { name, email, commits: 0, added: 0, deleted: 0, lines: 0 }; authors.set(curKey, a); }
                 a.commits++;
                 a.name = name; // keep the latest display name for this identity
 
                 let m = months.get(curMonth);
-                if (!m) { m = { month: curMonth, total: 0, commits: 0, byAuthor: {} }; months.set(curMonth, m); }
+                if (!m) { m = { month: curMonth, total: 0, commits: 0, byAuthor: {}, commitsByAuthor: {} }; months.set(curMonth, m); }
                 m.commits++;
+                m.commitsByAuthor[name] = (m.commitsByAuthor[name] || 0) + 1;
                 continue;
             }
 
@@ -156,7 +171,7 @@ class Statistics extends Command {
 
         const monthly = [...months.values()].sort((x, y) => (x.month < y.month ? -1 : 1));
 
-        return { authors: authorList, monthly, weekday, hourly, totalAdded, totalDeleted };
+        return { authors: authorList, monthly, weekday, hourly, weekdayByAuthor, hourlyByAuthor, totalAdded, totalDeleted };
     }
 }
 

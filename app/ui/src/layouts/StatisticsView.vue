@@ -8,9 +8,12 @@ import type { ApexOptions } from 'apexcharts';
 import { repoPath, activeTab } from '../services/gitService';
 import { useTheme, activeTheme } from '../services/themeService';
 import { gravatarUrl } from '../utils/avatars';
-import type { GitStatistics } from '../types/git';
+import type { GitStatistics, StatMonth } from '../types/git';
 import ScrollArea from '../components/Common/ScrollArea.vue';
 import Tooltip from '../components/Common/Tooltip.vue';
+import ChartPanel from '../components/Statistics/ChartPanel.vue';
+import SegmentedToggle from '../components/Statistics/SegmentedToggle.vue';
+import AuthorFilter from '../components/Statistics/AuthorFilter.vue';
 
 const { t } = useI18n();
 const { currentTheme } = useTheme();
@@ -54,7 +57,6 @@ const depth = ref(12);
 const stats = ref<GitStatistics | null>(null);
 const loading = ref(false);
 const errorMsg = ref<string | null>(null);
-const metric = ref<'lines' | 'commits'>('lines'); // for the monthly stacked bar
 
 const hasData = computed(() => !!stats.value && (stats.value.authors.length > 0 || stats.value.totalCommits > 0));
 
@@ -92,21 +94,21 @@ function recompute() {
 const authors = computed(() => stats.value?.authors ?? []);
 const colorForIndex = (i: number) => PALETTE[i % PALETTE.length];
 
-// Top authors drive the pie + the stacked bar; the long tail is bucketed.
+// Charts key their per-author data by display name, so a name always keeps the
+// same swatch no matter which chart (or which filter) it shows up in.
+const authorRank = computed(() => {
+  const m = new Map<string, number>();
+  authors.value.forEach((a, i) => { if (!m.has(a.name)) m.set(a.name, i); });
+  return m;
+});
+const colorForAuthor = (name: string) => colorForIndex(authorRank.value.get(name) ?? 0);
+const authorOptions = computed(() =>
+  [...authorRank.value.keys()].map(name => ({ name, color: colorForAuthor(name) })));
+
+// Top authors drive the unfiltered pie + stacked bar; the long tail is bucketed.
 const TOP_N = 6;
 const topAuthors = computed(() => authors.value.slice(0, TOP_N));
 const tailAuthors = computed(() => authors.value.slice(TOP_N));
-
-// The summary can hold thousands of contributors, so it's virtualized: only the
-// visible rows render (and only their avatars are requested). Charts are safe —
-// they bucket everyone beyond the top few into a single "Other" slice/series.
-const SUMMARY_COLS = '1fr 56px 76px 64px';
-const SUMMARY_ROW_H = 34;
-const {
-  list: virtualAuthors,
-  containerProps: summaryContainerProps,
-  wrapperProps: summaryWrapperProps,
-} = useVirtualList(authors, { itemHeight: SUMMARY_ROW_H, overscan: 8 });
 
 function humanBytes(n: number): string {
   if (!n) return '0 B';
@@ -123,9 +125,9 @@ const overviewCards = computed(() => {
   if (!s) return [];
   return [
     { key: 'commits', icon: 'lucide:git-commit-horizontal', label: t('stats.commits'), value: fmt(s.totalCommits), color: 'text-accent' },
-    { key: 'contributors', icon: 'lucide:users', label: t('stats.contributors'), value: fmt(authors.value.length), color: 'text-emerald-400' },
+    { key: 'contributors', icon: 'lucide:users', label: t('stats.contributors'), value: fmt(authors.value.length), color: 'text-added' },
     { key: 'branches', icon: 'lucide:git-branch', label: t('stats.branches'), value: fmt(s.branchCount), color: 'text-purple-400' },
-    { key: 'tags', icon: 'lucide:tag', label: t('stats.tags'), value: fmt(s.tagCount), color: 'text-amber-400' },
+    { key: 'tags', icon: 'lucide:tag', label: t('stats.tags'), value: fmt(s.tagCount), color: 'text-modified' },
     { key: 'size', icon: 'lucide:database', label: t('stats.size'), value: humanBytes(s.sizeBytes), color: 'text-cyan-400' },
     { key: 'churn', icon: 'lucide:diff', label: t('stats.churn'), value: `+${fmt(s.totalAdded)} / -${fmt(s.totalDeleted)}`, color: 'text-content-muted' },
   ];
@@ -143,19 +145,62 @@ const baseChart = computed(() => ({
 const gridColor = computed(() => tc.value.border);
 const tooltipTheme = computed(() => (isDark.value ? 'dark' : 'light'));
 
+// ---- Shared filter vocabulary ----------------------------------------------
+// Every chart keeps its own copy of these refs: narrowing one chart never
+// touches another, which is the whole point of per-chart filters.
+
+const METRIC_OPTIONS = computed(() => [
+  { value: 'lines', label: t('stats.lines') },
+  { value: 'commits', label: t('stats.commits') },
+]);
+const TOP_OPTIONS = computed(() => [
+  { value: 5, label: t('stats.top_n', { n: 5 }) },
+  { value: 10, label: t('stats.top_n', { n: 10 }) },
+  { value: 0, label: t('stats.all') },
+]);
+const RANGE_OPTIONS = computed(() => [
+  { value: 3, label: t('stats.n_months_short', { n: 3 }) },
+  { value: 6, label: t('stats.n_months_short', { n: 6 }) },
+  { value: 12, label: t('stats.n_months_short', { n: 12 }) },
+  { value: 0, label: t('stats.all') },
+]);
+
+const allMonths = computed<StatMonth[]>(() => stats.value?.monthly ?? []);
+/** Trailing window of the loaded months; 0 keeps everything the depth returned. */
+const monthsInRange = (range: number) => (range > 0 ? allMonths.value.slice(-range) : allMonths.value);
+
+const linesIn = (m: StatMonth, name: string) => m.byAuthor[name] || 0;
+const commitsIn = (m: StatMonth, name: string) => m.commitsByAuthor?.[name] || 0;
+
 // ---- Pie: contribution share ----------------------------------------------
 
+const shareMetric = ref<'lines' | 'commits'>('lines');
+const shareTop = ref(5);
+
+const shareValue = (a: { lines: number; commits: number }) =>
+  (shareMetric.value === 'lines' ? a.lines : a.commits);
+
+const shareRanked = computed(() => {
+  const list = [...authors.value];
+  if (shareMetric.value === 'commits') list.sort((x, y) => y.commits - x.commits);
+  return list;
+});
+const shareHead = computed(() => (shareTop.value > 0 ? shareRanked.value.slice(0, shareTop.value) : shareRanked.value));
+const shareTail = computed(() => (shareTop.value > 0 ? shareRanked.value.slice(shareTop.value) : []));
+
 const pieSeries = computed(() => {
-  const top = topAuthors.value.map((a) => a.lines);
-  const tail = tailAuthors.value.reduce((s, a) => s + a.lines, 0);
-  return tail > 0 ? [...top, tail] : top;
+  const head = shareHead.value.map(shareValue);
+  const tail = shareTail.value.reduce((s, a) => s + shareValue(a), 0);
+  return tail > 0 ? [...head, tail] : head;
 });
 const pieOptions = computed<ApexOptions>(() => {
-  const labels = topAuthors.value.map((a) => a.name);
-  if (tailAuthors.value.length > 0) labels.push(t('stats.other'));
-  const colors = topAuthors.value.map((_, i) => colorForIndex(i));
-  if (tailAuthors.value.length > 0) colors.push(tc.value.textMuted);
+  const hasTail = shareTail.value.length > 0 && shareTail.value.some(a => shareValue(a) > 0);
+  const labels = shareHead.value.map((a) => a.name);
+  if (hasTail) labels.push(t('stats.other'));
+  const colors = shareHead.value.map((a) => colorForAuthor(a.name));
+  if (hasTail) colors.push(tc.value.textMuted);
   const total = pieSeries.value.reduce((s, v) => s + v, 0) || 1;
+  const unit = shareMetric.value === 'lines' ? t('stats.lines_lc') : t('stats.commits_lc');
   return {
     chart: { ...baseChart.value, type: 'donut' },
     labels,
@@ -172,26 +217,80 @@ const pieOptions = computed<ApexOptions>(() => {
       labels: { colors: tc.value.text },
     },
     dataLabels: { enabled: false },
-    tooltip: { theme: tooltipTheme.value, y: { formatter: (v: number) => `${fmt(v)} ${t('stats.lines_lc')}` } },
+    tooltip: { theme: tooltipTheme.value, y: { formatter: (v: number) => `${fmt(v)} ${unit}` } },
     plotOptions: { pie: { donut: { size: '62%', labels: { show: false } } } },
     states: { hover: { filter: { type: 'lighten', value: 0.08 } } },
   };
 });
 
+// ---- Summary table ---------------------------------------------------------
+
+const summaryQuery = ref('');
+const summarySort = ref<'lines' | 'commits' | 'avg' | 'name'>('lines');
+const summaryDesc = ref(true);
+
+const SUMMARY_SORT_OPTIONS = computed(() => [
+  { value: 'lines', label: t('stats.lines') },
+  { value: 'commits', label: t('stats.commits') },
+  { value: 'avg', label: t('stats.avg') },
+  { value: 'name', label: t('stats.developer') },
+]);
+
+const summaryAuthors = computed(() => {
+  const q = summaryQuery.value.trim().toLowerCase();
+  const rows = q
+    ? authors.value.filter(a => a.name.toLowerCase().includes(q) || a.email.toLowerCase().includes(q))
+    : [...authors.value];
+  // The comparators below are written largest-first, so descending is the
+  // identity direction and ascending is the one that flips them.
+  const dir = summaryDesc.value ? 1 : -1;
+  const key = summarySort.value;
+  return rows.sort((x, y) => {
+    if (key === 'name') return dir * y.name.localeCompare(x.name);
+    if (key === 'commits') return dir * (y.commits - x.commits);
+    if (key === 'avg') return dir * (y.avgLinesPerCommit - x.avgLinesPerCommit);
+    return dir * (y.lines - x.lines);
+  });
+});
+
+// The summary can hold thousands of contributors, so it's virtualized: only the
+// visible rows render (and only their avatars are requested). Charts are safe —
+// they bucket everyone beyond the top few into a single "Other" slice/series.
+// The avg column needs room for a header as long as "Média/Commit", otherwise it
+// collides with the Lines heading next to it.
+const SUMMARY_COLS = '1fr 58px 78px 92px';
+const SUMMARY_ROW_H = 34;
+const {
+  list: virtualAuthors,
+  containerProps: summaryContainerProps,
+  wrapperProps: summaryWrapperProps,
+} = useVirtualList(summaryAuthors, { itemHeight: SUMMARY_ROW_H, overscan: 8 });
+
 // ---- Stacked bar: monthly contributions -----------------------------------
 
-const monthCategories = computed(() => (stats.value?.monthly ?? []).map((m) => m.month));
+const monthlyMetric = ref<'lines' | 'commits'>('lines');
+const monthlyRange = ref(0);
+const monthlyAuthors = ref<string[]>([]);
+
+const monthlyMonths = computed(() => monthsInRange(monthlyRange.value));
+const monthCategories = computed(() => monthlyMonths.value.map((m) => m.month));
 
 const monthlySeries = computed(() => {
-  const months = stats.value?.monthly ?? [];
-  // Commits metric: a single series of monthly commit counts.
-  if (metric.value === 'commits') {
+  const months = monthlyMonths.value;
+  const value = monthlyMetric.value === 'lines' ? linesIn : commitsIn;
+
+  // Explicit picks win: one series per selected contributor.
+  if (monthlyAuthors.value.length > 0) {
+    return monthlyAuthors.value.map((name) => ({ name, data: months.map((m) => value(m, name)) }));
+  }
+  // Commits metric with nobody picked: a single series of monthly totals.
+  if (monthlyMetric.value === 'commits') {
     return [{ name: t('stats.commits'), data: months.map((m) => m.commits) }];
   }
   // Lines metric: one stacked series per top author + a bucketed "Other".
   const result = topAuthors.value.map((a) => ({
     name: a.name,
-    data: months.map((m) => (m.byAuthor[a.name] || 0)),
+    data: months.map((m) => linesIn(m, a.name)),
   }));
   const tailNames = new Set(tailAuthors.value.map((a) => a.name));
   if (tailAuthors.value.length > 0) {
@@ -203,8 +302,9 @@ const monthlySeries = computed(() => {
 });
 
 const monthlyColors = computed(() => {
-  if (metric.value === 'commits') return [tc.value.accent];
-  const colors = topAuthors.value.map((_, i) => colorForIndex(i));
+  if (monthlyAuthors.value.length > 0) return monthlyAuthors.value.map(colorForAuthor);
+  if (monthlyMetric.value === 'commits') return [tc.value.accent];
+  const colors = topAuthors.value.map((a) => colorForAuthor(a.name));
   if (tailAuthors.value.length > 0) colors.push(tc.value.textMuted);
   return colors;
 });
@@ -225,53 +325,98 @@ const monthlyOptions = computed<ApexOptions>(() => ({
 
 // ---- Area: commit activity over time --------------------------------------
 
+const activityRange = ref(0);
+const activityAuthors = ref<string[]>([]);
+const activityMonths = computed(() => monthsInRange(activityRange.value));
+
 const activityChart = ref<any>(null);
 function resetActivityZoom() {
   // resetSeries(shouldUpdateChart, shouldResetZoom) — the second arg clears the zoom window.
   activityChart.value?.resetSeries?.(true, true);
 }
 
+const activitySeries = computed(() => {
+  const months = activityMonths.value;
+  if (activityAuthors.value.length > 0) {
+    return activityAuthors.value.map((name) => ({ name, data: months.map((m) => commitsIn(m, name)) }));
+  }
+  return [{ name: t('stats.commits'), data: months.map((m) => m.commits) }];
+});
+
 const activityOptions = computed<ApexOptions>(() => ({
   chart: { ...baseChart.value, type: 'area', sparkline: { enabled: false }, zoom: { enabled: true, type: 'x', autoScaleYaxis: true } },
-  colors: [tc.value.accent],
+  colors: activityAuthors.value.length > 0 ? activityAuthors.value.map(colorForAuthor) : [tc.value.accent],
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 100] } },
-  xaxis: { categories: monthCategories.value, axisBorder: { color: gridColor.value }, axisTicks: { color: gridColor.value }, labels: { rotate: -45, hideOverlappingLabels: true, style: { fontSize: '10px' } } },
+  xaxis: { categories: activityMonths.value.map((m) => m.month), axisBorder: { color: gridColor.value }, axisTicks: { color: gridColor.value }, labels: { rotate: -45, hideOverlappingLabels: true, style: { fontSize: '10px' } } },
   yaxis: { labels: { formatter: (v: number) => fmt(Math.round(v)) } },
   grid: { borderColor: gridColor.value, strokeDashArray: 3 },
+  legend: { show: activityAuthors.value.length > 0, position: 'top', horizontalAlign: 'left', fontSize: '11px', labels: { colors: tc.value.text } },
   tooltip: { theme: tooltipTheme.value },
 }));
-const activitySeries = computed(() => [{ name: t('stats.commits'), data: (stats.value?.monthly ?? []).map((m) => m.commits) }]);
 
 // ---- Bar: commits by weekday ----------------------------------------------
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const weekdayAuthors = ref<string[]>([]);
+
+const weekdaySeries = computed(() => {
+  const picked = weekdayAuthors.value;
+  if (picked.length > 0) {
+    const by = stats.value?.weekdayByAuthor ?? {};
+    return picked.map((name) => ({ name, data: by[name] ?? new Array(7).fill(0) }));
+  }
+  return [{ name: t('stats.commits'), data: stats.value?.weekday ?? [] }];
+});
+
 const weekdayOptions = computed<ApexOptions>(() => ({
-  chart: { ...baseChart.value, type: 'bar' },
-  colors: [tc.value.accent],
+  chart: { ...baseChart.value, type: 'bar', stacked: weekdayAuthors.value.length > 1 },
+  colors: weekdayAuthors.value.length > 0 ? weekdayAuthors.value.map(colorForAuthor) : [tc.value.accent],
   plotOptions: { bar: { columnWidth: '55%', borderRadius: 3, distributed: false } },
   dataLabels: { enabled: false },
   xaxis: { categories: WEEKDAYS.map((d) => t(`stats.weekday.${d}`)), axisBorder: { color: gridColor.value }, axisTicks: { color: gridColor.value }, labels: { style: { fontSize: '10px' } } },
   yaxis: { labels: { formatter: (v: number) => fmt(Math.round(v)) } },
   grid: { borderColor: gridColor.value, strokeDashArray: 3 },
+  legend: { show: weekdayAuthors.value.length > 0, position: 'top', horizontalAlign: 'left', fontSize: '11px', labels: { colors: tc.value.text } },
   tooltip: { theme: tooltipTheme.value },
 }));
-const weekdaySeries = computed(() => [{ name: t('stats.commits'), data: stats.value?.weekday ?? [] }]);
 
 // ---- Bar: activity by hour ------------------------------------------------
 
+const hourlyAuthors = ref<string[]>([]);
+
+const hourlySeries = computed(() => {
+  const picked = hourlyAuthors.value;
+  if (picked.length > 0) {
+    const by = stats.value?.hourlyByAuthor ?? {};
+    return picked.map((name) => ({ name, data: by[name] ?? new Array(24).fill(0) }));
+  }
+  return [{ name: t('stats.commits'), data: stats.value?.hourly ?? [] }];
+});
+
 const hourlyOptions = computed<ApexOptions>(() => ({
-  chart: { ...baseChart.value, type: 'bar' },
-  colors: ['#a855f7'],
+  chart: { ...baseChart.value, type: 'bar', stacked: hourlyAuthors.value.length > 1 },
+  colors: hourlyAuthors.value.length > 0 ? hourlyAuthors.value.map(colorForAuthor) : ['#a855f7'],
   plotOptions: { bar: { columnWidth: '70%', borderRadius: 2 } },
   dataLabels: { enabled: false },
   xaxis: { categories: Array.from({ length: 24 }, (_, i) => String(i)), axisBorder: { color: gridColor.value }, axisTicks: { color: gridColor.value }, labels: { style: { fontSize: '9px' }, hideOverlappingLabels: false } },
   yaxis: { labels: { formatter: (v: number) => fmt(Math.round(v)) } },
   grid: { borderColor: gridColor.value, strokeDashArray: 3 },
+  legend: { show: hourlyAuthors.value.length > 0, position: 'top', horizontalAlign: 'left', fontSize: '11px', labels: { colors: tc.value.text } },
   tooltip: { theme: tooltipTheme.value },
 }));
-const hourlySeries = computed(() => [{ name: t('stats.commits'), data: stats.value?.hourly ?? [] }]);
+
+// A fresh dataset can drop contributors that were pinned in a filter; clearing
+// avoids charts silently rendering empty series for people who are now absent.
+watch(stats, () => {
+  const known = new Set(authorRank.value.keys());
+  const prune = (r: typeof monthlyAuthors) => { r.value = r.value.filter(n => known.has(n)); };
+  prune(monthlyAuthors);
+  prune(activityAuthors);
+  prune(weekdayAuthors);
+  prune(hourlyAuthors);
+});
 
 const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n_months', { n: d }));
 </script>
@@ -311,7 +456,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
       </div>
 
       <!-- Error -->
-      <div v-else-if="errorMsg" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-2 text-red-400 px-6 text-center">
+      <div v-else-if="errorMsg" class="h-full min-h-[300px] flex flex-col items-center justify-center gap-2 text-removed px-6 text-center">
         <Icon icon="lucide:triangle-alert" class="w-8 h-8" />
         <span class="text-xs max-w-md">{{ errorMsg }}</span>
       </div>
@@ -340,13 +485,42 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
 
         <!-- Pie + Summary table -->
         <div class="grid gap-4" :style="{ gridTemplateColumns: pieSummaryTwoCol ? '1fr 1fr' : '1fr' }">
-          <div class="rounded-lg border border-line bg-surface p-3">
-            <div class="text-[11px] font-semibold text-content mb-1">{{ t('stats.contribution_share') }}</div>
+          <ChartPanel :title="t('stats.contribution_share')">
+            <template #filters>
+              <SegmentedToggle v-model="shareMetric" :options="METRIC_OPTIONS" />
+              <SegmentedToggle v-model="shareTop" :options="TOP_OPTIONS" />
+            </template>
             <VueApexChart type="donut" height="280" :options="pieOptions" :series="pieSeries" />
-          </div>
+          </ChartPanel>
 
-          <div class="rounded-lg border border-line bg-surface p-3 flex flex-col min-h-0">
-            <div class="text-[11px] font-semibold text-content mb-2">{{ t('stats.summary') }}</div>
+          <ChartPanel :title="t('stats.summary')">
+            <template #filters>
+              <div class="h-stat-control px-2 rounded border border-line flex items-center gap-1.5 min-w-0 w-[150px] shrink-0">
+                <Icon icon="lucide:search" class="w-3 h-3 text-content-muted shrink-0" />
+                <input
+                  v-model="summaryQuery"
+                  :placeholder="t('stats.search_developer')"
+                  class="flex-1 min-w-0 bg-transparent text-[10px] text-content outline-none placeholder:text-content-muted"
+                />
+                <button
+                  v-if="summaryQuery"
+                  @click="summaryQuery = ''"
+                  class="shrink-0 text-content-muted hover:text-content-strong"
+                >
+                  <Icon icon="lucide:x" class="w-3 h-3" />
+                </button>
+              </div>
+              <SegmentedToggle v-model="summarySort" :options="SUMMARY_SORT_OPTIONS" />
+              <Tooltip :text="t(summaryDesc ? 'stats.sort_desc' : 'stats.sort_asc')" position="top">
+                <button
+                  @click="summaryDesc = !summaryDesc"
+                  class="w-stat-control h-stat-control flex items-center justify-center rounded border border-line text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors shrink-0"
+                >
+                  <Icon :icon="summaryDesc ? 'lucide:arrow-down-narrow-wide' : 'lucide:arrow-up-narrow-wide'" class="w-3 h-3" />
+                </button>
+              </Tooltip>
+            </template>
+
             <!-- Fixed header + virtualized body (handles thousands of contributors) -->
             <div class="grid text-[11px] text-content-muted border-b border-line pb-1.5 px-2" :style="{ gridTemplateColumns: SUMMARY_COLS }">
               <span class="font-medium">{{ t('stats.developer') }}</span>
@@ -354,7 +528,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
               <span class="font-medium text-right">{{ t('stats.lines') }}</span>
               <span class="font-medium text-right">{{ t('stats.avg') }}</span>
             </div>
-            <div v-bind="summaryContainerProps" class="h-[280px] mt-0.5">
+            <div v-bind="summaryContainerProps" class="h-[280px] mt-0.5 gb-scroll">
               <div v-bind="summaryWrapperProps">
                 <div
                   v-for="{ data: a, index: i } in virtualAuthors"
@@ -363,7 +537,7 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
                   :style="{ height: SUMMARY_ROW_H + 'px', gridTemplateColumns: SUMMARY_COLS }"
                 >
                   <div class="flex items-center gap-2 min-w-0">
-                    <span class="w-2 h-2 rounded-sm shrink-0" :style="{ background: i < TOP_N ? colorForIndex(i) : tc.textMuted }" />
+                    <span class="w-2 h-2 rounded-sm shrink-0" :style="{ background: colorForAuthor(a.name) }" />
                     <img :src="gravatarUrl(a.email)" loading="lazy" class="w-4 h-4 rounded-sm border border-line shrink-0" />
                     <Tooltip :text="a.email" position="top" class="min-w-0">
                       <span class="truncate text-content">{{ a.name }}</span>
@@ -375,54 +549,55 @@ const depthLabel = (d: number) => (d === 0 ? t('stats.all_history') : t('stats.n
                 </div>
               </div>
             </div>
-          </div>
+            <div v-if="summaryAuthors.length === 0" class="text-[10px] text-content-muted text-center py-2">
+              {{ t('stats.no_match') }}
+            </div>
+          </ChartPanel>
         </div>
 
         <!-- Monthly contributions -->
-        <div class="rounded-lg border border-line bg-surface p-3">
-          <div class="flex items-center justify-between mb-1">
-            <div class="text-[11px] font-semibold text-content">{{ t('stats.monthly_contributions') }}</div>
-            <div class="flex items-center rounded border border-line overflow-hidden text-[10px]">
-              <button
-                @click="metric = 'lines'"
-                :class="['px-2 py-1 transition-colors', metric === 'lines' ? 'bg-accent text-accent-fg' : 'text-content-muted hover:bg-surface-hover']"
-              >{{ t('stats.lines') }}</button>
-              <button
-                @click="metric = 'commits'"
-                :class="['px-2 py-1 transition-colors', metric === 'commits' ? 'bg-accent text-accent-fg' : 'text-content-muted hover:bg-surface-hover']"
-              >{{ t('stats.commits') }}</button>
-            </div>
-          </div>
+        <ChartPanel :title="t('stats.monthly_contributions')">
+          <template #filters>
+            <SegmentedToggle v-model="monthlyMetric" :options="METRIC_OPTIONS" />
+            <SegmentedToggle v-model="monthlyRange" :options="RANGE_OPTIONS" />
+            <AuthorFilter v-model="monthlyAuthors" :options="authorOptions" />
+          </template>
           <VueApexChart type="bar" height="300" :options="monthlyOptions" :series="monthlySeries" />
-        </div>
+        </ChartPanel>
 
         <!-- Activity + weekday -->
         <div class="grid gap-4" :style="{ gridTemplateColumns: dualChartTwoCol ? '1fr 1fr' : '1fr' }">
-          <div class="rounded-lg border border-line bg-surface p-3">
-            <div class="flex items-center justify-between mb-1">
-              <div class="text-[11px] font-semibold text-content">{{ t('stats.commit_activity') }}</div>
-              <Tooltip :text="t('stats.reset_zoom')" position="left">
+          <ChartPanel :title="t('stats.commit_activity')">
+            <template #filters>
+              <SegmentedToggle v-model="activityRange" :options="RANGE_OPTIONS" />
+              <AuthorFilter v-model="activityAuthors" :options="authorOptions" />
+              <Tooltip :text="t('stats.reset_zoom')" position="top">
                 <button
                   @click="resetActivityZoom"
-                  class="w-6 h-6 flex items-center justify-center rounded border border-line text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors"
+                  class="w-stat-control h-stat-control flex items-center justify-center rounded border border-line text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors"
                 >
-                  <Icon icon="lucide:zoom-out" class="w-3.5 h-3.5" />
+                  <Icon icon="lucide:zoom-out" class="w-3 h-3" />
                 </button>
               </Tooltip>
-            </div>
+            </template>
             <VueApexChart ref="activityChart" type="area" height="240" :options="activityOptions" :series="activitySeries" />
-          </div>
-          <div class="rounded-lg border border-line bg-surface p-3">
-            <div class="text-[11px] font-semibold text-content mb-1">{{ t('stats.by_weekday') }}</div>
+          </ChartPanel>
+
+          <ChartPanel :title="t('stats.by_weekday')">
+            <template #filters>
+              <AuthorFilter v-model="weekdayAuthors" :options="authorOptions" />
+            </template>
             <VueApexChart type="bar" height="240" :options="weekdayOptions" :series="weekdaySeries" />
-          </div>
+          </ChartPanel>
         </div>
 
         <!-- Hourly -->
-        <div class="rounded-lg border border-line bg-surface p-3">
-          <div class="text-[11px] font-semibold text-content mb-1">{{ t('stats.by_hour') }}</div>
+        <ChartPanel :title="t('stats.by_hour')">
+          <template #filters>
+            <AuthorFilter v-model="hourlyAuthors" :options="authorOptions" />
+          </template>
           <VueApexChart type="bar" height="200" :options="hourlyOptions" :series="hourlySeries" />
-        </div>
+        </ChartPanel>
       </div>
     </ScrollArea>
   </div>

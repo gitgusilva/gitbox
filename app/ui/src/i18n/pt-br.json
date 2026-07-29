@@ -819,7 +819,19 @@
       "fri": "Sex",
       "sat": "Sáb"
     },
-    "reset_zoom": "Resetar zoom"
+    "reset_zoom": "Resetar zoom",
+    "commits_lc": "commits",
+    "all": "Tudo",
+    "top_n": "Top {n}",
+    "n_months_short": "{n}m",
+    "all_authors": "Todos os autores",
+    "n_selected": "{n} selecionados",
+    "filter_authors": "Filtrar por contribuidor",
+    "search_developer": "Buscar desenvolvedor…",
+    "clear": "Limpar",
+    "no_match": "Nenhum resultado",
+    "sort_asc": "Crescente",
+    "sort_desc": "Decrescente"
   },
   "appearance": {
     "mode": "Modo base",

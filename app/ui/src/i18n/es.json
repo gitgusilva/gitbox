@@ -767,7 +767,19 @@
       "fri": "Vie",
       "sat": "Sáb"
     },
-    "reset_zoom": "Restablecer zoom"
+    "reset_zoom": "Restablecer zoom",
+    "commits_lc": "commits",
+    "all": "Todo",
+    "top_n": "Top {n}",
+    "n_months_short": "{n}m",
+    "all_authors": "Todos los autores",
+    "n_selected": "{n} seleccionados",
+    "filter_authors": "Filtrar por colaborador",
+    "search_developer": "Buscar desarrollador…",
+    "clear": "Limpiar",
+    "no_match": "Sin resultados",
+    "sort_asc": "Ascendente",
+    "sort_desc": "Descendente"
   },
   "appearance": {
     "mode": "Modo base",
