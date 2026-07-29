@@ -26,18 +26,34 @@ function readPalette(): string[] {
  * state at the end of one page is exactly the starting state of the next (older)
  * page, since commits stream in newest→oldest order.
  */
+/**
+ * One branch line still looking for its next commit. Identity lives on the
+ * object, not on an array slot, so a line keeps its colour and knows where it
+ * was last drawn even as it slides between columns.
+ */
+interface Lane {
+    /** Commit id this line is descending towards. */
+    next: string;
+    // Stable colour: a lane keeps its colour for as long as it stays a continuous
+    // chain, so each branch keeps one colour all the way down (SourceGit-style)
+    // instead of recolouring whenever it changes column.
+    color: string;
+    // Reachability of the EDGE currently descending in this lane, i.e. whether the
+    // child commit that owns this line is reachable from a root. A line is on the
+    // highlighted history only if the child it flows *from* is reachable — tying
+    // line colour to the destination dot instead paints a colour onto an
+    // off-branch line whenever its parent is shared with a root.
+    reach: boolean;
+    /** Column this line was last drawn in, i.e. where it enters the next row. */
+    lastX: number;
+}
+
 export interface GraphState {
-    lanes: (string | null)[];
-    // Stable color per lane: a lane keeps its color for as long as it stays
-    // occupied by a continuous chain, so each branch keeps one color all the way
-    // down (SourceGit-style) instead of recoloring by lane index.
-    laneColors: string[];
-    // Per-lane reachability of the EDGE currently descending in that lane, i.e.
-    // whether the child commit that owns this lane's line is reachable from a root.
-    // A line is on the highlighted history only if the child it flows *from*
-    // is reachable — tying line colour to the destination dot instead paints a
-    // colour onto an off-branch line whenever its parent is shared with a root.
-    laneReach: boolean[];
+    // Ordered list of live lines; a lane's POSITION is its column. Ending a lane
+    // removes it, so everything to its right slides one column left on the rows
+    // below — the compaction that gives SourceGit's graph its braided look and
+    // keeps the graph as narrow as the history actually needs.
+    lanes: Lane[];
     nextColor: number;
     // Commit ids reachable from a root, grown newest→oldest: when a reachable commit
     // is laid out its parents are added, so the whole highlighted ancestry gets
@@ -46,7 +62,7 @@ export interface GraphState {
 }
 
 export function createGraphState(): GraphState {
-    return { lanes: [], laneColors: [], laneReach: [], nextColor: 0, reachable: new Set() };
+    return { lanes: [], nextColor: 0, reachable: new Set() };
 }
 
 /**
@@ -64,12 +80,11 @@ export function appendCommitGraph(
 ): void {
     if (!commits || commits.length === 0) return;
 
-    const { lanes, laneColors, laneReach } = state;
     // Highlight roots: everything reachable from one of them keeps its colour, the
     // rest is dimmed. Defaults to HEAD alone (current-branch highlighting); callers
     // pass the filtered refs' tips so a branch the user explicitly filtered for is
     // NOT greyed out just because it isn't part of HEAD's ancestry. No roots (e.g.
-    // HEAD not in this view and no filter) → dimming off, everything stays coloured.
+    // HEAD not in this view and no filter) -> dimming off, everything stays coloured.
     const seeds = roots && roots.length ? roots : (headId ? [headId] : []);
     const dimEnabled = seeds.length > 0;
     // Seed on every call: a root can be the tip of a branch that only shows up in a
@@ -78,10 +93,6 @@ export function appendCommitGraph(
     const reach = (id: string | null) => !dimEnabled || (id != null && state.reachable.has(id));
     const palette = readPalette();
     const allocColor = () => palette[state.nextColor++ % palette.length];
-    const colorFor = (lane: number) => {
-        if (!laneColors[lane]) laneColors[lane] = allocColor();
-        return laneColors[lane];
-    };
 
     // Each history row is 30px tall (ROW_HEIGHT in HistoryCommitList). The cell
     // spans the FULL row and overlaps its neighbours by ~1px on each end, else
@@ -91,10 +102,83 @@ export function appendCommitGraph(
     const cellTop = -1;
     const cellH = 31;
     const midY = 14;
-    const cornerR = 6; // rounded-corner radius where a line turns at the middle
     const laneW = 12;
     const offset = 10;
     const x = (l: number) => l * laneW + offset;
+
+    // --- Curve shapes ------------------------------------------------------
+    // Every lateral move is one curve whose control points sit on the corner, so a
+    // line leaves along its own column and only turns as it arrives: a single
+    // sweep, never the L-bend the graph used to draw.
+    //
+    // Keeping them APART is a separate problem from keeping them smooth. Every
+    // line arriving at a dot ends on the same point, and with only half a row of
+    // vertical budget a single curve straight into it flattens against y = midY:
+    // measured on a real row, a converging branch and the merge edge leaving the
+    // same dot ran within 1px of each other from x=10 to x=50, so one simply
+    // painted over the other and looked cut in half.
+    //
+    // So each line gets its own TRACK -- the height it runs at before turning into
+    // the dot. Branches arriving nest in the band ABOVE the dot (the one coming
+    // from furthest away rides highest, so the fan nests outside-in) and merge
+    // edges leaving occupy the band BELOW it. The two families can then never
+    // share a stroke, and members of a family only meet where the dot covers them.
+
+    /** Vertical midpoint of a full-row slide, where its S-curve inflects. */
+    const slideMid = (cellTop + cellH) / 2;
+
+    // Merge edges get their own band BELOW the dot. Arriving branches all flatten
+    // against y = midY as they close on the dot -- that is what makes them nest --
+    // so an edge LEAVING along the same line ran within 1px of one of them for
+    // 40px and painted straight over it, which is what looked like a broken green
+    // line. Pushing the departures one band down separates the two families by
+    // construction, without touching the fan that arrivals form naturally.
+    const LEAVE_BASE = 2;     // first departing track, measured down from the dot
+    const LEAVE_GAP = 6;      // vertical spacing between successive departures
+    const LEAVE_TURN = 0.8;   // how late a departure dives into its target column
+
+    /** Height the j-th merge edge leaving the dot runs at (nearest column first). */
+    const leaveTrack = (j: number) => Math.min(cellH - 2, midY + LEAVE_BASE + j * LEAVE_GAP);
+
+    /**
+     * A line flowing straight through this row. When lane compaction slides it
+     * sideways it gets SourceGit's cubic, which spends the whole row height on the
+     * turn -- that long, gentle S is what makes a column shift read as one sweep
+     * instead of a kink. The +/-4 offset on the control points is SourceGit's too:
+     * it keeps the ends vertical so the curve joins the rows above and below
+     * without a visible corner.
+     */
+    const passPath = (from: number, to: number) =>
+        from === to
+            ? `M ${x(from)} ${cellTop} L ${x(from)} ${cellH}`
+            : `M ${x(from)} ${cellTop} C ${x(from)} ${slideMid + 4}, ${x(to)} ${slideMid - 4}, ${x(to)} ${cellH}`;
+
+    /**
+     * A line arriving at this row's dot -- the lane that owns it, or a branch
+     * converging into it. Down its own column, then a rounded turn into the dot.
+     * A quadratic is deliberate: its x moves as t², so a branch from a far column
+     * stays wide for longer and the arrivals nest as concentric arcs, one per
+     * source column. Anything that spread them onto separate tracks instead
+     * collapsed into a single bundle as soon as more than three branches met.
+     */
+    const toDotPath = (from: number, to: number) =>
+        from === to
+            ? `M ${x(from)} ${cellTop} L ${x(from)} ${midY}`
+            : `M ${x(from)} ${cellTop} Q ${x(from)} ${midY}, ${x(to)} ${midY}`;
+
+    /**
+     * Merge edge leaving the dot for a second parent's column: down out of the dot,
+     * across its own track, then into that column. Its LAST control sits in the
+     * target column so it settles in vertically and joins the next row cleanly.
+     * one band lower. Its LAST control sits in the target column so it settles in
+     * vertically and joins the next row cleanly.
+     */
+    const mergePath = (from: number, to: number, rank: number) => {
+        if (from === to) return `M ${x(from)} ${midY} L ${x(from)} ${cellH}`;
+        const t = leaveTrack(rank);
+        const dive = x(from) + (x(to) - x(from)) * LEAVE_TURN;
+        return `M ${x(from)} ${midY} C ${dive} ${t}, ${x(to)} ${t}, ${x(to)} ${cellH}`;
+    };
 
     for (const c of commits) {
         // Reachable-from-HEAD is settled by now (all children precede a commit in
@@ -102,126 +186,116 @@ export function appendCommitGraph(
         const cReach = reach(c.id);
         if (dimEnabled && cReach && c.parents) for (const p of c.parents) state.reachable.add(p.id);
 
-        const inLanes = [...lanes];
-        // Snapshot lane colours BEFORE this row reassigns any (a merge can reuse a
-        // just-freed lane for its 2nd parent, changing that lane's colour). Lines
-        // coming from ABOVE must keep the colour the lane had above — otherwise a
-        // branch converging into a merge suddenly repaints to the reused colour.
-        const inColors = [...laneColors];
-        // Snapshot edge reachability from ABOVE too: lines entering this row belong
-        // to the child that set the lane, so their dimming must read the value the
-        // lane had before this row reassigns it.
-        const inReach = [...laneReach];
-        let dotLane = -1;
-        for (let j = 0; j < inLanes.length; j++) {
-            if (inLanes[j] === c.id) {
-                if (dotLane === -1) dotLane = j;
-                else lanes[j] = null; // sibling lanes pointing here converge into dotLane
+        const incoming = state.lanes;
+        // Reachability of each line as it ENTERS the row. A line belongs to the
+        // child that set it, so its dimming must read the value the lane had before
+        // this row reassigns it -- otherwise an off-branch line feeding a shared
+        // parent would inherit the parent's colour.
+        const reachIn = new Map<Lane, boolean>();
+        for (const l of incoming) reachIn.set(l, l.reach);
+
+        // Walk the live lanes in order to build this row's columns. The first lane
+        // pointing at this commit owns the dot and keeps its column; any sibling
+        // pointing here converges into it and gives its column up, which is what
+        // makes everything to the right slide left.
+        const columns: Lane[] = [];
+        let major: Lane | null = null;
+        for (const l of incoming) {
+            // A converging sibling is simply left out of `columns` — that missing
+            // column is the compaction.
+            if (l.next === c.id) {
+                if (!major) { major = l; columns.push(l); }
+            } else {
+                columns.push(l);
             }
         }
-
-        if (dotLane === -1) {
-            // Branch tip (no child pointed at this commit) → new lane, fresh color
-            dotLane = lanes.indexOf(null);
-            if (dotLane === -1) {
-                dotLane = lanes.length;
-                lanes.push(null);
-            }
-            laneColors[dotLane] = allocColor();
-        }
-
-        const dotColor = colorFor(dotLane);
 
         const p0 = c.parents && c.parents.length > 0 ? c.parents[0].id : null;
-        lanes[dotLane] = p0; // lane continues with the same color
-        laneReach[dotLane] = cReach; // the descending edge below c is owned by c
+        if (!major) {
+            // Branch tip: nothing above pointed here, so it opens a column of its
+            // own at the right edge with a fresh colour.
+            major = { next: '', color: allocColor(), reach: cReach, lastX: columns.length };
+            columns.push(major);
+        }
+        const dotLane = columns.indexOf(major);
+        const dotColor = major.color;
 
-        const mergeTargets: number[] = [];
+        // The lane now descends towards the first parent, carrying c's edge.
+        major.next = p0 ?? '';
+        major.reach = cReach;
+
+        const mergeTargets: { lane: Lane; column: number }[] = [];
         if (c.parents && c.parents.length > 1) {
             for (let p = 1; p < c.parents.length; p++) {
                 const pId = c.parents[p].id;
-                let mergeLane = lanes.indexOf(pId);
-                if (mergeLane === -1) {
-                    mergeLane = lanes.indexOf(null);
-                    if (mergeLane === -1) {
-                        mergeLane = lanes.length;
-                        lanes.push(null);
-                    }
-                    lanes[mergeLane] = pId;
-                    laneColors[mergeLane] = allocColor();
+                let target = columns.find(l => l.next === pId);
+                if (!target) {
+                    target = { next: pId, color: allocColor(), reach: cReach, lastX: columns.length };
+                    columns.push(target);
                 }
-                // The lane descending toward this merge parent carries c's edge, so
+                // The line descending toward this merge parent carries c's edge, so
                 // it's on HEAD's history iff c is (keep any prior reachable owner).
-                laneReach[mergeLane] = !!laneReach[mergeLane] || cReach;
-                mergeTargets.push(mergeLane);
+                target.reach = target.reach || cReach;
+                mergeTargets.push({ lane: target, column: columns.indexOf(target) });
             }
         }
+
+        const column = new Map<Lane, number>();
+        columns.forEach((l, i) => column.set(l, i));
 
         const lines: GraphLine[] = [];
 
-        for (let k = 0; k < inLanes.length; k++) {
-            // Lines entering from ABOVE use the colour the lane had above (inColors),
-            // not the post-reassignment colour, so a converging branch keeps its hue.
-            const inColor = inColors[k] ?? colorFor(k);
-            // A line entering from above belongs to the child that set this lane,
-            // so its dimming reads that edge's reachability (inReach[k]) — NOT the
-            // destination dot's (cReach). Otherwise an off-branch line feeding a
-            // shared parent would inherit the parent's colour.
-            if (inLanes[k] === c.id) {
-                if (k === dotLane) {
-                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY}`, color: inColor, dimmed: !inReach[k] });
-                } else {
-                    // Converging branch: straight down its own lane, a rounded
-                    // corner at the middle, then a horizontal run into the dot —
-                    // so multi-lane jumps read as clean L-bends, not wide swoops.
-                    const sgn = dotLane > k ? 1 : -1;
-                    const r = Math.min(cornerR, Math.abs(x(dotLane) - x(k)));
-                    lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${midY - r} Q ${x(k)} ${midY}, ${x(k) + sgn * r} ${midY} L ${x(dotLane)} ${midY}`, color: inColor, dimmed: !inReach[k] });
-                }
-            } else if (inLanes[k] !== null) {
-                // Line just passing straight through this row keeps its lane color
-                lines.push({ path: `M ${x(k)} ${cellTop} L ${x(k)} ${cellH}`, color: inColor, dimmed: !inReach[k] });
-            }
+        // Lines entering from above, each drawn from the column it was last left in.
+        // A lane with no surviving column converged into the dot; so did `major`,
+        // which owns it. Everything else flows on through the row.
+        for (const l of incoming) {
+            const dimmed = !reachIn.get(l);
+            const to = column.get(l);
+            lines.push(to === undefined || l === major
+                ? { path: toDotPath(l.lastX, dotLane), color: l.color, dimmed }
+                : { path: passPath(l.lastX, to), color: l.color, dimmed });
         }
 
         // Continuation down to the next row. Position-independent (no "is last
-        // row" check) so nodes never change when more pages load — the last row
+        // row" check) so nodes never change when more pages load -- the last row
         // of a page connects seamlessly to the first row of the next.
         if (p0) {
-            // Dim the continuation when THIS commit is off-branch — not just when
+            // Dim the continuation when THIS commit is off-branch -- not just when
             // its parent is. A merge can make the parent reachable while this
             // (off-branch) commit stays dimmed, which otherwise left a bright line
             // hanging off a greyed-out dot.
             lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(dotLane)} ${cellH}`, color: dotColor, dimmed: !cReach });
         }
 
-        for (const mL of mergeTargets) {
-            // Merge parent: horizontal out of the dot along the middle, a rounded
-            // corner, then straight down the target lane.
-            const sgn = mL > dotLane ? 1 : -1;
-            const r = Math.min(cornerR, Math.abs(x(mL) - x(dotLane)));
-            lines.push({ path: `M ${x(dotLane)} ${midY} L ${x(mL) - sgn * r} ${midY} Q ${x(mL)} ${midY}, ${x(mL)} ${midY + r} L ${x(mL)} ${cellH}`, color: colorFor(mL), dimmed: !cReach });
+        // Nearest merge target rides the track closest to the dot, same nesting.
+        const mergeRank = new Map<Lane, number>();
+        [...mergeTargets]
+            .sort((a, b) => Math.abs(a.column - dotLane) - Math.abs(b.column - dotLane))
+            .forEach((t, i) => mergeRank.set(t.lane, i));
+        for (const t of mergeTargets) {
+            lines.push({ path: mergePath(dotLane, t.column, mergeRank.get(t.lane) ?? 0), color: t.lane.color, dimmed: !cReach });
         }
 
-        // Widest lane index ANY line on this row actually touches. Must be computed
-        // from the lines' real endpoints — the incoming (inLanes) pass-through lines
-        // and merge targets can sit on lanes past the current lanes[] length, so
-        // sizing the column off lanes.length alone let those lines overflow to the
-        // right and paint over the commit text. This bounds the column to the lines.
-        let maxLane = dotLane;
-        for (const mL of mergeTargets) if (mL > maxLane) maxLane = mL;
-        for (let k = 0; k < inLanes.length; k++)
-            if (inLanes[k] !== null && k > maxLane) maxLane = k;
-        for (let k = 0; k < lanes.length; k++)
-            if (lanes[k] !== null && k > maxLane) maxLane = k;
+        // Widest column ANY line on this row actually touches. Converging lines can
+        // come from a column further right than anything that survives the row, so
+        // this has to look at where lines were drawn FROM as well as the surviving
+        // columns -- sizing off the latter alone let those lines overflow right and
+        // paint over the commit text.
+        let maxLane = columns.length - 1;
+        for (const l of incoming) if (l.lastX > maxLane) maxLane = l.lastX;
 
-        // Drop trailing empty lanes so the graph width tracks the lanes that are
-        // actually active on this row instead of the historical peak.
-        while (lanes.length > 0 && lanes[lanes.length - 1] === null) {
-            lanes.pop();
-            laneColors.pop();
-            laneReach.pop();
-        }
+        // Remember where each surviving line now sits, so the next row draws it from
+        // the right place however much the columns shifted.
+        for (const l of columns) l.lastX = column.get(l)!;
+
+        // A commit with no parent ends its lane; everything right of it compacts on
+        // the rows below. Tips that are also roots never make it into the state.
+        state.lanes = p0 ? columns : columns.filter(l => l !== major);
+
+        // Where two lines do cross, the one on the highlighted history wins the
+        // pixel: dimmed lanes are painted first so an off-branch line can never
+        // sit over the ancestry the user is actually following.
+        lines.sort((a, b) => Number(!!b.dimmed) - Number(!!a.dimmed));
 
         map.set(c.id, {
             dotLane,

@@ -31,7 +31,9 @@ const lineStroke = (line: GraphLine) => (line.dimmed ? DIM_LINE : line.color);
 <template>
   <div class="h-full flex-shrink-0 relative overflow-visible z-20" :style="{ width: colWidth + 'px' }">
     <svg class="absolute top-0 left-0 w-full h-full overflow-visible pointer-events-none" :width="colWidth" height="30">
-      <!-- Lines (dimmed lanes drawn first is not needed; dots are opaque) -->
+      <!-- Lines arrive already ordered by GraphBuilder (dimmed first), so a
+           highlighted lane always wins a crossing. Dots are opaque and drawn
+           after, hiding the few pixels where converging curves meet. -->
       <!-- Colours go through :style, never the fill/stroke ATTRIBUTES: the themed
            ones are `rgb(var(--gb-…))`, and var() is only substituted in CSS
            declarations — in a presentation attribute it is an invalid paint and
