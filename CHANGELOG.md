@@ -1,6 +1,25 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.2.0
+### Added
+- Statistics gained filters: pick the contributors to chart, narrow to a time range, keep the top N, sort either way, and reset the zoom — so a busy repository's charts can be read one question at a time
+- Dialogs can be dragged by their header and are kept fully inside the window, so a dialog no longer has to be closed to read what is behind it
+- `Esc` closes the dialog on top. It works with a field inside the dialog focused, closes only the topmost when several are open, and gives way to an open context menu
+
+### Changed
+- The commit graph routes its lanes the way a Git client should: lanes compact as branches end instead of leaving gaps, and merges join with curves rather than the right angles that stacked several lines on one row
+- Every surface now draws from the theme's design tokens instead of hardcoded colours, so light and custom themes no longer leak dark greys into panels, menus and dialogs
+- The dialog backdrop is denser and blurs what is behind it, over the full window height — the project colour strip and the window controls stay clear of it
+- GitBox now ships a single built-in theme, GitBox Dark. The bundled presets — Dracula, One Dark Pro, Nord, Monokai, Solarized Light and GitBox Light — moved to the [gitbox-themes](https://github.com/gitgusilva/gitbox-themes) registry, where every theme already existed as a copy. Install them from Settings › Appearance: they arrive with a preview image and their author's credit, and can be edited or deleted like any other theme, which the bundled copies could not be. New themes now land by adding a folder to that repository instead of waiting for a GitBox release
+- If one of those presets was your active theme, the app falls back to GitBox Dark on first launch after updating. Reinstall it from the gallery to get it back — including the colours, if you had edited a forked copy, which is kept as a custom theme and is unaffected
+
+### Fixed
+- Links inside commit messages, pull requests and release notes open in your browser instead of navigating the app window away from GitBox, with the guard installed before any window exists so none can slip past it
+- The merge glyph and the graph lanes of installed themes: the registry's copies still carried the light marker from before the cut-out fix, drawing the glyph as a pale blob under every theme but the two Solarized ones
+- Dialogs no longer promote themselves to a GPU layer while sitting still, which is the pairing with the backdrop blur that Chromium composites least reliably
+- The toolbar disconnected neither its resize observer nor its pending timers when torn down, and one of them dereferenced the tab strip after it was gone
+
 ## v1.1.7
 ### Fixed
 - GitBox failed to start on Linux with `undefined symbol: EVP_des_ede3_cbc`, reported on Ubuntu 24.04 and affecting v1.1.4 through v1.1.6. The native addon never linked the vendored static OpenSSL that libssh2 needs, so it borrowed those symbols from whatever the host had already loaded — and Electron ships BoringSSL, which does not provide them ([#1](https://github.com/gitgusilva/gitbox/issues/1))

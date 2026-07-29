@@ -49,3 +49,11 @@ core/addon/vendor/libssh2/
 
 # Sibling themes registry cloned in for local work — its own repo, not part of GitBox
 gitbox-themes/
+
+# CA bundle fetched by the build workflows (see .github/workflows/build-*.yml),
+# not source: it is downloaded fresh from curl.se so a stale copy never ships.
+core/addon/certs/
+
+# Agent tooling config, local to a checkout and not part of the app
+.agents/
+skills-lock.json
