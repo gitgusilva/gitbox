@@ -32,6 +32,7 @@ const registerAiHandlers = require('./handlers/ai');
 const { registerUpdater } = require('./updater');
 
 const { setupProtocol } = require('./protocol');
+const { installExternalLinkGuards } = require('./externalLinks');
 const { createWindow, getMainWindow } = require('./windows/index');
 
 logger.info('[Main] Initializing GitBox...');
@@ -61,6 +62,9 @@ credentialStore.protectSettingsFile(storePath);
 
 registerStoreHandlers(app, storePath);
 registerWindowHandlers();
+
+// Must be in place before any window exists so no webContents escapes the guard.
+installExternalLinkGuards(app);
 
 // Setup protocol and instance lock
 if (!setupProtocol(getMainWindow)) {
