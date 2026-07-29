@@ -93,24 +93,23 @@ describe('every built-in theme carries its own graph palette', () => {
         expect(new Set(lanes).size).toBe(8);
     });
 
-    it('gives the light and dark defaults different palettes', () => {
-        const [dark, light] = [BUILTIN_THEMES[0], BUILTIN_THEMES[1]];
-        expect(LANE_KEYS.map(k => dark.colors[k])).not.toEqual(LANE_KEYS.map(k => light.colors[k]));
-    });
-
     it('gives a theme with no palette one that suits its background', async () => {
         // Community imports and forks made before themes carried a palette have no
         // graph colours at all. Falling back to one fixed set put lanes tuned for
         // #1E1E1E on a white background, so the fallback follows the theme type.
+        // GitBox ships dark only, so this is what a light theme leans on.
         const { graphFallback } = await import('../services/themeService');
         const [dark, light] = [graphFallback('dark'), graphFallback('light')];
 
         expect(dark.graph1).toBe(BUILTIN_THEMES[0].colors.graph1);
-        expect(light.graph1).toBe(BUILTIN_THEMES[1].colors.graph1);
         expect(dark.graph1).not.toBe(light.graph1);
-        // Nothing left undefined — every var the graph reads must resolve.
-        LANE_KEYS.forEach(k => expect(light[k]).toMatch(/^#[0-9A-Fa-f]{6}$/));
-        expect(light.graphMarker).toMatch(/^#[0-9A-Fa-f]{6}$/);
+        expect(LANE_KEYS.map(k => dark[k])).not.toEqual(LANE_KEYS.map(k => light[k]));
+        // Nothing left undefined — every var the graph reads must resolve, for
+        // both types, since neither has a shipped theme to borrow from.
+        [dark, light].forEach(set => {
+            LANE_KEYS.forEach(k => expect(set[k]).toMatch(/^#[0-9A-Fa-f]{6}$/));
+            expect(set.graphMarker).toMatch(/^#[0-9A-Fa-f]{6}$/);
+        });
     });
 
     it('carves the merge glyph in the theme background, matching the dot ring', () => {

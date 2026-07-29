@@ -115,10 +115,27 @@ export const COLOR_VARS: Record<keyof ThemeColors, string> = {
     graphMarker: '--gb-graph-marker',
 };
 
-/** Fallback commit-graph palette + marker used when a theme omits them. */
+/**
+ * Fallback commit-graph palette + marker used when a theme omits them.
+ *
+ * Two sets, picked by the theme's type. These are not themes and carry no
+ * palette of their own beyond the lanes: they exist because a theme may leave
+ * the graph colours out, and one fixed set cannot serve both backgrounds — the
+ * neon lanes that read on #1E1E1E wash out on white. Every theme GitBox ships
+ * or installs carries its own lanes; this is only the floor under the gaps.
+ */
 export const DEFAULT_GRAPH_COLORS: Record<string, string> = {
     graph1: '#1E88E5', graph2: '#FFAB00', graph3: '#00E676', graph4: '#D500F9',
     graph5: '#FF3D00', graph6: '#00B0FF', graph7: '#1DE9B6', graph8: '#F50057',
+    // The marker is a cut-out: it has to be the background, and a theme that
+    // omits it is assumed to sit on one close to the default of its type.
+    graphMarker: '#1E1E1E',
+};
+
+/** The same floor, darkened and saturated for a light background. */
+export const DEFAULT_GRAPH_COLORS_LIGHT: Record<string, string> = {
+    graph1: '#0969DA', graph2: '#BF8700', graph3: '#1A7F37', graph4: '#8250DF',
+    graph5: '#CF222E', graph6: '#0598BC', graph7: '#117F6E', graph8: '#BF3989',
     graphMarker: '#FFFFFF',
 };
 

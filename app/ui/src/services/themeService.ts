@@ -1,19 +1,12 @@
 import { ref, computed, watch } from 'vue';
 import { getItem, setItem } from './storageService';
 import type { GitboxTheme, ThemeColors, ThemeTypography, ThemeMeta } from '../types/theme';
-import { COLOR_VARS, DEFAULT_GRAPH_COLORS } from '../types/theme';
-import { BUILTIN_THEMES, DEFAULT_DARK_ID, DEFAULT_LIGHT_ID, DEFAULT_TYPOGRAPHY, GITBOX_DARK, GITBOX_LIGHT } from './themes/builtins';
+import { COLOR_VARS, DEFAULT_GRAPH_COLORS, DEFAULT_GRAPH_COLORS_LIGHT } from '../types/theme';
+import { BUILTIN_THEMES, DEFAULT_DARK_ID, DEFAULT_TYPOGRAPHY, GITBOX_DARK } from './themes/builtins';
 
-/** The graph keys, and only those, taken from the default theme of a given type. */
-const GRAPH_KEYS: (keyof ThemeColors)[] = [
-    'graph1', 'graph2', 'graph3', 'graph4', 'graph5', 'graph6', 'graph7', 'graph8', 'graphMarker',
-];
-
+/** Graph lanes for a theme that omits them, tuned to the theme's background. */
 export function graphFallback(type: 'light' | 'dark'): Record<string, string> {
-    const base = (type === 'light' ? GITBOX_LIGHT : GITBOX_DARK).colors;
-    const out: Record<string, string> = { ...DEFAULT_GRAPH_COLORS };
-    GRAPH_KEYS.forEach((key) => { if (base[key]) out[key] = base[key]!; });
-    return out;
+    return { ...(type === 'light' ? DEFAULT_GRAPH_COLORS_LIGHT : DEFAULT_GRAPH_COLORS) };
 }
 
 // --- Persistent state -------------------------------------------------------
@@ -59,6 +52,14 @@ function loadCustomThemes(): GitboxTheme[] {
 }
 const customThemes = ref<GitboxTheme[]>(loadCustomThemes());
 const allThemes = computed<GitboxTheme[]>(() => [...BUILTIN_THEMES, ...customThemes.value]);
+
+// The stored id can outlive the theme it names — a bundled preset that moved to
+// the registry, or a custom theme deleted elsewhere. `activeTheme` already falls
+// back to the default; persist that so storage stops naming a theme that is gone.
+if (!allThemes.value.some((t) => t.id === activeThemeId.value)) {
+    activeThemeId.value = DEFAULT_DARK_ID;
+    setItem('gitbox_active_theme_id', DEFAULT_DARK_ID);
+}
 
 function persistCustomThemes() {
     setItem('gitbox_custom_themes', JSON.stringify(customThemes.value));
@@ -254,26 +255,19 @@ export function updateActiveMeta<K extends keyof ThemeMeta>(key: K, value: Theme
     persistCustomThemes();
 }
 
-/** Delete a custom theme; if it was active, fall back to the matching default. */
+/**
+ * Delete a custom theme; if it was active, fall back to the default. Deleting a
+ * light theme lands on GitBox Dark: no light theme ships, so there is nothing of
+ * the same type to fall back to.
+ */
 export function deleteTheme(id: string) {
     const theme = customThemes.value.find((t) => t.id === id);
     if (!theme) return;
     customThemes.value = customThemes.value.filter((t) => t.id !== id);
     persistCustomThemes();
     if (activeThemeId.value === id) {
-        const fallbackId = theme.type === 'light' ? DEFAULT_LIGHT_ID : DEFAULT_DARK_ID;
-        selectTheme(allThemes.value.find((t) => t.id === fallbackId) || BUILTIN_THEMES[0]);
+        selectTheme(allThemes.value.find((t) => t.id === DEFAULT_DARK_ID) || BUILTIN_THEMES[0]);
     }
-}
-
-/** Reset the active theme to the matching built-in's colors and typography. */
-export function resetActiveTheme() {
-    const theme = ensureEditableActive();
-    const builtin = BUILTIN_THEMES.find((t) => t.type === theme.type)!;
-    theme.colors = { ...builtin.colors };
-    theme.typography = { ...DEFAULT_TYPOGRAPHY };
-    persistCustomThemes();
-    applyGitboxTheme(activeTheme.value);
 }
 
 /** Serialize a theme for sharing — keeps its stable id + metadata, drops the runtime `builtin` flag. */
@@ -296,7 +290,11 @@ export function importTheme(json: string): GitboxTheme | null {
         const parsed = JSON.parse(json);
         if (!parsed?.colors || !parsed?.type) return null;
         const type: 'light' | 'dark' = parsed.type === 'light' ? 'light' : 'dark';
-        const base = BUILTIN_THEMES.find((t) => t.type === type)!;
+        // Structural completeness only: a payload that omits a key still gets a
+        // defined value for every CSS var, instead of leaving the previous
+        // theme's showing through. The graph lanes are re-resolved by type when
+        // the theme is applied, so the base's type does not leak into them.
+        const base = GITBOX_DARK;
 
         let id: string = typeof parsed.id === 'string' && parsed.id ? parsed.id : newId();
         if (BUILTIN_THEMES.some((t) => t.id === id)) id = newId();
