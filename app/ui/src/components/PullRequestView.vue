@@ -294,7 +294,7 @@ async function handleConvertToDraft() {
           </button>
         </Tooltip>
         <Tooltip :text="t('view.close')" position="left">
-          <button @click="close" class="text-content-muted hover:text-content-strong transition-colors outline-none">
+          <button @click="close" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-hover shrink-0 text-content-muted hover:text-content-strong transition-colors outline-none">
             <Icon icon="lucide:x" class="text-lg" />
           </button>
         </Tooltip>
@@ -325,7 +325,7 @@ async function handleConvertToDraft() {
            </h1>
            <div class="flex items-center gap-3 text-sm text-content-muted">
              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ring-1 transition-colors capitalize"
-                  :class="pr.state === 'closed' ? 'bg-red-900/40 text-red-400 ring-red-500/50' : (pr.draft ? 'bg-surface-hover text-content-muted ring-line-strong' : 'bg-green-900/40 text-green-400 ring-green-500/50')">
+                  :class="pr.state === 'closed' ? 'bg-removed/40 text-removed ring-removed/50' : (pr.draft ? 'bg-surface-hover text-content-muted ring-line-strong' : 'bg-added/40 text-added ring-added/50')">
                 {{ pr.state === 'closed' ? pr.state : (pr.draft ? $t('pr_view.draft') || 'Draft' : pr.state) }}
              </div>
              <div class="flex items-center gap-2">

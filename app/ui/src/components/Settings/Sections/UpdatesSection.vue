@@ -39,20 +39,20 @@ async function viewChangelog() {
           {{ t('settings.current_version') }}
           <span class="font-mono text-content-strong">v{{ appVersion }}</span>
         </span>
-        <span v-if="updateStatus === 'up-to-date'" class="text-[11px] text-green-500 flex items-center gap-1">
+        <span v-if="updateStatus === 'up-to-date'" class="text-[11px] text-added flex items-center gap-1">
           <Icon icon="lucide:check-circle" class="w-3 h-3" /> {{ t('settings.up_to_date') }}
         </span>
         <span v-else-if="updateStatus === 'downloading'" class="text-[11px] text-accent flex items-center gap-1">
           <Icon icon="lucide:download" class="w-3 h-3" /> {{ t('settings.downloading_update', { version: latestVersion, percent: downloadProgress }) }}
         </span>
-        <span v-else-if="updateStatus === 'downloaded'" class="text-[11px] text-green-500 flex items-center gap-1">
+        <span v-else-if="updateStatus === 'downloaded'" class="text-[11px] text-added flex items-center gap-1">
           <Icon icon="lucide:check-circle-2" class="w-3 h-3" /> {{ t('settings.update_ready', { version: downloadedVersion }) }}
         </span>
         <span v-else-if="updateStatus === 'available'" role="button" @click="openReleasePage"
               class="text-[11px] text-accent flex items-center gap-1 cursor-pointer hover:underline">
           <Icon icon="lucide:download" class="w-3 h-3" /> {{ t('settings.update_available', { version: latestVersion }) }}
         </span>
-        <span v-else-if="updateStatus === 'error'" class="text-[11px] text-red-400 flex items-center gap-1">
+        <span v-else-if="updateStatus === 'error'" class="text-[11px] text-removed flex items-center gap-1">
           <Icon icon="lucide:alert-circle" class="w-3 h-3" /> {{ t('settings.update_check_failed') }}
         </span>
 

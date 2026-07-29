@@ -281,17 +281,17 @@ function openIntegrationsSettings() {
     <Modal v-model="isCreatePROpen" :title="t('settings.create_pr.title')" icon="lucide:git-pull-request" width="850px">
         <div class="flex-1 overflow-x-hidden">
 
-            <div v-if="error" class="mx-6 mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium flex items-center gap-2">
+            <div v-if="error" class="mx-6 mt-4 p-3 bg-removed/10 border border-removed/20 rounded-lg text-removed text-xs font-medium flex items-center gap-2">
                 <Icon icon="lucide:alert-circle" class="text-sm" />
                 {{ error }}
             </div>
 
             <div class="p-8 space-y-6">
                 <div v-if="connectedProviders.length === 0" class="text-center py-8 space-y-4">
-                    <Icon icon="lucide:link-2-off" class="text-4xl text-neutral-700 mx-auto" />
+                    <Icon icon="lucide:link-2-off" class="text-4xl text-content-muted mx-auto" />
                     <p class="text-sm text-content-muted">{{ t('modal.no_integrations_connected') }}</p>
 
-                    <button @click="openIntegrationsSettings" class="text-xs text-blue-500 hover:underline">{{ t('modal.connect_in_settings') }}</button>
+                    <button @click="openIntegrationsSettings" class="text-xs text-accent hover:underline">{{ t('modal.connect_in_settings') }}</button>
                 </div>
             
             <template v-else>
@@ -307,11 +307,11 @@ function openIntegrationsSettings() {
                             <Icon :icon="connectedProviders.find(p => p.id === selectedProviderId)?.icon || 'lucide:git-pull-request'" />
                         </div>
 
-                        <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted group-hover:text-content-strong transition-colors">
                             {{ connectedProviders.find(p => p.id === selectedProviderId)?.name || 'Provider' }}
                         </span>
 
-                        <div class="w-8 h-0.5 bg-blue-500 rounded-full" />
+                        <div class="w-8 h-0.5 bg-accent rounded-full" />
                     </div>
                 </div>
 
@@ -321,30 +321,30 @@ function openIntegrationsSettings() {
                     <!-- Branch Selection -->
                     <div class="flex items-center gap-4 w-full">
                         <div class="space-y-1.5 flex-1 min-w-0">
-                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.from_repo') }} & {{ t('modal.branch') }}</label>
+                            <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('settings.create_pr.from_repo') }} & {{ t('modal.branch') }}</label>
                             <div class="flex items-center gap-2">
                                 <Select v-model="fromBranch" :options="availableBranchesOptions" searchable icon="mdi:source-branch" />
                             </div>
                         </div>
 
-                        <Icon icon="lucide:arrow-right" class="text-neutral-600 mt-5 shrink-0" />
+                        <Icon icon="lucide:arrow-right" class="text-content-muted mt-5 shrink-0" />
 
                         <div class="space-y-1.5 flex-1 min-w-0">
-                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.to_repo') }} & {{ t('modal.branch') }}</label>
+                            <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('settings.create_pr.to_repo') }} & {{ t('modal.branch') }}</label>
                             <div class="flex items-center gap-2">
                                 <Select v-model="toBranch" :options="availableBranchesOptions" searchable icon="mdi:source-branch" />
                             </div>
                         </div>
                     </div>
 
-                    <div v-if="error" class="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-xs flex items-center gap-2 animate-in slide-in-from-top-2 shadow-inner">
+                    <div v-if="error" class="bg-removed/10 border border-removed/20 text-removed p-3 rounded-lg text-xs flex items-center gap-2 animate-in slide-in-from-top-2 shadow-inner">
                         <Icon icon="lucide:alert-circle" class="shrink-0" />
                         <span>{{ error }}</span>
                     </div>
 
                     <!-- Conflicts Alert -->
-                    <div v-if="hasConflicts" class="bg-yellow-500/10 border-l-4 border-yellow-500 p-4 rounded-r-lg">
-                        <div class="flex items-center gap-2 text-yellow-500 font-bold mb-2">
+                    <div v-if="hasConflicts" class="bg-modified/10 border-l-4 border-modified p-4 rounded-r-lg">
+                        <div class="flex items-center gap-2 text-modified font-bold mb-2">
                             <Icon icon="lucide:alert-triangle" /> {{ t('settings.create_pr.merge_conflict') }}
                         </div>
 
@@ -358,7 +358,7 @@ function openIntegrationsSettings() {
                     <div class="space-y-4">
                         <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
-                                <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.pr_title') }}</label>
+                                <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('settings.create_pr.pr_title') }}</label>
                                 <Tooltip :text="isAIConfigured() ? '' : t('modal.configure_ai_hint')" position="top">
                                     <button @click="generateWithAI" 
                                             :disabled="isGeneratingAI || !isAIConfigured()" 
@@ -375,7 +375,7 @@ function openIntegrationsSettings() {
                         </div>
 
                         <div class="space-y-1.5">
-                            <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('settings.create_pr.description') }}</label>
+                            <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('settings.create_pr.description') }}</label>
                             <textarea v-model="description" :placeholder="t('settings.create_pr.desc_placeholder')" rows="8" class="w-full bg-surface border border-line-strong/50 rounded-lg px-4 py-3 text-xs text-content-strong outline-none focus:border-accent transition-all resize-none shadow-inner"></textarea>
                         </div>
                     </div>
@@ -385,7 +385,7 @@ function openIntegrationsSettings() {
                 <div class="grid grid-cols-3 gap-4 border-t border-line pt-6">
                     <!-- Reviewers -->
                     <div class="space-y-2">
-                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                        <label class="flex justify-between items-center text-[10px] text-content-muted font-bold uppercase tracking-widest">
                             {{ t('settings.create_pr.reviewers') }}
                         </label>
                         <Select v-model="selectedReviewers" multiple :options="reviewerOptions" :placeholder="t('settings.create_pr.select_reviewers')" />
@@ -393,7 +393,7 @@ function openIntegrationsSettings() {
                     
                     <!-- Assignees -->
                     <div class="space-y-2">
-                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                        <label class="flex justify-between items-center text-[10px] text-content-muted font-bold uppercase tracking-widest">
                             {{ t('settings.create_pr.assignees') }}
                         </label>
                         <Select v-model="selectedAssignees" multiple :options="userOptions" :placeholder="t('settings.create_pr.select_assignees')" />
@@ -401,7 +401,7 @@ function openIntegrationsSettings() {
 
                     <!-- Labels -->
                     <div class="space-y-2">
-                        <label class="flex justify-between items-center text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
+                        <label class="flex justify-between items-center text-[10px] text-content-muted font-bold uppercase tracking-widest">
                             {{ t('settings.create_pr.labels') }}
                         </label>
                         <Select v-model="selectedLabels" multiple :options="labelOptions" :placeholder="t('settings.create_pr.select_labels')" />
@@ -418,16 +418,16 @@ function openIntegrationsSettings() {
                 <div class="flex items-center shrink-0">
                     <!-- Draft Checkbox moved here -->
                     <label class="flex items-center gap-2 cursor-pointer group">
-                        <div class="w-4 h-4 rounded border border-line-strong flex items-center justify-center transition-all group-hover:border-neutral-500" :class="isDraft ? 'bg-accent border-accent' : 'bg-transparent'">
+                        <div class="w-4 h-4 rounded border border-line-strong flex items-center justify-center transition-all group-hover:border-accent" :class="isDraft ? 'bg-accent border-accent' : 'bg-transparent'">
                             <Icon v-if="isDraft" icon="lucide:check" class="text-[10px] text-accent-fg" />
                         </div>
                         <input type="checkbox" v-model="isDraft" class="hidden" />
-                        <span class="text-[11px] font-medium text-content-muted group-hover:text-neutral-800 dark:group-hover:text-neutral-200">{{ t('settings.create_pr.submit_as_draft') }}</span>
+                        <span class="text-[11px] font-medium text-content-muted group-hover:text-content-strong">{{ t('settings.create_pr.submit_as_draft') }}</span>
                     </label>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-content-muted hover:text-neutral-900 dark:hover:text-white hover:bg-white/5 transition-all">
+                    <button @click="isCreatePROpen = false" class="px-6 py-2 rounded-lg text-xs font-bold text-content-muted hover:text-content-strong hover:bg-white/5 transition-all">
                         {{ t('common.cancel') }}
                     </button>
                     <button @click="handleCreatePR" :disabled="!title || isLoading || !toBranch || !fromBranch || fromBranch === toBranch" :title="fromBranch === toBranch ? t('settings.create_pr.same_branch') || 'Source and target branches cannot be the same.' : ''" class="px-6 py-2 bg-accent hover:bg-accent-hover disabled:opacity-50 disabled:grayscale text-accent-fg rounded-lg text-xs font-bold transition-all shadow-lg flex items-center gap-2">

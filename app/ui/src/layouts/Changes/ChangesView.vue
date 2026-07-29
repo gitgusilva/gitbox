@@ -766,9 +766,9 @@ watch(amendLast, (on) => {
 // Git convention: subject reads best <= 50 chars; 72 is the usual hard guide.
 const subjectLenClass = computed(() => {
   const n = commitSubject.value.length;
-  if (n > 72) return 'text-red-500';
-  if (n > 50) return 'text-amber-500';
-  return 'text-neutral-500';
+  if (n > 72) return 'text-removed';
+  if (n > 50) return 'text-modified';
+  return 'text-content-muted';
 });
 
 /** Triggers AI commit message generation based on staged changes. */
@@ -831,7 +831,7 @@ async function handleExplainChanges() {
        <!-- Unstaged -->
        <header :class="cn('bg-surface border-b border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
          <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
-           <Icon icon="lucide:file-warning" class="text-neutral-500 shrink-0" />
+           <Icon icon="lucide:file-warning" class="text-content-muted shrink-0" />
            <span class="truncate">{{ t('changes.unstaged') }} ({{ unstagedFiles.length }})</span>
          </div>
          <div :class="cn('h-stack items-center gap-1 shrink-0')">
@@ -841,7 +841,7 @@ async function handleExplainChanges() {
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.view_options')">
-             <button @click="openViewMenu($event, 'unstaged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
+             <button @click="openViewMenu($event, 'unstaged')" :class="cn('w-6 h-6 center hover:text-content-strong transition-colors')">
                <Icon :icon="viewModeIcon(unstagedViewMode)" class="text-xs" />
              </button>
            </Tooltip>
@@ -851,7 +851,7 @@ async function handleExplainChanges() {
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.stage_all')">
-             <button @click="stageAll" :class="cn('w-6 h-6 center hover:text-green-400 transition-colors')">
+             <button @click="stageAll" :class="cn('w-6 h-6 center hover:text-added transition-colors')">
                <Icon icon="lucide:chevrons-down" class="text-sm" />
              </button>
            </Tooltip>
@@ -863,7 +863,7 @@ async function handleExplainChanges() {
               height: `var(--layout-unstaged-height, ${layoutRefs.unstagedHeight.value}px)`,
               willChange: 'height'
             }">
-         <div ref="unstagedPaneRef" :class="cn('h-full bg-neutral-100/20 dark:bg-neutral-900/20 border-b border-neutral-200/20 dark:border-neutral-800/20 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'unstaged')">
+         <div ref="unstagedPaneRef" :class="cn('h-full bg-app/40 border-b border-line shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'unstaged')">
             <FileTree :files="unstagedFiles" :viewMode="unstagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles"
                        @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'unstaged', p)" />
          </div>
@@ -873,12 +873,12 @@ async function handleExplainChanges() {
        <!-- Staged -->
        <header :class="cn('bg-surface border-b border-t border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center')">
          <div :class="cn('h-stack items-center gap-2 min-w-0 flex-1')">
-           <Icon icon="lucide:check-circle-2" class="text-neutral-500 shrink-0" />
+           <Icon icon="lucide:check-circle-2" class="text-content-muted shrink-0" />
            <span class="truncate">{{ t('changes.staged') }} ({{ stagedFiles.length }})</span>
          </div>
          <div :class="cn('h-stack items-center gap-1 shrink-0')">
            <Tooltip :text="t('changes.view_options')">
-             <button @click="openViewMenu($event, 'staged')" :class="cn('w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors')">
+             <button @click="openViewMenu($event, 'staged')" :class="cn('w-6 h-6 center hover:text-content-strong transition-colors')">
                <Icon :icon="viewModeIcon(stagedViewMode)" class="text-xs" />
              </button>
            </Tooltip>
@@ -888,14 +888,14 @@ async function handleExplainChanges() {
              </button>
            </Tooltip>
            <Tooltip :text="t('changes.unstage_all')">
-             <button @click="unstageAll" :class="cn('w-6 h-6 center hover:text-red-400 transition-colors')">
+             <button @click="unstageAll" :class="cn('w-6 h-6 center hover:text-removed transition-colors')">
                <Icon icon="lucide:chevrons-up" class="text-sm" />
              </button>
            </Tooltip>
          </div>
        </header>
        
-        <div ref="stagedPaneRef" :class="cn('flex-1 bg-neutral-100/20 dark:bg-neutral-900/20 min-h-0 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'staged')">
+        <div ref="stagedPaneRef" :class="cn('flex-1 bg-app/40 min-h-0 shadow-inner overflow-hidden')" @contextmenu.prevent="(e: MouseEvent) => openContextMenu(e, 'staged')">
            <FileTree :files="stagedFiles" :viewMode="stagedViewMode" :selectedPath="selectedFile" :selectedPaths="selectedFiles"
                      @select="handleSelect" @dblclick="handleDblClick" @contextmenu="(p: string, e: MouseEvent) => openContextMenu(e, 'staged', p)" />
         </div>
@@ -922,7 +922,7 @@ async function handleExplainChanges() {
                    :class="cn('flex-1 flex flex-col gap-6 p-8 bg-app overflow-auto')">
                 <!-- header (pinned top-left) -->
                 <div class="flex items-start gap-3">
-                  <Icon icon="lucide:alert-triangle" class="text-2xl text-amber-500 shrink-0 mt-0.5" />
+                  <Icon icon="lucide:alert-triangle" class="text-2xl text-modified shrink-0 mt-0.5" />
                   <div class="text-left">
                     <div class="text-base font-bold text-content-strong">{{ t('changes.conflicts_detected') }}</div>
                     <div class="text-xs text-content-muted mt-1">{{ conflictTypeLabel }} · {{ t('changes.conflict_description') }}</div>
@@ -1009,9 +1009,9 @@ async function handleExplainChanges() {
         </div>
         
         <!-- AI Explanation Panel -->
-        <div v-if="showAiPanel" :class="cn('absolute bottom-0 right-0 w-80 max-h-[60%] border-l border-t border-line bg-neutral-100/90 dark:bg-neutral-900/90 backdrop-blur-xl shadow-2xl v-stack z-40 animate-in slide-in-from-right-10 duration-300')">
+        <div v-if="showAiPanel" :class="cn('absolute bottom-0 right-0 w-80 max-h-[60%] border-l border-t border-line bg-app/90 backdrop-blur-xl shadow-2xl v-stack z-40 animate-in slide-in-from-right-10 duration-300')">
           <header :class="cn('p-3 border-b border-line h-stack items-center justify-between')">
-             <div :class="cn('h-stack items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-widest')">
+             <div :class="cn('h-stack items-center gap-2 text-[10px] font-bold text-accent uppercase tracking-widest')">
                 <Icon icon="lucide:sparkles" />
                 <span>Explanation</span>
              </div>

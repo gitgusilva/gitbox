@@ -50,7 +50,7 @@ async function addSubmodule() {
 <template>
   <Modal v-model="isAddSubmoduleOpen" :title="t('submodule.add_title') || 'Add Submodule'" icon="lucide:package-plus" width="500px">
     <div class="p-6 flex flex-col gap-5">
-      <div v-if="error" class="bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+      <div v-if="error" class="bg-removed/10 border border-removed/20 text-removed text-xs px-3 py-2 rounded-lg flex items-center gap-2">
          <Icon icon="lucide:alert-circle" /> <span>{{ error }}</span>
       </div>
 
@@ -58,9 +58,9 @@ async function addSubmodule() {
         <!-- Remote URL -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-content-muted">{{ t('submodule.remote_url') || 'Remote URL' }}</label>
-          <div class="relative bg-surface border border-line-strong rounded-lg overflow-hidden flex items-center focus-within:border-blue-500 transition-colors shadow-inner">
-            <input v-model="remoteUrl" :disabled="isLoading" type="text" placeholder="https://github.com/user/repo.git" class="flex-1 bg-transparent px-3 py-2 text-sm text-content placeholder:text-neutral-600 outline-none w-full disabled:opacity-50" />
-            <div class="px-3 border-l border-line-strong text-neutral-500">
+          <div class="relative bg-surface border border-line-strong rounded-lg overflow-hidden flex items-center focus-within:border-accent transition-colors shadow-inner">
+            <input v-model="remoteUrl" :disabled="isLoading" type="text" placeholder="https://github.com/user/repo.git" class="flex-1 bg-transparent px-3 py-2 text-sm text-content placeholder:text-content-muted outline-none w-full disabled:opacity-50" />
+            <div class="px-3 border-l border-line-strong text-content-muted">
                <Icon icon="lucide:link" class="text-xs" />
             </div>
           </div>
@@ -69,9 +69,9 @@ async function addSubmodule() {
         <!-- Name/Path -->
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-content-muted">{{ t('submodule.name_path') || 'Name/Path (optional)' }}</label>
-          <div class="relative bg-surface border border-line-strong rounded-lg overflow-hidden flex items-center focus-within:border-blue-500 transition-colors shadow-inner">
-            <input v-model="targetPath" :disabled="isLoading" type="text" :placeholder="t('modal.submodule_path_placeholder')" class="flex-1 bg-transparent px-3 py-2 text-sm text-content placeholder:text-neutral-600 outline-none w-full disabled:opacity-50" />
-            <div class="px-3 border-l border-line-strong text-neutral-500">
+          <div class="relative bg-surface border border-line-strong rounded-lg overflow-hidden flex items-center focus-within:border-accent transition-colors shadow-inner">
+            <input v-model="targetPath" :disabled="isLoading" type="text" :placeholder="t('modal.submodule_path_placeholder')" class="flex-1 bg-transparent px-3 py-2 text-sm text-content placeholder:text-content-muted outline-none w-full disabled:opacity-50" />
+            <div class="px-3 border-l border-line-strong text-content-muted">
                <Icon icon="lucide:folder" class="text-xs" />
             </div>
           </div>
@@ -80,7 +80,7 @@ async function addSubmodule() {
 
       <!-- Footer action -->
       <div class="pt-4 border-t border-line">
-         <button @click="addSubmodule" :disabled="isLoading || !remoteUrl" class="w-full bg-green-600 hover:bg-green-500 text-white rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
+         <button @click="addSubmodule" :disabled="isLoading || !remoteUrl" class="w-full bg-added hover:bg-added/80 text-white rounded-lg px-4 py-2 text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
             <Icon v-if="isLoading" icon="lucide:loader-2" class="animate-spin" />
             <Icon v-else icon="lucide:plus-circle" />
             {{ t('submodule.add_button') || 'Add Submodule' }}

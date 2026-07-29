@@ -33,9 +33,9 @@ const variantClass = computed(() => {
         case 'secondary':
             return 'bg-surface hover:bg-surface-hover text-content border border-line-strong';
         case 'success':
-            return 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/40 shadow-sm';
+            return 'bg-added hover:bg-added/80 text-white border border-added/40 shadow-sm';
         case 'danger':
-            return 'bg-red-600 hover:bg-red-500 text-white border border-red-500/40 shadow-sm';
+            return 'bg-removed hover:bg-removed/80 text-white border border-removed/40 shadow-sm';
         case 'ghost':
             return 'bg-transparent hover:bg-surface-hover text-content-muted hover:text-content-strong border border-transparent';
         default:

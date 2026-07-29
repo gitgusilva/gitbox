@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useI18n } from 'vue-i18n';
 import { diffLines } from 'diff';
+import { handleLinkClick } from '../../utils/formatters';
 
 const props = defineProps<{
   original: string;
@@ -134,44 +135,46 @@ const diffRows = computed(() => {
 </script>
 
 <template>
-    <div class="flex-1 flex flex-col bg-app overflow-hidden gap-1 border-t border-line">
+    <!-- Links come from the rendered markdown of the file under review, so they
+         go to the browser rather than navigating the app window. -->
+    <div class="flex-1 flex flex-col bg-app overflow-hidden gap-1 border-t border-line" @click="handleLinkClick">
         
         <!-- INLINE VIEW -->
-        <div v-if="props.isInline" class="flex-1 overflow-auto bg-neutral-100 dark:bg-neutral-900 border-r border-line relative">
+        <div v-if="props.isInline" class="flex-1 overflow-auto bg-app border-r border-line relative">
             <div class="p-6 text-content prose prose-invert prose-sm max-w-none flex flex-col gap-2">
                 <template v-for="(row, idx) in diffRows" :key="idx">
                     <!-- Unchanged -->
                     <div v-if="row.type === 'unchanged'" class="flex gap-4 opacity-70">
-                        <div class="w-16 flex-shrink-0 text-right text-xs text-neutral-500 font-mono py-2 opacity-50">{{ row.leftLine }} &nbsp; {{ row.rightLine }}</div>
+                        <div class="w-16 flex-shrink-0 text-right text-xs text-content-muted font-mono py-2 opacity-50">{{ row.leftLine }} &nbsp; {{ row.rightLine }}</div>
                         <div class="flex-1 py-1" v-html="renderMd(row.left)"></div>
                     </div>
                     
                     <!-- Added -->
-                    <div v-else-if="row.type === 'added'" class="flex gap-4 bg-green-900/10 border-l-[3px] border-green-500 -ml-[2px]">
-                        <div class="w-16 flex-shrink-0 text-right text-xs text-green-600/50 font-mono py-2 bg-green-900/20 pr-2">+ &nbsp; {{ row.rightLine }}</div>
+                    <div v-else-if="row.type === 'added'" class="flex gap-4 bg-added/10 border-l-[3px] border-added -ml-[2px]">
+                        <div class="w-16 flex-shrink-0 text-right text-xs text-added/50 font-mono py-2 bg-added/20 pr-2">+ &nbsp; {{ row.rightLine }}</div>
                         <div class="flex-1 py-1 pr-4" v-html="renderMd(row.right)"></div>
                     </div>
                     
                     <!-- Removed -->
-                    <div v-else-if="row.type === 'removed'" class="flex gap-4 bg-red-900/10 border-l-[3px] border-red-500 -ml-[2px]">
-                        <div class="w-16 flex-shrink-0 text-right text-xs text-red-600/50 font-mono py-2 bg-red-900/20 pr-2">{{ row.leftLine }} &nbsp; -</div>
+                    <div v-else-if="row.type === 'removed'" class="flex gap-4 bg-removed/10 border-l-[3px] border-removed -ml-[2px]">
+                        <div class="w-16 flex-shrink-0 text-right text-xs text-removed/50 font-mono py-2 bg-removed/20 pr-2">{{ row.leftLine }} &nbsp; -</div>
                         <div class="flex-1 py-1 pr-4" v-html="renderMd(row.left)"></div>
                     </div>
                     
                     <!-- Modified -->
                     <template v-else-if="row.type === 'modified'">
-                        <div class="flex gap-4 bg-red-900/10 border-l-[3px] border-red-500 -ml-[2px]">
-                           <div class="w-16 flex-shrink-0 text-right text-xs text-red-600/50 font-mono py-2 bg-red-900/20 pr-2">{{ row.leftLine }} &nbsp; -</div>
+                        <div class="flex gap-4 bg-removed/10 border-l-[3px] border-removed -ml-[2px]">
+                           <div class="w-16 flex-shrink-0 text-right text-xs text-removed/50 font-mono py-2 bg-removed/20 pr-2">{{ row.leftLine }} &nbsp; -</div>
                            <div class="flex-1 py-1 pr-4" v-html="renderMd(row.left)"></div>
                         </div>
-                        <div class="flex gap-4 bg-green-900/10 border-l-[3px] border-green-500 -ml-[2px] mt-1">
-                           <div class="w-16 flex-shrink-0 text-right text-xs text-green-600/50 font-mono py-2 bg-green-900/20 pr-2">+ &nbsp; {{ row.rightLine }}</div>
+                        <div class="flex gap-4 bg-added/10 border-l-[3px] border-added -ml-[2px] mt-1">
+                           <div class="w-16 flex-shrink-0 text-right text-xs text-added/50 font-mono py-2 bg-added/20 pr-2">+ &nbsp; {{ row.rightLine }}</div>
                            <div class="flex-1 py-1 pr-4" v-html="renderMd(row.right)"></div>
                         </div>
                     </template>
                 </template>
                 
-                <div v-if="diffRows.length === 0" class="text-neutral-600 font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center p-12">
+                <div v-if="diffRows.length === 0" class="text-content-muted font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center p-12">
                     {{ t('common.no_changes') }}
                 </div>
             </div>
@@ -179,22 +182,22 @@ const diffRows = computed(() => {
 
         <!-- SIDE-BY-SIDE VIEW -->
         <div v-else class="flex-1 flex flex-row overflow-hidden">
-            <div class="flex flex-col w-1/2 h-full bg-neutral-100 dark:bg-neutral-900 border-r border-line relative">
+            <div class="flex flex-col w-1/2 h-full bg-app border-r border-line relative">
                 <div ref="leftPane" @scroll="onScrollLeft" class="text-content prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
                     <template v-for="(row, idx) in diffRows" :key="idx">
-                        <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-red-900/10 border-l-[3px] border-red-500 !pl-[5px]': row.type === 'removed' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'added' }">
-                           <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-red-500': row.type === 'removed' || row.type === 'modified', 'opacity-0': row.type === 'added' }">{{ row.leftLine || ' ' }}</div>
+                        <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-removed/10 border-l-[3px] border-removed !pl-[5px]': row.type === 'removed' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'added' }">
+                           <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-removed': row.type === 'removed' || row.type === 'modified', 'opacity-0': row.type === 'added' }">{{ row.leftLine || ' ' }}</div>
                            <div class="flex-1 py-1 pr-6" v-html="renderMd(row.type === 'added' ? row.right : row.left)"></div>
                         </div>
                     </template>
                 </div>
             </div>
             
-            <div class="flex flex-col w-1/2 h-full bg-neutral-100 dark:bg-neutral-900 relative">
+            <div class="flex flex-col w-1/2 h-full bg-app relative">
                 <div ref="rightPane" @scroll="onScrollRight" class="text-content prose prose-invert prose-sm max-w-none flex-1 overflow-auto flex flex-col gap-1 py-6">
                     <template v-for="(row, idx) in diffRows" :key="idx">
-                        <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-green-900/10 border-l-[3px] border-green-500 !pl-[5px]': row.type === 'added' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'removed' }">
-                           <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-green-500': row.type === 'added' || row.type === 'modified', 'opacity-0': row.type === 'removed' }">{{ row.rightLine || ' ' }}</div>
+                        <div class="flex gap-4 pl-2 group" :class="{ 'opacity-70': row.type === 'unchanged', 'bg-added/10 border-l-[3px] border-added !pl-[5px]': row.type === 'added' || row.type === 'modified', 'bg-transparent border-l-[3px] border-transparent !pl-[5px] opacity-0 select-none': row.type === 'removed' }">
+                           <div class="w-10 flex-shrink-0 text-right text-xs font-mono py-2 opacity-30 select-none" :class="{ '!opacity-70 text-added': row.type === 'added' || row.type === 'modified', 'opacity-0': row.type === 'removed' }">{{ row.rightLine || ' ' }}</div>
                            <div class="flex-1 py-1 pr-6" v-html="renderMd(row.type === 'removed' ? row.left : row.right)"></div>
                         </div>
                     </template>

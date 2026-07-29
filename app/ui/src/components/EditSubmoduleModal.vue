@@ -94,11 +94,11 @@ async function deleteSubmodule() {
         </div>
       </div>
 
-      <button disabled class="w-full bg-surface border border-line-strong text-neutral-500 rounded px-4 py-2 text-xs font-medium opacity-50 cursor-not-allowed">
+      <button disabled class="w-full bg-surface border border-line-strong text-content-muted rounded px-4 py-2 text-xs font-medium opacity-50 cursor-not-allowed">
         {{ t('modal.edit_this_submodule') }}
       </button>
 
-      <div v-if="activeSubmodule.status === 'uninitialized' || activeSubmodule.status === 'modified' || activeSubmodule.status === 'uncommitted'" class="flex items-center justify-center gap-2 text-green-500 text-xs font-medium">
+      <div v-if="activeSubmodule.status === 'uninitialized' || activeSubmodule.status === 'modified' || activeSubmodule.status === 'uncommitted'" class="flex items-center justify-center gap-2 text-added text-xs font-medium">
          <Icon icon="lucide:plus" class="text-xs" />
          {{ t('modal.submodule_not_committed') }}
       </div>
@@ -109,17 +109,17 @@ async function deleteSubmodule() {
               <span class="font-mono">{{ activeSubmodule.sha.substring(0, 8) }}</span>
           </div>
           <div class="flex items-center">
-             <button @click="commitChanges()" class="flex-1 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-content px-4 py-3 border-r border-line-strong transition-colors flex items-center justify-center font-medium">
+             <button @click="commitChanges()" class="flex-1 bg-surface hover:bg-surface-hover text-content px-4 py-3 border-r border-line-strong transition-colors flex items-center justify-center font-medium">
                {{ t('modal.commit_changes') }}
              </button>
           </div>
       </div>
 
       <div class="flex items-center gap-2 mt-2">
-         <button @click="openSubmodule()" class="flex-1 border border-blue-600/30 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium transition-colors">
+         <button @click="openSubmodule()" class="flex-1 border border-accent/30 bg-accent/10 hover:bg-accent/20 text-accent rounded px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium transition-colors">
             <Icon icon="lucide:folder-open" /> {{ t('modal.open_this_submodule') }}
          </button>
-         <button @click="deleteSubmodule()" :disabled="isLoading" class="flex-1 border border-red-900/50 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium transition-colors">
+         <button @click="deleteSubmodule()" :disabled="isLoading" class="flex-1 border border-removed/50 bg-removed/20 hover:bg-removed/40 text-removed rounded px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium transition-colors">
             <Icon v-if="isLoading" icon="lucide:loader-2" class="animate-spin" />
             <Icon v-else icon="lucide:trash-2" /> {{ t('modal.delete_this_submodule') }}
          </button>

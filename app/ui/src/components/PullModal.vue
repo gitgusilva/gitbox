@@ -35,7 +35,7 @@ function choose(mode: 'merge' | 'rebase') {
       </div>
       <div class="flex justify-end mt-6">
         <button @click="isPullModalOpen = false"
-                class="px-5 py-1.5 rounded bg-transparent text-content text-xs font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
+                class="px-5 py-1.5 rounded bg-transparent text-content text-xs font-bold hover:bg-surface-hover transition-colors">
           {{ t('common.cancel') }}
         </button>
       </div>

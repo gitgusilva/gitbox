@@ -239,18 +239,18 @@ const handleTerminalResize = () => {
                 <!-- Controls -->
                 <div class="flex items-center gap-1">
                     <Tooltip :text="t('view.new_terminal')">
-                        <button @click="addTerminal" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                        <button @click="addTerminal" class="text-content-muted hover:text-content-strong transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-surface-hover">
                             <Icon icon="lucide:plus" class="text-sm" />
                         </button>
                     </Tooltip>
-                    <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-700 mx-1"></div>
+                    <div class="w-px h-4 bg-line-strong mx-1"></div>
                     <Tooltip :text="isMaximized ? t('view.restore_panel') : t('view.maximize_panel')">
-                        <button @click="isMaximized = !isMaximized" class="text-content-muted hover:text-neutral-900 dark:hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-neutral-200 dark:hover:bg-neutral-600">
+                        <button @click="isMaximized = !isMaximized" class="text-content-muted hover:text-content-strong transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-surface-hover">
                             <Icon :icon="isMaximized ? 'lucide:minimize-2' : 'lucide:maximize-2'" class="text-xs" />
                         </button>
                     </Tooltip>
                     <Tooltip :text="t('view.close_panel')">
-                        <button @click="toggleTerminal" class="text-content-muted hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-red-500">
+                        <button @click="toggleTerminal" class="text-content-muted hover:text-white transition-colors h-6 w-6 flex items-center justify-center rounded hover:bg-removed">
                             <Icon icon="lucide:x" class="text-sm" />
                         </button>
                     </Tooltip>
@@ -278,10 +278,10 @@ const handleTerminalResize = () => {
                         <div v-for="t in terminals" :key="t.id"
                              @click="activeTerminalId = t.id"
                              class="h-8 px-3 flex items-center gap-2 cursor-pointer transition-colors group relative"
-                             :class="activeTerminalId === t.id ? 'bg-surface text-accent' : 'text-neutral-500 hover:bg-neutral-200 dark:hover:bg-[#2A2A2B] hover:text-neutral-700 dark:hover:text-neutral-300'">
+                             :class="activeTerminalId === t.id ? 'bg-surface text-accent' : 'text-content-muted hover:bg-surface-hover hover:text-content'">
                              <Icon icon="lucide:terminal-square" class="w-3.5 h-3.5 flex-shrink-0" />
                              <span class="text-xs flex-1 truncate">{{ t.name }}</span>
-                             <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-opacity flex-shrink-0" @click.stop="removeTerminal(t.id)" />
+                             <Icon icon="lucide:trash-2" class="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 hover:text-removed transition-opacity flex-shrink-0" @click.stop="removeTerminal(t.id)" />
                              <div v-if="activeTerminalId === t.id" class="absolute left-0 inset-y-0 w-[3px] bg-accent"></div>
                         </div>
                     </div>

@@ -254,7 +254,7 @@ async function onInstall(entry: RegistryEntry) {
             </div>
             <Tooltip v-if="card.local && !card.local.builtin" :text="t('common.delete')" position="top" class="absolute bottom-1.5 right-1.5">
               <button @click.stop="card.local && deleteTheme(card.local.id)"
-                      class="w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-content-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      class="w-5 h-5 rounded flex items-center justify-center bg-overlay/80 text-content-muted hover:text-removed opacity-0 group-hover:opacity-100 transition-opacity">
                 <Icon icon="lucide:x" class="w-3 h-3" />
               </button>
             </Tooltip>

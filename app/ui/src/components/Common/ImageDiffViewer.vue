@@ -85,19 +85,19 @@ function onScrollRight() {
 
 <template>
     <div class="flex-1 flex flex-col md:flex-row bg-app overflow-auto gap-1 border-t border-line checkerboard">
-        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-neutral-100 dark:bg-neutral-900 border-r border-line relative">
+        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-app border-r border-line relative">
             <div ref="leftPane" @scroll="onScrollLeft" class="p-6 flex-1 flex items-center justify-center bg-transparent overflow-auto">
-                <img v-if="props.original" :src="srcOriginal" class="max-w-none max-h-none shadow-lg outline outline-1 outline-neutral-700 bg-black/50" />
-                <div v-else class="text-neutral-600 font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center">
+                <img v-if="props.original" :src="srcOriginal" class="max-w-none max-h-none shadow-lg outline outline-1 outline-line-strong bg-black/50" />
+                <div v-else class="text-content-muted font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center">
                     {{ t('common.file_not_in_parent') }}
                 </div>
             </div>
         </div>
         
-        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-neutral-100 dark:bg-neutral-900 relative">
+        <div class="flex flex-col w-full md:w-1/2 h-full min-h-[300px] bg-app relative">
             <div ref="rightPane" @scroll="onScrollRight" class="p-6 flex-1 flex items-center justify-center bg-transparent overflow-auto">
-                <img v-if="props.modified" :src="srcModified" class="max-w-none max-h-none shadow-lg outline outline-1 outline-neutral-700 bg-black/50" />
-                <div v-else class="text-neutral-600 font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center">
+                <img v-if="props.modified" :src="srcModified" class="max-w-none max-h-none shadow-lg outline outline-1 outline-line-strong bg-black/50" />
+                <div v-else class="text-content-muted font-bold uppercase tracking-widest text-[10px] h-full flex items-center justify-center">
                     {{ t('common.file_deleted') }}
                 </div>
             </div>

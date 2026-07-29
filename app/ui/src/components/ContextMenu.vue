@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
          @mouseleave="stopAutoScroll">
       <template v-for="(item, index) in items" :key="index">
         <!-- Separator -->
-        <div v-if="item.separator" class="h-px bg-neutral-300 dark:bg-neutral-700 my-1 mx-2"></div>
+        <div v-if="item.separator" class="h-px bg-line-strong my-1 mx-2"></div>
         
         <!-- Menu Item -->
         <div v-else
@@ -156,18 +156,18 @@ onBeforeUnmount(() => {
           <button @click="handleItemClick(item)"
                   class="flex items-center justify-between px-4 py-1.5 w-full text-left"
                   :class="[
-                    item.disabled ? 'opacity-50 cursor-not-allowed text-neutral-500' : 'hover:bg-neutral-200 dark:hover:bg-[#4A4A4A] cursor-pointer text-content',
-                    item.danger && !item.disabled ? 'text-red-400 hover:text-red-300' : ''
+                    item.disabled ? 'opacity-50 cursor-not-allowed text-content-muted' : 'hover:bg-surface-hover cursor-pointer text-content',
+                    item.danger && !item.disabled ? 'text-removed hover:bg-removed/10' : ''
                   ]">
           <div class="flex items-center gap-2 flex-1">
-            <span v-if="item.active || item.checked" class="w-4 text-center text-xs flex items-center justify-center text-blue-400">
+            <span v-if="item.active || item.checked" class="w-4 text-center text-xs flex items-center justify-center text-accent">
               <Icon icon="lucide:check" />
             </span>
             <span v-else-if="item.icon" class="w-4 text-center text-sm flex items-center justify-center"><Icon :icon="item.icon" /></span>
             <span v-else class="w-4"></span>
-            <span :class="{'font-medium': !item.disabled, 'text-blue-400': item.active || item.checked}">{{ item.label }}</span>
+            <span :class="{'font-medium': !item.disabled, 'text-accent': item.active || item.checked}">{{ item.label }}</span>
           </div>
-          <div v-if="item.shortcut || item.subItems?.length" class="text-neutral-500 flex items-center gap-2">
+          <div v-if="item.shortcut || item.subItems?.length" class="text-content-muted flex items-center gap-2">
             <span v-if="item.shortcut" class="whitespace-nowrap">{{ item.shortcut }}</span>
             <Icon v-if="item.subItems?.length" icon="lucide:chevron-right" class="text-content-muted" />
           </div>
@@ -180,12 +180,12 @@ onBeforeUnmount(() => {
                @mouseleave="scheduleClose()">
             <div class="bg-surface border border-line-strong min-w-[220px] rounded shadow-xl py-1 flex flex-col text-content text-xs">
               <template v-for="(subItem, subIndex) in item.subItems" :key="'sub_'+subIndex">
-                <div v-if="subItem.separator" class="h-px bg-neutral-300 dark:bg-neutral-700 my-1 mx-2"></div>
+                <div v-if="subItem.separator" class="h-px bg-line-strong my-1 mx-2"></div>
                 <button v-else @click.stop="handleItemClick(subItem)"
                         class="flex items-center justify-between px-4 py-1.5 w-full text-left"
                         :class="[
-                          subItem.disabled ? 'opacity-50 cursor-not-allowed text-neutral-500' : 'hover:bg-neutral-200 dark:hover:bg-[#4A4A4A] cursor-pointer text-content',
-                          subItem.danger && !subItem.disabled ? 'text-red-400 hover:text-red-300' : ''
+                          subItem.disabled ? 'opacity-50 cursor-not-allowed text-content-muted' : 'hover:bg-surface-hover cursor-pointer text-content',
+                          subItem.danger && !subItem.disabled ? 'text-removed hover:bg-removed/10' : ''
                         ]">
                   <div class="flex items-center gap-2 flex-1">
                     <span v-if="subItem.icon" class="w-4 text-center text-sm flex items-center justify-center"><Icon :icon="subItem.icon" /></span>

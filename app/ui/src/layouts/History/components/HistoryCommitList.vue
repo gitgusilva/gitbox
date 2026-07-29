@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n';
 import CommitGraph from '../../../components/CommitGraph.vue';
 import { Commit, GraphNode } from '../../../types/git';
 import { gravatarUrl } from '../../../utils/avatars';
-import { formatDate, renderMessageLinks } from '../../../utils/formatters';
+import { formatDate, renderMessageLinks, handleLinkClick } from '../../../utils/formatters';
 import { startMarquee, stopMarquee } from '../../../utils/dom';
 import { historyAuthorWidth, historyDateWidth, layoutRefs } from '../../../services/layoutService';
 import Resizer from '../../../components/Common/Resizer.vue';
@@ -193,7 +193,7 @@ defineExpose({
                   <div v-if="r.type !== 'tag' || showTagsInGraph"
                        class="flex-shrink-0 text-[10px] px-1 rounded-[3px] border flex items-center gap-[2px] h-[18px] z-10"
                        :class="r.type === 'tag'
-                         ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-500 font-medium'
+                         ? 'bg-modified/10 border-modified/30 text-modified font-medium'
                          : (r.isHead ? 'font-bold' : 'font-medium')"
                        :style="r.type !== 'tag' ? {
                          color: graphOutput.get(c.id)?.color || '#888888',
@@ -211,6 +211,7 @@ defineExpose({
                     class="block truncate w-full"
                     :class="selectedIdSet.has(c.id) ? '' : (graphOutput.get(c.id)?.dimmed ? 'text-content-muted opacity-50' : 'font-semibold text-content-strong')"
                     v-html="renderMessageLinks(c.summary)"
+                    @click="handleLinkClick"
                   />
                 </div>
               </div>

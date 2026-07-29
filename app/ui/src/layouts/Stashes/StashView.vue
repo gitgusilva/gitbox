@@ -117,10 +117,10 @@ const getStatusColor = (status: string, isSelected: boolean) => {
     if (isSelected) return 'text-accent-fg';
     if (!status) return 'text-content-muted';
     const s = status.toLowerCase();
-    if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
-    if (s.includes('deleted')) return 'text-red-500';
+    if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-added';
+    if (s.includes('deleted')) return 'text-removed';
     if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
-    if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
+    if (s.includes('modified') || s.includes('staged')) return 'text-modified';
     return 'text-content-muted';
 };
 </script>
@@ -193,7 +193,7 @@ const getStatusColor = (status: string, isSelected: boolean) => {
           <div v-else class="flex flex-col pb-4">
             <div v-for="file in stashFiles" :key="file.path" 
                  @click="selectedStashFile = file.path"
-                 class="px-4 py-2 flex items-center gap-3 cursor-pointer group border-b border-neutral-200/10 dark:border-neutral-800/10 transition-colors"
+                 class="px-4 py-2 flex items-center gap-3 cursor-pointer group border-b border-line transition-colors"
                  :class="selectedStashFile === file.path ? 'bg-accent text-accent-fg' : 'hover:bg-surface-hover'">
               <Icon :icon="getStatusIcon(file.status)" :class="getStatusColor(file.status, selectedStashFile === file.path)" class="text-sm shrink-0" />
               <span class="text-[11px] font-medium truncate flex-1 min-w-0" :class="selectedStashFile === file.path ? 'text-accent-fg' : 'text-content-muted'">
@@ -215,7 +215,7 @@ const getStatusColor = (status: string, isSelected: boolean) => {
                   :original="originalContent"
                   :modified="modifiedContent"
                   :filename="selectedStashFile" />
-      <div v-else class="flex-1 flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8">
+      <div v-else class="flex-1 flex flex-col items-center justify-center text-content-muted pointer-events-none text-center p-8">
         <Icon :icon="selectedStash ? 'lucide:file-search' : 'lucide:layers'" class="text-5xl mb-6 opacity-5" />
         <div class="font-black uppercase tracking-[0.2em] text-[9px] opacity-10">
           {{ selectedStash ? t('view.select_file_to_view_changes') : t('view.select_stash_to_browse') }}

@@ -104,9 +104,9 @@ const displayLabel = computed(() => {
 <template>
   <div class="relative group/select" ref="containerRef">
     <div @click="toggleDropdown" 
-         class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content outline-none hover:border-neutral-300 dark:hover:border-neutral-700 focus:border-accent cursor-pointer flex items-center justify-between transition-all select-none">
+         class="w-full bg-surface border border-line rounded px-3 py-2 text-xs text-content outline-none hover:border-line-strong focus:border-accent cursor-pointer flex items-center justify-between transition-all select-none">
        <span class="truncate pr-4">{{ displayLabel }}</span>
-       <Icon icon="lucide:chevron-down" class="text-neutral-600 flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
+       <Icon icon="lucide:chevron-down" class="text-content-muted flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
     </div>
     
     <Teleport to="body">
@@ -115,17 +115,17 @@ const displayLabel = computed(() => {
            :style="dropdownStyle">
          <SimpleBar class="flex-1 w-full p-1 h-full">
            <div class="flex flex-col gap-1">
-             <div v-if="options.length === 0" class="px-3 py-2 text-[10px] text-neutral-500 text-center italic">
+             <div v-if="options.length === 0" class="px-3 py-2 text-[10px] text-content-muted text-center italic">
                 {{ t('settings.create_pr.no_options') }}
              </div>
              <div v-for="opt in options" :key="opt.value" 
                   @click="toggleOption(opt.value)"
                   class="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors"
-                  :class="modelValue.includes(opt.value) ? 'bg-surface-hover' : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D]'">
+                  :class="modelValue.includes(opt.value) ? 'bg-surface-hover' : 'hover:bg-surface-hover'">
                 
                 <!-- Checkbox visual -->
                 <div class="w-3 h-3 rounded flex items-center justify-center border transition-colors flex-shrink-0"
-                     :class="modelValue.includes(opt.value) ? 'bg-blue-600 border-blue-600' : 'bg-transparent border-neutral-600'">
+                     :class="modelValue.includes(opt.value) ? 'bg-accent border-accent' : 'bg-transparent border-line-strong'">
                     <Icon v-if="modelValue.includes(opt.value)" icon="lucide:check" class="text-[8px] text-white" />
                 </div>
 

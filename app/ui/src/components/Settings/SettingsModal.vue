@@ -67,9 +67,9 @@ function handleClose() {
       <!-- Main Content Container with dynamic title and scroll area -->
       <template #default="{ activeTabLabel }">
         <div class="flex flex-col h-full bg-app">
-            <header class="h-14 border-b border-line flex items-center justify-between px-8 bg-surface flex-shrink-0">
+            <header data-modal-drag class="h-14 border-b border-line flex items-center justify-between px-8 bg-surface flex-shrink-0 cursor-grab active:cursor-grabbing">
                 <h1 class="font-bold text-sm text-content uppercase tracking-tight">{{ activeTabLabel }}</h1>
-                <button @click="handleClose()" class="text-content-muted hover:text-content-strong transition-colors p-2 hover:bg-surface-hover rounded-full">
+                <button @click="handleClose()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-hover shrink-0 text-content-muted hover:text-content-strong transition-colors">
                     <Icon icon="lucide:x" class="text-lg" />
                 </button>
             </header>

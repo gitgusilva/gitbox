@@ -41,7 +41,7 @@ const emit = defineEmits(['toggleGroup', 'selectLog', 'checkout', 'menu', 'toggl
        @dblclick="!node.isGroup ? emit('checkout', node.fullPath) : null"
        @contextmenu.prevent="(!node.isGroup || (section === 'remotes' && node.level === 0)) ? emit('menu', $event, node.fullPath) : null">
     <Icon v-if="node.isGroup" :icon="node.expanded ? 'lucide:chevron-down' : 'lucide:chevron-right'" class="text-[10px]" />
-    <Icon :icon="node.isGroup ? (section === 'remotes' && node.level === 0 ? 'lucide:cloud' : 'lucide:folder') : 'lucide:git-branch'" :class="node.data?.is_head ? 'text-green-500' : 'text-content-muted'" />
+    <Icon :icon="node.isGroup ? (section === 'remotes' && node.level === 0 ? 'lucide:cloud' : 'lucide:folder') : 'lucide:git-branch'" :class="node.data?.is_head ? 'text-added' : 'text-content-muted'" />
     <span class="truncate flex-1">{{ node.displayName }}</span>
     
     <!-- One tooltip for both counters: the arrows alone don't say what they count. -->
@@ -50,7 +50,7 @@ const emit = defineEmits(['toggleGroup', 'selectLog', 'checkout', 'menu', 'toggl
              position="top">
       <div class="flex gap-1 text-[9px] font-mono mr-1">
         <span v-if="node.data?.behind" class="text-accent">↓{{ node.data.behind }}</span>
-        <span v-if="node.data?.ahead" class="text-green-400">↑{{ node.data.ahead }}</span>
+        <span v-if="node.data?.ahead" class="text-added">↑{{ node.data.ahead }}</span>
       </div>
     </Tooltip>
     

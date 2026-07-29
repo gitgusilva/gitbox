@@ -168,10 +168,10 @@ function getStatusColor(status: string, isSelected: boolean) {
   if (s.includes('conflicted')) return 'text-removed';
   if (!status) return 'text-content-muted';
 
-  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
-  if (s.includes('deleted')) return 'text-red-500';
+  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-added';
+  if (s.includes('deleted')) return 'text-removed';
   if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
-  if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
+  if (s.includes('modified') || s.includes('staged')) return 'text-modified';
 
   return 'text-content-muted';
 }
@@ -206,7 +206,7 @@ const isConflicted = (status?: string) => (status || '').toLowerCase().includes(
         @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
       >
         <template v-if="item.data.isDir">
-          <span :class="cn('text-[10px] text-neutral-600 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-colors w-3 shrink-0 marquee-icon')">
+          <span :class="cn('text-[10px] text-content-muted group-hover:text-content transition-colors w-3 shrink-0 marquee-icon')">
             <Icon :icon="isDirOpen(item.data.fullPath) ? 'lucide:chevron-down' : 'lucide:chevron-right'" />
           </span>
           <Icon

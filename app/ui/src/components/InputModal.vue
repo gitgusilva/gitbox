@@ -49,6 +49,6 @@ onMounted(() => {
     @cancel="handleCancel"
   >
     <div class="text-xs text-content">{{ message }}</div>
-    <input ref="inputRef" @keydown.enter="handleConfirm" v-model="inputValue" type="text" spellcheck="false" class="w-full bg-app border border-neutral-600 rounded px-3 py-1.5 text-xs text-content-strong focus:border-accent focus:outline-none" :placeholder="placeholder" />
+    <input ref="inputRef" @keydown.enter="handleConfirm" v-model="inputValue" type="text" spellcheck="false" class="w-full bg-app border border-line-strong rounded px-3 py-1.5 text-xs text-content-strong focus:border-accent focus:outline-none" :placeholder="placeholder" />
   </ConfirmModal>
 </template>

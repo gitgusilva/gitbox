@@ -286,7 +286,7 @@ const isCreatingNew = computed(() => {
                  :placeholder="placeholder || t('common.search') || 'Search...'" 
                  :class="cn(
                     'w-full bg-surface border rounded-lg py-2 text-xs text-content-strong outline-none focus:border-accent transition-all shadow-inner',
-                    isOpen ? 'border-accent' : 'border-neutral-300/50 dark:border-neutral-700/50',
+                    isOpen ? 'border-accent' : 'border-line-strong',
                     icon ? 'pl-9 pr-8' : 'px-3 pr-8'
                  )" />
                 
@@ -306,14 +306,14 @@ const isCreatingNew = computed(() => {
     <div v-else 
          @click="toggleDropdown" 
          :class="cn(
-             'h-stack w-full bg-surface border border-neutral-300/50 dark:border-neutral-700/50 rounded-lg py-2 text-xs text-content outline-none hover:border-neutral-600 focus:border-accent cursor-pointer transition-all select-none',
+             'h-stack w-full bg-surface border border-line-strong rounded-lg py-2 text-xs text-content outline-none hover:border-accent/60 focus:border-accent cursor-pointer transition-all select-none',
              icon ? 'pl-9 pr-3' : 'px-3'
          )">
          
        <Icon v-if="icon" :icon="icon" class="absolute left-3 top-1/2 -translate-y-1/2 text-content-muted pointer-events-none" />
 
        <span class="truncate pr-4 flex-1 text-content-strong text-[11px]">{{ displayLabel }}</span>
-       <Icon icon="lucide:chevron-down" class="text-neutral-600 flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
+       <Icon icon="lucide:chevron-down" class="text-content-muted flex-shrink-0 transition-transform" :class="isOpen ? 'rotate-180' : ''" />
     </div>
     
     <!-- Dropdown Core -->
@@ -329,14 +329,14 @@ const isCreatingNew = computed(() => {
                      'h-stack gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors',
                      (multiple ? (Array.isArray(modelValue) && modelValue.includes(opt.value)) : modelValue === opt.value) 
                        ? (multiple ? 'bg-surface-hover' : 'bg-accent text-accent-fg')
-                       : 'hover:bg-neutral-200 dark:hover:bg-[#3D3D3D] text-content hover:text-neutral-900 dark:hover:text-white'
+                       : 'hover:bg-surface-hover text-content hover:text-content-strong'
                    )">
                 
                 <!-- Checkbox visual for multiple -->
                 <div v-if="multiple" 
                      :class="cn(
                         'center w-3 h-3 rounded border transition-colors flex-shrink-0',
-                        (Array.isArray(modelValue) && modelValue.includes(opt.value)) ? 'bg-accent border-accent' : 'bg-transparent border-neutral-600'
+                        (Array.isArray(modelValue) && modelValue.includes(opt.value)) ? 'bg-accent border-accent' : 'bg-transparent border-line-strong'
                      )">
                     <Icon v-if="(Array.isArray(modelValue) && modelValue.includes(opt.value))" icon="lucide:check" class="text-[8px] text-white" />
                 </div>

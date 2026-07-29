@@ -161,11 +161,12 @@ onMounted(() => {
   <div class="h-screen w-screen flex flex-col bg-app text-content overflow-hidden">
     <!-- Title bar (draggable) -->
     <div
+      data-window-chrome
       class="h-9 shrink-0 flex items-center justify-between bg-surface border-b border-line select-none"
       style="-webkit-app-region: drag;"
     >
       <div class="flex items-center gap-2 min-w-0 pl-3 text-[11px] font-bold uppercase tracking-widest text-content">
-        <Icon icon="lucide:git-merge" class="text-amber-500 text-sm" />
+        <Icon icon="lucide:git-merge" class="text-modified text-sm" />
         <span class="truncate">{{ t('changes.merging') }}: {{ fileName }}</span>
       </div>
 
@@ -177,7 +178,7 @@ onMounted(() => {
         <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="maximizeWindow">
           <Icon icon="lucide:square" class="w-3.5 h-3.5" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="closeWindow">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-removed hover:text-white transition-colors cursor-pointer" @click="closeWindow">
           <Icon icon="lucide:x" class="w-4 h-4" />
         </div>
       </div>
@@ -215,7 +216,7 @@ onMounted(() => {
     <div v-if="showNextPrompt" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div class="w-[460px] max-w-[92vw] bg-surface border border-line rounded-xl shadow-2xl overflow-hidden">
         <div class="p-5 v-stack gap-3">
-          <div class="flex items-center gap-2 text-emerald-500">
+          <div class="flex items-center gap-2 text-added">
             <Icon icon="lucide:check-circle-2" class="text-lg" />
             <span class="text-sm font-bold">{{ t('changes.merge_resolved_title') }}</span>
           </div>
@@ -224,7 +225,7 @@ onMounted(() => {
           <div class="border-t border-line pt-3 v-stack gap-1.5">
             <p class="text-xs font-medium text-content">{{ t('changes.next_conflict_prompt') }}</p>
             <p class="text-[11px] text-accent font-mono truncate" :title="nextFile">{{ t('changes.next_file', { file: nextFile }) }}</p>
-            <p class="text-[10px] text-amber-500">{{ t('changes.remaining_conflicts_count', { count: remainingConflicts.length }) }}</p>
+            <p class="text-[10px] text-modified">{{ t('changes.remaining_conflicts_count', { count: remainingConflicts.length }) }}</p>
           </div>
         </div>
         <div class="flex items-center justify-end gap-2 px-5 py-3 bg-app border-t border-line">

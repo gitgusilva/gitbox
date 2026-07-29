@@ -31,9 +31,9 @@ function onCherryPickAbort() {
 </script>
 
 <template>
-  <div v-if="isMerging" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-amber-500/60">
+  <div v-if="isMerging" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-modified/60">
     <div class="h-stack items-center gap-2 min-w-0">
-      <Icon icon="lucide:alert-triangle" class="text-amber-500 shrink-0" />
+      <Icon icon="lucide:alert-triangle" class="text-modified shrink-0" />
       <div class="v-stack min-w-0 leading-tight">
         <span class="text-[11px] font-bold text-content-strong uppercase tracking-wider">{{ t('changes.merge_in_progress') }}</span>
         <span class="text-[10px] text-content-muted truncate">{{ t('changes.merge_resolve_hint') }}</span>
@@ -50,9 +50,9 @@ function onCherryPickAbort() {
   </div>
 
   <!-- Rebase in progress -->
-  <div v-else-if="isRebasing" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-amber-500/60">
+  <div v-else-if="isRebasing" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-modified/60">
     <div class="h-stack items-center gap-2 min-w-0">
-      <Icon icon="lucide:git-branch" class="text-amber-500 shrink-0" />
+      <Icon icon="lucide:git-branch" class="text-modified shrink-0" />
       <div class="v-stack min-w-0 leading-tight">
         <span class="text-[11px] font-bold text-content-strong uppercase tracking-wider">{{ t('changes.rebase_in_progress') }}</span>
         <span class="text-[10px] text-content-muted truncate">{{ hasUnresolvedConflicts ? t('changes.rebase_resolve_hint') : t('changes.rebase_continue_hint') }}</span>
@@ -70,9 +70,9 @@ function onCherryPickAbort() {
   </div>
 
   <!-- Cherry-pick in progress -->
-  <div v-else-if="isCherryPicking" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-amber-500/60">
+  <div v-else-if="isCherryPicking" class="shrink-0 h-stack items-center justify-between gap-3 px-4 py-2 bg-surface border-b border-line border-l-2 border-l-modified/60">
     <div class="h-stack items-center gap-2 min-w-0">
-      <Icon icon="lucide:git-cherry" class="text-amber-500 shrink-0" />
+      <Icon icon="lucide:git-cherry" class="text-modified shrink-0" />
       <div class="v-stack min-w-0 leading-tight">
         <span class="text-[11px] font-bold text-content-strong uppercase tracking-wider">{{ t('changes.cherrypick_in_progress') }}</span>
         <span class="text-[10px] text-content-muted truncate">{{ hasUnresolvedConflicts ? t('changes.cherrypick_resolve_hint') : t('changes.cherrypick_continue_hint') }}</span>

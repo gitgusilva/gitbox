@@ -49,26 +49,26 @@ watch(() => [props.path, props.sha], async ([newPath, newSha]) => {
     <!-- Submodule Header Panel -->
     <header class="p-6 border-b border-line bg-surface h-stack justify-between shrink-0">
        <div class="h-stack gap-4">
-         <div class="w-10 h-10 rounded-lg bg-blue-600/10 center border border-blue-500/20 shadow-lg shadow-blue-900/10">
-           <Icon icon="lucide:box" class="text-2xl text-blue-500" />
+         <div class="w-10 h-10 rounded-lg bg-accent/10 center border border-accent/20 shadow-lg shadow-black/10">
+           <Icon icon="lucide:box" class="text-2xl text-accent" />
          </div>
          <div class="v-stack gap-0.5">
-           <div class="text-[9px] font-black uppercase tracking-[0.3em] text-blue-500">{{ t('history_detail.submodule') }}</div>
+           <div class="text-[9px] font-black uppercase tracking-[0.3em] text-accent">{{ t('history_detail.submodule') }}</div>
            <h2 class="text-sm font-bold text-content-strong break-all select-text font-mono leading-tight">{{ path }}</h2>
          </div>
        </div>
        
        <div v-if="sha" class="v-stack items-end gap-1">
-          <div class="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-600">{{ t('history_detail.revision') }}</div>
-          <div class="px-2 py-0.5 bg-neutral-200 dark:bg-neutral-800 rounded text-[10px] font-mono text-content-muted border border-line-strong select-text">{{ sha.substring(0, 8) }}</div>
+          <div class="text-[9px] font-black uppercase tracking-[0.2em] text-content-muted">{{ t('history_detail.revision') }}</div>
+          <div class="px-2 py-0.5 bg-surface-hover rounded text-[10px] font-mono text-content-muted border border-line-strong select-text">{{ sha.substring(0, 8) }}</div>
        </div>
     </header>
 
     <!-- Submodule Content -->
     <div class="flex-1 overflow-hidden relative">
        <div v-if="isSubmoduleLoading" class="absolute inset-0 v-stack center bg-surface z-10">
-          <Icon icon="lucide:loader-2" class="animate-spin text-5xl text-blue-500/20" />
-          <div class="mt-4 text-[10px] uppercase font-black tracking-widest text-neutral-600 animate-pulse">{{ t('history_detail.loading_commit_data') }}</div>
+          <Icon icon="lucide:loader-2" class="animate-spin text-5xl text-accent/20" />
+          <div class="mt-4 text-[10px] uppercase font-black tracking-widest text-content-muted animate-pulse">{{ t('history_detail.loading_commit_data') }}</div>
        </div>
        
        <template v-else-if="submoduleCommitInfo">
@@ -90,7 +90,7 @@ watch(() => [props.path, props.sha], async ([newPath, newSha]) => {
                         :showFiles="false" />
        </template>
        
-       <div v-else class="flex-1 h-full center v-stack text-neutral-600 p-8 bg-surface">
+       <div v-else class="flex-1 h-full center v-stack text-content-muted p-8 bg-surface">
           <div class="relative mb-6">
             <Icon icon="lucide:alert-circle" class="text-7xl opacity-5" />
             <Icon icon="lucide:box" class="absolute inset-0 m-auto text-3xl opacity-10" />

@@ -98,7 +98,7 @@ async function handleSaveGitConfig() {
         <Button variant="primary" :loading="isSavingGit" @click="handleSaveGitConfig">
             {{ isSavingGit ? t('common.loading') : t('settings.save_git_config') }}
         </Button>
-        <div v-if="saveSuccess" class="text-green-400 flex items-center gap-1.5 text-xs font-medium animate-in fade-in duration-300">
+        <div v-if="saveSuccess" class="text-added flex items-center gap-1.5 text-xs font-medium animate-in fade-in duration-300">
             <Icon icon="lucide:check-circle-2" class="w-4 h-4" />
             {{ t('settings.git_config_saved') || 'Saved to global git config (~/.gitconfig)' }}
         </div>

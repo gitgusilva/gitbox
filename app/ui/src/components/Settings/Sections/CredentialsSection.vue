@@ -50,7 +50,7 @@ function remove(h: string) {
       {{ t('settings.credentials_description') }}
     </p>
     <p class="text-[10px] leading-relaxed px-1 flex items-start gap-1.5"
-       :class="protection === 'os' ? 'text-green-500' : 'text-amber-500'">
+       :class="protection === 'os' ? 'text-added' : 'text-modified'">
       <Icon :icon="protection === 'os' ? 'lucide:shield-check' : 'lucide:shield-alert'" class="w-3.5 h-3.5 shrink-0 mt-px" />
       {{ t(`settings.credentials_protection_${protection}`) }}
     </p>
@@ -68,17 +68,17 @@ function remove(h: string) {
             <span class="text-[9px] text-content-muted font-medium truncate">
               {{ entry.username || t('settings.credentials_no_user') }} · ••••••••
             </span>
-            <span v-if="!entry.encrypted" class="ml-1 text-[8px] text-amber-500 uppercase font-black tracking-widest">
+            <span v-if="!entry.encrypted" class="ml-1 text-[8px] text-modified uppercase font-black tracking-widest">
               {{ t('settings.credentials_unencrypted_tag') }}
             </span>
-            <p v-if="gitCovered[entry.host]" class="mt-1 text-[9px] text-amber-500 flex items-center gap-1">
+            <p v-if="gitCovered[entry.host]" class="mt-1 text-[9px] text-modified flex items-center gap-1">
               <Icon icon="lucide:info" class="w-3 h-3 shrink-0" />
               {{ t('settings.credentials_git_overrides', { helper: gitCovered[entry.host] }) }}
             </p>
           </div>
         </div>
         <button @click="remove(entry.host)"
-                class="px-3 py-2 hover:bg-red-900/40 text-content-muted hover:text-red-400 rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-red-900/50 flex-shrink-0">
+                class="px-3 py-2 hover:bg-removed/40 text-content-muted hover:text-removed rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-removed/50 flex-shrink-0">
           <Icon icon="lucide:trash-2" class="w-3 h-3" />
           {{ t('common.remove') }}
         </button>

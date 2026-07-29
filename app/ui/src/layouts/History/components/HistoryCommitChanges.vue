@@ -73,11 +73,11 @@ const submoduleSha = computed(() => {
         <div class="border-r border-line bg-app flex-shrink-0 relative h-full flex flex-col overflow-hidden" :style="{ width: layoutRefs.historyDetailTreeWidth.value + 'px' }">
            <header class="bg-surface border-b border-line px-3 py-2 text-[10px] font-bold text-content-muted h-stack justify-between uppercase tracking-widest items-center shrink-0">
              <div class="h-stack items-center gap-2 min-w-0 flex-1">
-               <Icon icon="lucide:file-diff" class="text-neutral-500 shrink-0" />
+               <Icon icon="lucide:file-diff" class="text-content-muted shrink-0" />
                <span class="truncate">{{ t('history.changes') }} ({{ files.length }})</span>
              </div>
              <Tooltip :text="t('changes.view_options')">
-               <button @click="openViewMenu($event)" class="w-6 h-6 center hover:text-neutral-900 dark:hover:text-white transition-colors">
+               <button @click="openViewMenu($event)" class="w-6 h-6 center hover:text-content-strong transition-colors">
                  <Icon :icon="viewModeIcon(viewMode)" class="text-xs" />
                </button>
              </Tooltip>
@@ -93,7 +93,7 @@ const submoduleSha = computed(() => {
               <template v-if="selectedSubmodule">
                  <div class="flex-1 flex flex-col overflow-hidden min-h-0 relative">
                     <DiffViewer :original="original" :modified="modified" :filename="selectedPath" class="flex-1" />
-                    <Resizer vertical :target="layoutRefs.submoduleDetailHeight" :options="{ axis: 'y', invert: true, min: 100, max: 800 }" class="absolute bottom-0 left-0 right-0 h-1 z-30 bg-neutral-200/50 dark:bg-neutral-800/50 hover:bg-blue-500/50" />
+                    <Resizer vertical :target="layoutRefs.submoduleDetailHeight" :options="{ axis: 'y', invert: true, min: 100, max: 800 }" class="absolute bottom-0 left-0 right-0 h-1 z-30 bg-line hover:bg-accent-hover/50" />
                  </div>
                  
                  <div :style="{ height: layoutRefs.submoduleDetailHeight.value + 'px' }" class="flex-shrink-0 border-t border-line bg-app relative">
@@ -102,7 +102,7 @@ const submoduleSha = computed(() => {
               </template>
               <DiffViewer v-else :original="original" :modified="modified" :filename="selectedPath" class="h-full" />
            </template>
-           <div v-else class="flex-1 h-full flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-app">
+           <div v-else class="flex-1 h-full flex flex-col items-center justify-center text-content-muted pointer-events-none text-center p-8 bg-app">
                <Icon icon="lucide:file-diff" class="text-5xl mb-4 opacity-10" />
                <div class="font-bold uppercase tracking-widest text-sm opacity-20">{{ t('history_detail.select_file_from_changes') }}</div>
            </div>

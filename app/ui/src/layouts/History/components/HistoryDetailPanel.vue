@@ -76,7 +76,7 @@ function onSetTab(tab: string) {
 </script>
 
 <template>
-  <div class="flex flex-col bg-overlay border-l border-neutral-200 dark:border-transparent flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden" :style="{ width: layoutRefs.detailsWidth.value + 'px' }">
+  <div class="flex flex-col bg-overlay border-l border-line flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden" :style="{ width: layoutRefs.detailsWidth.value + 'px' }">
     <Resizer :target="layoutRefs.detailsWidth" :options="{ invert: true, min: 200, max: 1200, clampToContainer: true, reserve: 260 }" class="absolute left-0 top-0 bottom-0 -translate-x-1/2 z-30" />
     
     <!-- Top Title Bar like SourceGit: commit pinned left, explain as an icon

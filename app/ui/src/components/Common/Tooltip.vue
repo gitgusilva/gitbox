@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
         <div v-if="isVisible && text" 
              ref="tooltipRef"
              :class="cn(
-               'fixed z-[99999] px-2 py-1 text-[10px] font-medium text-content-strong bg-surface border border-neutral-300/50 dark:border-neutral-700/50 rounded shadow-xl whitespace-pre-wrap max-w-xs pointer-events-none'
+               'fixed z-[99999] px-2 py-1 text-[10px] font-medium text-content-strong bg-surface border border-line-strong rounded shadow-xl whitespace-pre-wrap max-w-xs pointer-events-none'
              )"
              :style="tooltipStyle">
           {{ text }}

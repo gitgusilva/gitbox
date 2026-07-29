@@ -81,11 +81,11 @@ function onConfirm() {
             <div class="flex flex-row gap-8">
                 <!-- Left Column: Checkboxes / Options -->
                 <div class="w-[40%] space-y-4 pt-1">
-                    <div class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-4 border-b border-line pb-2">{{ t('push_modal.options') || 'Options' }}</div>
+                    <div class="text-[10px] font-bold text-content-muted uppercase tracking-widest mb-4 border-b border-line pb-2">{{ t('push_modal.options') || 'Options' }}</div>
                     <Checkbox v-model="setUpstream" :label="t('push_modal.set_upstream') || 'Set as tracking branch'" />
                     <Checkbox v-model="pushTags" :label="t('push_modal.push_tags') || 'Push all tags'" />
                     <Checkbox v-model="forcePush" :label="t('push_modal.force_push') || 'Force push'" />
-                    <p v-if="forcePush" class="flex items-start gap-1.5 text-[10px] leading-snug text-red-500/90">
+                    <p v-if="forcePush" class="flex items-start gap-1.5 text-[10px] leading-snug text-removed/90">
                         <Icon icon="lucide:alert-triangle" class="text-xs shrink-0 mt-px" />
                         <span>{{ t('push_modal.force_push_warning') }}</span>
                     </p>
@@ -94,7 +94,7 @@ function onConfirm() {
                 <!-- Right Column: Selects -->
                 <div class="w-[60%] space-y-5 border-l border-line pl-8">
                     <div class="space-y-1.5 flex flex-col">
-                        <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('push_modal.local_branch') || 'Local Branch' }}</label>
+                        <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('push_modal.local_branch') || 'Local Branch' }}</label>
                         <div class="bg-surface border border-line-strong/50 rounded-lg px-3 py-2 flex items-center gap-2 opacity-70 cursor-not-allowed">
                             <Icon icon="mdi:source-branch" class="text-content-muted" />
                             <span class="text-content-strong text-xs truncate">{{ currentBranch }}</span>
@@ -102,14 +102,14 @@ function onConfirm() {
                     </div>
 
                     <div class="space-y-1.5 flex flex-col">
-                        <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{{ t('push_modal.remote') || 'Remote' }}</label>
+                        <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest">{{ t('push_modal.remote') || 'Remote' }}</label>
                         <Select v-model="selectedRemote" :options="remoteOptions" searchable icon="mdi:cloud-outline" />
                     </div>
 
                     <div class="space-y-1.5 flex flex-col">
-                        <label class="text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center justify-between">
+                        <label class="text-[10px] font-bold text-content-muted uppercase tracking-widest flex items-center justify-between">
                             {{ t('push_modal.remote_branch') || 'Remote Branch' }}
-                            <span v-if="isTargetNew" class="bg-green-600/20 text-green-500 text-[8px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider border border-green-500/30">
+                            <span v-if="isTargetNew" class="bg-added/20 text-added text-[8px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider border border-added/30">
                                 {{ t('push_modal.new') || 'NEW' }}
                             </span>
                         </label>
@@ -119,10 +119,10 @@ function onConfirm() {
             </div>
 
             <div class="flex justify-end gap-2 mt-8 pt-4 border-t border-line">
-                <button @click="isPushModalOpen = false" class="px-5 py-1.5 rounded bg-transparent text-content text-xs font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
+                <button @click="isPushModalOpen = false" class="px-5 py-1.5 rounded bg-transparent text-content text-xs font-bold hover:bg-surface-hover transition-colors">
                     {{ t('common.cancel') || 'Cancel' }}
                 </button>
-                <button @click="onConfirm" :disabled="!targetBranch" class="px-6 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <button @click="onConfirm" :disabled="!targetBranch" class="px-6 py-1.5 rounded bg-accent hover:bg-accent-hover text-accent-fg text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     {{ t('common.push') || 'Push' }}
                 </button>
             </div>

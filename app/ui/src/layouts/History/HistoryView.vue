@@ -2,6 +2,7 @@
 import { ref, watch, shallowRef, onMounted, onUnmounted, computed, triggerRef, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { cn } from '../../utils/cn';
+import { handleLinkClick } from '../../utils/formatters';
 import {
   log,
   selectedCommit,
@@ -104,7 +105,9 @@ const renderedAiExplanation = computed(() => {
 /** Click on a decorated file link → close the modal and focus that file in the tree. */
 function onAiExplanationClick(e: MouseEvent) {
     const el = (e.target as HTMLElement)?.closest?.('.ai-fileref') as HTMLElement | null;
-    if (!el) return;
+    // Anything that isn't a file reference is an ordinary link in the model's
+    // answer — it belongs in the browser, not in this window.
+    if (!el) return handleLinkClick(e);
     const path = el.getAttribute('data-path');
     if (!path) return;
     aiModalOpen.value = false;
@@ -567,7 +570,7 @@ async function onRemoveFilter(name: string) {
     <!-- AI commit analysis -->
     <Modal v-model="aiModalOpen" :title="t('history_detail.ai_explain_title')" width="760px">
       <div class="p-6 max-h-[70vh] overflow-y-auto">
-        <div v-if="aiLoading" class="flex items-center gap-2 text-neutral-500 text-sm py-6 justify-center">
+        <div v-if="aiLoading" class="flex items-center gap-2 text-content-muted text-sm py-6 justify-center">
           <Icon icon="lucide:loader-2" class="animate-spin text-lg" /> {{ t('history_detail.ai_generating') }}
         </div>
         <div v-else class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed break-words" v-html="renderedAiExplanation" @click="onAiExplanationClick"></div>

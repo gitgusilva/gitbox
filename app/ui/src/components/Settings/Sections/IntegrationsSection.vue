@@ -130,7 +130,7 @@ watch([aiProvider, aiApiKey], () => {
             <div class="min-w-0">
               <div class="flex items-center gap-2 mb-0.5">
                 <h3 class="text-xs font-bold text-content-strong">{{ item.name }}</h3>
-                <span v-if="item.connected" class="text-[7px] bg-green-500/10 text-green-500 border border-green-500/20 px-1 py-0.5 rounded uppercase font-black tracking-widest">{{ t('common.active') }}</span>
+                <span v-if="item.connected" class="text-[7px] bg-added/10 text-added border border-added/20 px-1 py-0.5 rounded uppercase font-black tracking-widest">{{ t('common.active') }}</span>
               </div>
               <div v-if="item.connected" class="flex items-center gap-1.5">
                  <img v-if="item.user?.avatar_url" :src="item.user.avatar_url" class="w-3.5 h-3.5 rounded-full border border-white/10" />
@@ -154,7 +154,7 @@ watch([aiProvider, aiApiKey], () => {
             {{ t('settings.connect') }}
           </button>
           <button v-else @click="handleDisconnect(item.id, item.name)"
-                  class="px-4 py-2 hover:bg-red-900/40 text-content-muted hover:text-red-400 rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-red-900/50 flex-shrink-0">
+                  class="px-4 py-2 hover:bg-removed/40 text-content-muted hover:text-removed rounded text-[10px] font-bold transition-all flex items-center gap-1.5 border border-transparent hover:border-removed/50 flex-shrink-0">
                <Icon icon="lucide:log-out" class="w-3 h-3" />
                {{ t('settings.disconnect') }}
           </button>

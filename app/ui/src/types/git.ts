@@ -83,7 +83,8 @@ export interface StatMonth {
     month: string; // 'YYYY-MM'
     total: number; // churn (added + deleted)
     commits: number;
-    byAuthor: Record<string, number>;
+    byAuthor: Record<string, number>;       // author name -> churned lines
+    commitsByAuthor?: Record<string, number>; // author name -> commit count
 }
 
 export interface FileHistoryEntry {
@@ -115,6 +116,9 @@ export interface GitStatistics {
     monthly: StatMonth[];
     weekday: number[]; // length 7, index 0 = Sunday
     hourly: number[];  // length 24
+    /** Same buckets split per author name, so charts can filter by contributor. */
+    weekdayByAuthor?: Record<string, number[]>;
+    hourlyByAuthor?: Record<string, number[]>;
     totalAdded: number;
     totalDeleted: number;
 }

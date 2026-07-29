@@ -40,10 +40,10 @@ function getStatusColor(status: string, isSelected: boolean) {
   const s = (status || '').toLowerCase();
   if (s.includes('conflicted')) return 'text-removed';
   if (!status) return 'text-content-muted';
-  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-green-500';
-  if (s.includes('deleted')) return 'text-red-500';
+  if (s.includes('untracked') || s.includes('added') || s.includes('new')) return 'text-added';
+  if (s.includes('deleted')) return 'text-removed';
   if (s.includes('renamed') || s.includes('moved')) return 'text-purple-400';
-  if (s.includes('modified') || s.includes('staged')) return 'text-[#E2B93D]';
+  if (s.includes('modified') || s.includes('staged')) return 'text-modified';
   return 'text-content-muted';
 }
 
@@ -64,7 +64,7 @@ const isConflicted = (status?: string) => (status || '').toLowerCase().includes(
       :style="{ paddingLeft: (level * 12 + 12) + 'px' }"
       @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
     >
-      <span v-if="node.isDir" class="text-[10px] text-neutral-600 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 transition-colors">
+      <span v-if="node.isDir" class="text-[10px] text-content-muted group-hover:text-content transition-colors">
         <Icon :icon="isDirOpen(node.fullPath) ? 'lucide:chevron-down' : 'lucide:chevron-right'" />
       </span>
       <Icon

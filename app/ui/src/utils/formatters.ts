@@ -7,20 +7,32 @@ export function renderMessageLinks(message: string) {
 
     // Bold conventional commit prefixes
     const prefixRegex = /^((?:feat|fix|docs|refactor|test|chore|build|ci|perf|style|revert)(?:\([^\)]+\))?!?:)/i;
-    html = html.replace(prefixRegex, '<span class="font-bold text-white">$1</span>');
+    html = html.replace(prefixRegex, '<span class="font-bold text-content-strong">$1</span>');
 
     return html;
 }
 
-export function handleLinkClick(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    if (target.tagName === 'A') {
-        event.preventDefault();
-        const url = target.getAttribute('data-url');
-        if (url && (window as any).gitbox?.openExternal) {
-            (window as any).gitbox.openExternal(url);
-        }
+/** Hand a URL to the OS default browser instead of navigating the app window. */
+export function openExternalUrl(url: string) {
+    if (url && (window as any).gitbox?.openExternal) {
+        (window as any).gitbox.openExternal(url);
     }
+}
+
+/**
+ * Click handler for any block rendered with `v-html` (release notes, PR bodies,
+ * commit messages, markdown previews). Links inside that HTML come from git or
+ * from the network, so they must never navigate the renderer — they open in the
+ * user's browser. Handles both real `href`s and the `data-url` anchors emitted
+ * by `renderMessageLinks`.
+ */
+export function handleLinkClick(event: MouseEvent) {
+    const anchor = (event.target as HTMLElement)?.closest('a');
+    if (!anchor) return;
+    event.preventDefault();
+    // Following a link shouldn't double as a click on whatever row hosts it.
+    event.stopPropagation();
+    openExternalUrl(anchor.getAttribute('data-url') || anchor.getAttribute('href') || '');
 }
 
 export function formatDistanceToNow(timestamp: number) {

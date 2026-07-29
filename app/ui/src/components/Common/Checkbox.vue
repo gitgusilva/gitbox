@@ -23,12 +23,12 @@ const checked = computed({
   <label :class="cn('h-stack gap-3 cursor-pointer group', props.class)">
       <div :class="cn(
             'center w-4 h-4 rounded border transition-all shrink-0',
-            checked ? 'bg-accent border-accent' : 'bg-surface border-line-strong group-hover:border-neutral-500'
+            checked ? 'bg-accent border-accent' : 'bg-surface border-line-strong group-hover:border-accent'
            )">
           <Icon v-if="checked" icon="lucide:check" class="text-[10px] text-accent-fg" />
       </div>
       <input type="checkbox" v-model="checked" class="hidden" />
-      <div v-if="label || $slots.default" class="text-[11px] text-content-muted group-hover:text-neutral-800 dark:group-hover:text-neutral-200 transition-colors w-full">
+      <div v-if="label || $slots.default" class="text-[11px] text-content-muted group-hover:text-content-strong transition-colors w-full">
           <slot>{{ label }}</slot>
       </div>
   </label>

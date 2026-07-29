@@ -57,7 +57,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="v-stack h-screen bg-[#F3F3F3] dark:bg-[#18181A] text-neutral-800 dark:text-neutral-300 font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
+  <div class="v-stack h-screen bg-app text-content font-sans text-sm outline-none overflow-hidden pb-[env(safe-area-inset-bottom)] transition-colors">
     
     <CreatePRModal />
     <PushModal />

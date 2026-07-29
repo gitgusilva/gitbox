@@ -115,33 +115,33 @@ const openBranchMenu = (e: MouseEvent) => {
       <!-- Left side: Repo and Branch context -->
       <div class="flex items-center gap-2 mr-2 h-full py-0 min-w-[150px]" style="-webkit-app-region: no-drag;">
           <!-- Repository -->
-          <div @click="openRepoMenu" class="flex flex-col justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#333333] px-2 py-0.5 rounded transition-colors group">
-              <span class="text-[10px] text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 h-[14px]">{{ t('ui.repository_label') }}</span>
-              <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-black dark:text-neutral-300">
+          <div @click="openRepoMenu" class="flex flex-col justify-center cursor-pointer hover:bg-surface-hover px-2 py-0.5 rounded transition-colors group">
+              <span class="text-[10px] text-content-muted group-hover:text-content h-[14px]">{{ t('ui.repository_label') }}</span>
+              <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-content-strong">
                   <span class="truncate block max-w-[120px]">{{ repoDisplayName }}</span>
-                  <Icon icon="lucide:chevron-down" class="w-3.5 h-3.5 text-neutral-500 font-bold" />
+                  <Icon icon="lucide:chevron-down" class="w-3.5 h-3.5 text-content-muted font-bold" />
               </div>
           </div>
 
           <template v-if="activeWorkspace?.isSubmodule">
-              <Icon icon="lucide:chevron-right" class="w-4 h-4 text-neutral-400 dark:text-neutral-600" />
+              <Icon icon="lucide:chevron-right" class="w-4 h-4 text-content-muted" />
               <!-- Submodule -->
               <div class="flex flex-col justify-center px-2 py-0.5 rounded transition-colors group">
-                  <span class="text-[10px] text-neutral-500 h-[14px]">{{ t('ui.submodule_label') }}</span>
-                  <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-black dark:text-neutral-300">
+                  <span class="text-[10px] text-content-muted h-[14px]">{{ t('ui.submodule_label') }}</span>
+                  <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-content-strong">
                       <span class="truncate block max-w-[120px]">{{ activeWorkspace.name }}</span>
                   </div>
               </div>
           </template>
 
-          <Icon icon="lucide:chevron-right" class="w-4 h-4 text-neutral-400 dark:text-neutral-600" />
+          <Icon icon="lucide:chevron-right" class="w-4 h-4 text-content-muted" />
 
           <!-- Branch -->
-          <div @click="openBranchMenu" class="flex flex-col justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#333333] px-2 py-0.5 rounded transition-colors group">
-              <span class="text-[10px] text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-400 h-[14px]">{{ t('ui.branch_label') }}</span>
-              <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-black dark:text-neutral-300">
+          <div @click="openBranchMenu" class="flex flex-col justify-center cursor-pointer hover:bg-surface-hover px-2 py-0.5 rounded transition-colors group">
+              <span class="text-[10px] text-content-muted group-hover:text-content h-[14px]">{{ t('ui.branch_label') }}</span>
+              <div class="flex items-center gap-1 font-semibold text-[13px] h-[18px] text-content-strong">
                   <span class="truncate block max-w-[150px]">{{ currentBranch }}</span>
-                  <Icon icon="lucide:chevron-down" class="w-3.5 h-3.5 text-neutral-500 font-bold" />
+                  <Icon icon="lucide:chevron-down" class="w-3.5 h-3.5 text-content-muted font-bold" />
               </div>
           </div>
       </div>
@@ -151,7 +151,7 @@ const openBranchMenu = (e: MouseEvent) => {
           <IconButton direction="row" icon="lucide:download-cloud" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.fetch')" :action="doFetch" />
           <IconButton direction="row" icon="lucide:arrow-down-to-line" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.pull')" :action="doPull" />
           <IconButton direction="row" icon="lucide:arrow-up-from-line" loadingIcon="lucide:loader-2" :loading="isLoading" :disabled="!hasRemote" :tooltip="hasRemote ? '' : t('sync.no_remote_title')" :label="t('common.push')" :action="doPush" />
-          <div class="w-px h-4 bg-neutral-300 dark:bg-neutral-600 mx-1"></div>
+          <div class="w-px h-4 bg-line-strong mx-1"></div>
           <IconButton direction="row" icon="lucide:git-branch-plus" :label="t('ui.create_branch')" :action="createBranchAction" />
           <IconButton direction="row" icon="lucide:archive-restore" :label="t('common.discard')" :action="onDiscardAll" />
       </div>

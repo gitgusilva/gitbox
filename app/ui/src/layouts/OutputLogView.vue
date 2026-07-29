@@ -118,9 +118,9 @@ const getIcon = (type: string, category: string) => {
 };
 
 const getColor = (type: string) => {
-    if (type === 'error') return 'text-red-400';
-    if (type === 'success') return 'text-green-400';
-    if (type === 'command') return 'text-blue-400';
+    if (type === 'error') return 'text-removed';
+    if (type === 'success') return 'text-added';
+    if (type === 'command') return 'text-accent';
 
     return 'text-content-muted';
 };
@@ -232,7 +232,7 @@ const getColor = (type: string) => {
                                             <span>{{ t('logs.command') }}</span>
                                             <div class="h-px bg-line flex-1"></div>
                                         </div>
-                                        <pre class="text-[11px] text-blue-300 font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.command }}</pre>
+                                        <pre class="text-[11px] text-accent font-mono whitespace-pre-wrap break-all leading-relaxed">{{ log.command }}</pre>
                                     </div>
                                     <div v-if="log.details">
                                         <div class="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1.5 flex items-center gap-2">

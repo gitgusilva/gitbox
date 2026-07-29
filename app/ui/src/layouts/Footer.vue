@@ -63,7 +63,7 @@ const openZoomMenu = (e: MouseEvent) => {
         <Tooltip v-if="repoPath" :text="t('common.output_log')" position="top">
             <div
               @click="activeTab = activeTab === 'output_log' ? 'history' : 'output_log'"
-              class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5"
+              class="cursor-pointer hover:text-content-strong transition-colors h-full flex items-center px-2 gap-1.5"
               :class="{ 'text-accent bg-accent/10': activeTab === 'output_log' }"
             >
                 <Icon icon="lucide:terminal" class="w-3.5 h-3.5" />
@@ -73,7 +73,7 @@ const openZoomMenu = (e: MouseEvent) => {
         <Tooltip v-if="repoPath" :text="t('stats.title')" position="top">
             <div
               @click="activeTab = activeTab === 'statistics' ? 'history' : 'statistics'"
-              class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-2 gap-1.5 border-r border-line"
+              class="cursor-pointer hover:text-content-strong transition-colors h-full flex items-center px-2 gap-1.5 border-r border-line"
               :class="{ 'text-accent bg-accent/10': activeTab === 'statistics' }"
             >
                 <Icon icon="lucide:chart-pie" class="w-3.5 h-3.5" />
@@ -85,13 +85,13 @@ const openZoomMenu = (e: MouseEvent) => {
     <!-- Right Side -->
     <div class="flex items-center h-full gap-3">
         <Tooltip :text="t('common.zoom_level')" position="top">
-            <div @click="openZoomMenu" class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-1 gap-1">
+            <div @click="openZoomMenu" class="cursor-pointer hover:text-content-strong transition-colors h-full flex items-center px-1 gap-1">
                 <Icon icon="lucide:zoom-in" class="w-3 h-3" />
                 <span>{{ zoomLevel }}</span>
             </div>
         </Tooltip>
         <Tooltip :text="`${t('common.keyboard_shortcuts')} (Ctrl+/)`" position="top">
-            <div @click="openShortcutsModal" class="cursor-pointer hover:text-neutral-900 dark:hover:text-white transition-colors h-full flex items-center px-1 gap-1">
+            <div @click="openShortcutsModal" class="cursor-pointer hover:text-content-strong transition-colors h-full flex items-center px-1 gap-1">
                 <Icon icon="lucide:keyboard" class="w-3.5 h-3.5" />
             </div>
         </Tooltip>

@@ -6,6 +6,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import Modal from './Common/Modal.vue';
 import Button from './Common/Button.vue';
+import { handleLinkClick } from '../utils/formatters';
 import {
   appVersion,
   whatsNewNotes,
@@ -40,8 +41,9 @@ const renderedNotes = computed(() => {
   >
     <div class="p-6">
       <div
-        class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed break-words text-content"
+        class="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed break-words text-content prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2 prose-a:cursor-pointer"
         v-html="renderedNotes"
+        @click="handleLinkClick"
       ></div>
     </div>
 

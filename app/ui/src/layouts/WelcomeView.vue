@@ -91,7 +91,7 @@ const quickLinks = computed(() => [
                              <span class="font-bold text-[13px] text-accent group-hover:text-accent-hover truncate tracking-wide">{{ repo.name }}</span>
                              <span class="text-[11px] text-content-muted truncate opacity-60 font-mono">{{ repo.path }}</span>
                          </div>
-                         <button @click.stop="removeRecent(repo.path)" class="opacity-0 group-hover:opacity-100 text-content-muted hover:text-red-400 transition-opacity ml-3 p-1 shrink-0">
+                         <button @click.stop="removeRecent(repo.path)" class="opacity-0 group-hover:opacity-100 text-content-muted hover:text-removed transition-opacity ml-3 p-1 shrink-0">
                              <Icon icon="lucide:x" class="w-3.5 h-3.5" />
                          </button>
                     </div>

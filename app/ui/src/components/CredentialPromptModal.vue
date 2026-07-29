@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import Modal from './Common/Modal.vue';
 import Button from './Common/Button.vue';
 import Checkbox from './Common/Checkbox.vue';
+import Tooltip from './Common/Tooltip.vue';
 import { credentialPrompt } from '../services/modalService';
 
 const { t } = useI18n();
@@ -45,7 +46,7 @@ function cancel() {
   <Modal v-if="open" :modelValue="true" :closeOnOverlay="false" @update:modelValue="!$event && cancel()" width="440px" height="auto">
      <template #header><div class="hidden"></div></template>
      <div class="p-6 flex flex-col gap-5">
-        <div class="flex items-start gap-3">
+        <div data-modal-drag class="flex items-start gap-3 cursor-grab active:cursor-grabbing">
            <div class="w-10 h-10 rounded-lg flex items-center justify-center border border-line bg-surface-hover shrink-0">
               <Icon icon="lucide:lock-keyhole" class="w-5 h-5 text-accent" />
            </div>
@@ -58,10 +59,12 @@ function cancel() {
                  {{ rejected ? t('credential_prompt.rejected', { host }) : t('credential_prompt.needed', { host }) }}
               </p>
            </div>
-           <button @click="cancel" :title="t('common.cancel')"
-                   class="w-7 h-7 -mr-1 -mt-1 shrink-0 center rounded-lg text-neutral-500 hover:bg-white/5 hover:text-neutral-900 dark:hover:text-white transition-all">
-              <Icon icon="lucide:x" class="w-4 h-4" />
-           </button>
+           <Tooltip :text="t('common.cancel')" position="left">
+              <button @click="cancel"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-hover shrink-0 -mr-1 -mt-1 text-content-muted hover:text-content-strong transition-all">
+                 <Icon icon="lucide:x" class="w-4 h-4" />
+              </button>
+           </Tooltip>
         </div>
 
         <div class="flex flex-col gap-3">

@@ -436,7 +436,7 @@ function onToolbarWheel(e: WheelEvent) {
                          @click="isWordWrap = !isWordWrap" />
 
             <template v-if="viewType === 'diff' || isMarkdown">
-                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+                <div class="w-px h-3 bg-surface-hover mx-1"></div>
                 
                 <IconButton direction="row"
                             :showLabel="false"
@@ -445,7 +445,7 @@ function onToolbarWheel(e: WheelEvent) {
                             :active="ignoreWhitespace"
                             @click="ignoreWhitespace = !ignoreWhitespace" />
 
-                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+                <div class="w-px h-3 bg-surface-hover mx-1"></div>
 
                 <IconButton direction="row"
                             :showLabel="false"
@@ -454,7 +454,7 @@ function onToolbarWheel(e: WheelEvent) {
                             :active="onlyChanges"
                             @click="onlyChanges = !onlyChanges" />
 
-                <div class="w-px h-3 bg-neutral-200 dark:bg-neutral-800 mx-1"></div>
+                <div class="w-px h-3 bg-surface-hover mx-1"></div>
 
                 <IconButton direction="row"
                             :showLabel="false"
@@ -523,7 +523,7 @@ function onToolbarWheel(e: WheelEvent) {
                 <Icon icon="lucide:loader-2" class="animate-spin text-content-muted text-xl" />
             </div>
             
-            <div v-if="blameError" class="p-4 text-xs text-red-400 text-center flex-1 overflow-auto opacity-70">
+            <div v-if="blameError" class="p-4 text-xs text-removed text-center flex-1 overflow-auto opacity-70">
                 {{ blameError }}
             </div>
             <div v-else class="absolute left-0 right-0 top-0 transition-none will-change-transform" :style="{ transform: `translateY(-${blameScrollTop}px)` }">

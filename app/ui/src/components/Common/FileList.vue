@@ -11,9 +11,9 @@ const emit = defineEmits(['select']);
 
 function getStatusIcon(status: string) {
   if (status.includes('conflicted')) return { icon: 'lucide:alert-triangle', color: 'text-removed' };
-  if (status.includes('untracked') || status.includes('new')) return { icon: 'lucide:plus-square', color: 'text-green-500' };
-  if (status.includes('deleted')) return { icon: 'lucide:minus-square', color: 'text-red-500' };
-  if (status.includes('modified') || status.includes('staged')) return { icon: 'lucide:edit', color: 'text-yellow-500' };
+  if (status.includes('untracked') || status.includes('new')) return { icon: 'lucide:plus-square', color: 'text-added' };
+  if (status.includes('deleted')) return { icon: 'lucide:minus-square', color: 'text-removed' };
+  if (status.includes('modified') || status.includes('staged')) return { icon: 'lucide:edit', color: 'text-modified' };
   return { icon: 'lucide:file-text', color: 'text-content-muted' };
 }
 

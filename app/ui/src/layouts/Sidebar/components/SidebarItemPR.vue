@@ -13,7 +13,7 @@ const emit = defineEmits(['open']);
        @click="emit('open', pr)">
      <div class="flex items-start gap-2">
        <Icon :icon="pr.state === 'open' ? 'lucide:git-pull-request' : 'lucide:git-pull-request-closed'" 
-             :class="pr.state === 'open' ? 'text-green-500' : 'text-purple-500'" 
+             :class="pr.state === 'open' ? 'text-added' : 'text-purple-500'" 
              class="text-xs mt-0.5" />
        <div class="flex-1 min-w-0">
          <div class="text-[11px] text-content font-medium truncate group-hover/pr:text-accent transition-colors">

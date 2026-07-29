@@ -22,7 +22,7 @@ const isFiltered = () => props.selectedLogRefs.includes(props.item.id);
   <div class="pl-[34px] pr-2 py-1 flex items-center gap-1.5 cursor-pointer text-xs text-content-muted hover:bg-surface-hover transition-colors group/tag h-7"
        @click="emit('select', item.id)"
        @contextmenu.prevent.stop="emit('menu', $event, item.id)">
-    <Icon icon="lucide:tag" class="text-content-muted group-hover/tag:text-yellow-500 transition-colors" />
+    <Icon icon="lucide:tag" class="text-content-muted group-hover/tag:text-modified transition-colors" />
     <span class="truncate flex-1 font-mono text-[11px]">{{ item.id }}</span>
     <!-- Same glyph as the history filter bar — see SidebarItemNode. -->
     <Tooltip :text="isFiltered() ? t('history.filter_tag_remove') : t('history.filter_tag_add')"

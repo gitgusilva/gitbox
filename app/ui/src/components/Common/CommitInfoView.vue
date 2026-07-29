@@ -67,10 +67,10 @@ function getStatusIcon(status: string) {
 function getStatusColor(status: string) {
   if (!status) return 'text-content-muted';
   const s = status.toLowerCase();
-  if (s.indexOf('untracked') !== -1 || s.indexOf('added') !== -1 || s.indexOf('new') !== -1) return 'text-green-500';
-  if (s.indexOf('deleted') !== -1) return 'text-red-500';
+  if (s.indexOf('untracked') !== -1 || s.indexOf('added') !== -1 || s.indexOf('new') !== -1) return 'text-added';
+  if (s.indexOf('deleted') !== -1) return 'text-removed';
   if (s.indexOf('renamed') !== -1 || s.indexOf('moved') !== -1) return 'text-purple-400';
-  if (s.indexOf('modified') !== -1 || s.indexOf('staged') !== -1) return 'text-[#E2B93D]';
+  if (s.indexOf('modified') !== -1 || s.indexOf('staged') !== -1) return 'text-modified';
   return 'text-content-muted';
 }
 </script>
@@ -91,12 +91,12 @@ function getStatusColor(status: string) {
             <div class="h-stack items-start gap-4">
               <div class="relative flex-shrink-0">
                 <img :src="gravatarUrl(commit.authorEmail)" class="w-12 h-12 rounded border-2 border-line shadow-sm dark:shadow-lg object-cover" />
-                <div class="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-line"></div>
+                <div class="absolute -bottom-1 -right-1 bg-added w-3 h-3 rounded-full border-2 border-line"></div>
               </div>
               <div class="v-stack min-w-0 flex-1">
                 <div class="text-[9px] text-content-muted uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.author') }}</div>
                 <Tooltip :text="commit.author">
-                  <div class="font-bold text-black dark:text-neutral-100 text-xs min-w-0 w-full truncate">
+                  <div class="font-bold text-content-strong text-xs min-w-0 w-full truncate">
                      {{ commit.author }}
                   </div>
                 </Tooltip>
@@ -110,7 +110,7 @@ function getStatusColor(status: string) {
             </div>
 
             <div class="h-stack items-start gap-4" v-if="(commit.committer && commit.committer !== commit.author) || (commit.committerEmail && commit.committerEmail !== commit.authorEmail)">
-              <div v-if="commit.committer?.toLowerCase() === 'github' || commit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-surface-hover text-content-strong center border-2 border-neutral-300 dark:border-neutral-800 shadow-lg opacity-80 flex-shrink-0">
+              <div v-if="commit.committer?.toLowerCase() === 'github' || commit.committerEmail?.toLowerCase().includes('github')" class="w-12 h-12 rounded bg-surface-hover text-content-strong center border-2 border-line-strong shadow-lg opacity-80 flex-shrink-0">
                   <Icon icon="mdi:github" class="text-3xl" />
               </div>
               <div v-else-if="commit.committer?.toLowerCase() === 'gitlab' || commit.committerEmail?.toLowerCase().includes('gitlab')" class="w-12 h-12 rounded bg-[#e24329] text-white center border-2 border-line shadow-lg opacity-80 flex-shrink-0">
@@ -124,7 +124,7 @@ function getStatusColor(status: string) {
               <div class="v-stack min-w-0 flex-1">
                 <div class="text-[9px] text-content-muted uppercase font-black tracking-widest mb-0.5">{{ t('history_detail.committer') }}</div>
                 <Tooltip :text="commit.committer || commit.author">
-                  <div class="font-bold text-neutral-300 dark:text-neutral-300 text-xs min-w-0 w-full truncate">
+                  <div class="font-bold text-content text-xs min-w-0 w-full truncate">
                      {{ commit.committer || commit.author }}
                   </div>
                 </Tooltip>
@@ -164,7 +164,7 @@ function getStatusColor(status: string) {
                   <span v-for="ref in commitRefs" :key="ref.name"
                         class="h-stack gap-1.5 px-2 py-0.5 rounded text-[10px] border"
                         :class="ref.type === 'tag'
-                          ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-600 dark:text-yellow-500 font-medium'
+                          ? 'bg-modified/10 border-modified/30 text-modified font-medium'
                           : (ref.isHead ? 'font-bold' : 'font-medium')"
                         :style="ref.type !== 'tag' ? {
                           color: (graphColor || '#888888'),
@@ -180,7 +180,7 @@ function getStatusColor(status: string) {
             <div class="h-stack items-start">
                <div class="w-20 shrink-0 text-content-muted font-bold uppercase tracking-widest text-[9px] pt-1">{{ t('history_detail.message') }}</div>
                <div class="flex-1 text-content whitespace-pre-wrap leading-relaxed min-w-0">
-                  <div class="font-bold text-black dark:text-neutral-100 mb-2 text-xs truncate">{{ commit.summary }}</div>
+                  <div class="font-bold text-content-strong mb-2 text-xs truncate">{{ commit.summary }}</div>
                   <div v-html="renderMessageLinks(commit.message || '')" @click="handleLinkClick" class="opacity-80 text-[11px] overflow-hidden"></div>
                </div>
             </div>
@@ -192,7 +192,7 @@ function getStatusColor(status: string) {
     </div>
 
     <!-- Resizer -->
-    <Resizer vertical v-if="showFiles !== false" :target="layoutRefs.historyDetailInfoHeight" :options="{ axis: 'y', min: 150 }" class="bg-neutral-200/50 dark:bg-neutral-800/50" />
+    <Resizer vertical v-if="showFiles !== false" :target="layoutRefs.historyDetailInfoHeight" :options="{ axis: 'y', min: 150 }" class="bg-line" />
 
     <!-- Lower section: Changed files -->
     <div v-if="showFiles !== false" class="flex-1 v-stack min-h-0 bg-app overflow-hidden">
@@ -208,7 +208,7 @@ function getStatusColor(status: string) {
         >
             <div
                 @click="emit('selectFile', item.data.path)"
-                class="h-stack gap-3 group cursor-pointer hover:bg-neutral-200/80 dark:hover:bg-neutral-800/80 px-3 rounded transition-colors overflow-hidden"
+                class="h-stack gap-3 group cursor-pointer hover:bg-surface-hover px-3 rounded transition-colors overflow-hidden"
                 style="height: 36px; display: flex; align-items: center;"
                 @mouseenter="startMarquee($event, '.truncate')" @mouseleave="stopMarquee($event, '.truncate')"
             >

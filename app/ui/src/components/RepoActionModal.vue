@@ -219,7 +219,7 @@ watch([cloneUrl, cloneUser, clonePass], () => { testResult.value = null; });
             </button>
             <div v-if="showAuth" class="mt-3 flex flex-col gap-3 pl-1">
                <p class="text-[11px] text-content-muted leading-relaxed">{{ t('modal.clone_auth_hint') }}</p>
-               <p v-if="isSshUrl" class="text-[11px] text-amber-500 flex items-start gap-1.5 leading-relaxed">
+               <p v-if="isSshUrl" class="text-[11px] text-modified flex items-start gap-1.5 leading-relaxed">
                   <Icon icon="lucide:info" class="w-3.5 h-3.5 shrink-0 mt-px" />
                   {{ t('modal.clone_auth_ssh') }}
                </p>
@@ -246,7 +246,7 @@ watch([cloneUrl, cloneUser, clonePass], () => { testResult.value = null; });
                        {{ testing ? t('modal.testing') : t('modal.test_credentials') }}
                     </button>
                     <div v-if="testResult" class="text-[11px] flex items-start gap-1.5 leading-snug"
-                         :class="testResult.ok ? 'text-green-500' : 'text-red-400'">
+                         :class="testResult.ok ? 'text-added' : 'text-removed'">
                        <Icon :icon="testResult.ok ? 'lucide:circle-check' : 'lucide:circle-x'" class="w-3.5 h-3.5 shrink-0 mt-px" />
                        <span class="min-w-0 break-words">{{ testResult.ok ? t('modal.test_credentials_ok') : testResult.message }}</span>
                     </div>
@@ -260,7 +260,7 @@ watch([cloneUrl, cloneUser, clonePass], () => { testResult.value = null; });
 
     <template #footer>
        <div class="flex items-center justify-between gap-3">
-          <p v-if="error" class="text-[12px] text-red-400 leading-snug flex-1 min-w-0">{{ error }}</p>
+          <p v-if="error" class="text-[12px] text-removed leading-snug flex-1 min-w-0">{{ error }}</p>
           <span v-else class="flex-1"></span>
           <Button v-if="props.action === 'init'" variant="primary" :loading="busy" icon="lucide:folder-plus" @click="handleAction">{{ t('modal.create_repository') }}</Button>
           <Button v-else variant="primary" :loading="busy" :disabled="!canClone" icon="lucide:git-branch" @click="handleAction">{{ t('modal.clone_the_repo') }}</Button>

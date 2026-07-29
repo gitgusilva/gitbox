@@ -85,13 +85,13 @@ function handleCancel() {
               <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden" aria-hidden="true" v-if="inputValue">
                 <div v-html="highlightedBranchName" class="translate-y-[1px]"></div>
               </div>
-              <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden text-neutral-600" aria-hidden="true" v-else>
+              <div class="absolute inset-0 pointer-events-none px-3 py-2 text-xs font-mono flex items-center whitespace-pre overflow-hidden text-content-muted" aria-hidden="true" v-else>
                 {{ t('modal.branch_name_placeholder') }}
               </div>
               <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-transparent border border-line-strong/50 rounded px-3 py-2 text-xs text-transparent caret-white focus:border-accent outline-none font-mono placeholder-transparent" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
             </template>
             <template v-else>
-              <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-surface border border-line-strong/50 rounded px-3 py-2 text-xs text-content-strong focus:border-accent outline-none placeholder-neutral-500" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
+              <input ref="inputRef" v-model="inputValue" type="text" spellcheck="false" class="w-full relative z-10 bg-surface border border-line-strong/50 rounded px-3 py-2 text-xs text-content-strong focus:border-accent outline-none placeholder:text-content-muted" :placeholder="t('modal.branch_name_placeholder')" @keydown.enter="handleAction('keep')" />
             </template>
           </div>
         </div>
@@ -108,7 +108,7 @@ function handleCancel() {
         </div>
         <div class="flex justify-end gap-3">
           <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
-          <button @click="handleAction('abort')" class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest shadow-lg transition-all outline-none bg-red-600 hover:bg-red-500 text-white shadow-red-900/20">
+          <button @click="handleAction('abort')" class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest shadow-lg transition-all outline-none bg-removed hover:bg-removed/80 text-white shadow-black/20">
             {{ t('modal.abort_and_switch', { op: branchActionModal.operation }) }}
           </button>
         </div>
@@ -141,7 +141,7 @@ function handleCancel() {
           <button @click="handleCancel" class="px-5 py-2 rounded text-xs font-bold uppercase tracking-widest border border-line-strong bg-surface text-content-muted hover:bg-surface-hover hover:text-content transition-all outline-none">{{ t('common.cancel') }}</button>
           <button @click="confirmCheckout"
                   class="px-6 py-2 rounded text-xs font-bold uppercase tracking-widest shadow-lg transition-all outline-none"
-                  :class="branchActionModal.hasChanges && localChangeChoice === 'discard' ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/20' : 'bg-accent hover:bg-accent-hover text-accent-fg'">
+                  :class="branchActionModal.hasChanges && localChangeChoice === 'discard' ? 'bg-removed hover:bg-removed/80 text-white shadow-black/20' : 'bg-accent hover:bg-accent-hover text-accent-fg'">
             {{ t('common.ok') }}
           </button>
         </div>

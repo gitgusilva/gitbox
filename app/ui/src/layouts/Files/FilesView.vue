@@ -49,11 +49,11 @@ onMounted(loadFiles);
   <div class="flex-1 flex min-h-0 bg-app">
     <div class="w-72 border-r border-line flex flex-col min-h-0 overflow-hidden bg-app">
         <header class="h-10 border-b border-line flex items-center px-4 bg-surface">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-neutral-500">{{ t('view.repository_files') }}</span>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-content-muted">{{ t('view.repository_files') }}</span>
         </header>
         <div class="flex-1 relative overflow-hidden flex flex-col">
             <div v-if="isLoading" class="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
-                <Icon icon="lucide:loader-2" class="animate-spin text-blue-500" />
+                <Icon icon="lucide:loader-2" class="animate-spin text-accent" />
             </div>
             <FileTree :files="files" :selectedPath="selectedPath" @select="selectedPath = $event" />
         </div>
@@ -64,7 +64,7 @@ onMounted(loadFiles);
                     :modified="content" 
                     :filename="selectedPath"
                     :readOnly="true" />
-        <div v-else class="flex-1 flex flex-col items-center justify-center text-neutral-600 pointer-events-none text-center p-8 bg-app">
+        <div v-else class="flex-1 flex flex-col items-center justify-center text-content-muted pointer-events-none text-center p-8 bg-app">
             <Icon icon="lucide:folder-search" class="text-5xl mb-4 opacity-10" />
             <div class="font-bold uppercase tracking-widest text-sm opacity-20">{{ t('view.select_file_from_tree') }}</div>
         </div>

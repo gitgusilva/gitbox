@@ -38,30 +38,30 @@ onMounted(async () => {
         {{ t('changes_menu.history') }} · <span class="font-mono">{{ file }}</span>
       </div>
 
-      <div v-if="loading" class="flex-1 center text-neutral-500">
-        <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-blue-400" />
+      <div v-if="loading" class="flex-1 center text-content-muted">
+        <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-accent" />
       </div>
-      <div v-else-if="error" class="flex-1 center text-red-400 text-xs px-6 text-center">{{ error }}</div>
-      <div v-else-if="entries.length === 0" class="flex-1 center text-neutral-500 text-xs">{{ t('changes.no_history') }}</div>
+      <div v-else-if="error" class="flex-1 center text-removed text-xs px-6 text-center">{{ error }}</div>
+      <div v-else-if="entries.length === 0" class="flex-1 center text-content-muted text-xs">{{ t('changes.no_history') }}</div>
 
       <ScrollArea v-else class="flex-1 min-h-0">
         <div
           v-for="c in entries"
           :key="c.id"
-          class="flex items-start gap-3 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800/50 hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+          class="flex items-start gap-3 px-4 py-2.5 border-b border-line hover:bg-surface-hover"
         >
           <Tooltip :text="`${c.author} <${c.email}>`" position="right">
             <img :src="gravatarUrl(c.email)" class="w-6 h-6 rounded-full border border-line shrink-0 mt-0.5" />
           </Tooltip>
           <div class="min-w-0 flex-1">
             <div class="text-[12px] text-content truncate">{{ c.summary }}</div>
-            <div class="text-[10.5px] text-neutral-500 flex items-center gap-2 mt-0.5">
+            <div class="text-[10.5px] text-content-muted flex items-center gap-2 mt-0.5">
               <span class="truncate">{{ c.author }}</span>
               <span class="opacity-60">·</span>
               <span class="whitespace-nowrap">{{ fmtDate(c.timestamp) }}</span>
             </div>
           </div>
-          <code class="text-[10px] font-mono text-neutral-400 bg-neutral-100 dark:bg-neutral-800/60 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{{ c.id.slice(0, 7) }}</code>
+          <code class="text-[10px] font-mono text-content-muted bg-app dark:bg-surface-hover/60 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{{ c.id.slice(0, 7) }}</code>
         </div>
       </ScrollArea>
     </div>

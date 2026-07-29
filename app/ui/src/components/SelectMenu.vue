@@ -108,12 +108,12 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div class="fixed z-50 pointer-events-auto" :style="{ top: y + 'px', left: x + 'px' }">
-      <div ref="menuElement" class="bg-surface border border-line-strong w-[260px] rounded-lg shadow-2xl py-0 flex flex-col pointer-events-auto text-[#E0E0E0] text-xs overflow-hidden">
+      <div ref="menuElement" class="bg-surface border border-line-strong w-[260px] rounded-lg shadow-2xl py-0 flex flex-col pointer-events-auto text-content text-xs overflow-hidden">
         
         <!-- Search Input -->
         <div class="p-2 border-b border-line-strong bg-surface">
           <div class="relative flex items-center">
-            <Icon icon="lucide:search" class="absolute left-2.5 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+            <Icon icon="lucide:search" class="absolute left-2.5 w-3.5 h-3.5 text-content-muted pointer-events-none" />
             <input 
               ref="inputRef"
               v-model="searchInput" 
@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
 
         <!-- Item List (virtualized) -->
         <div ref="scroller" @scroll="onScroll" class="flex-1 p-1 overflow-y-auto select-menu-scroll" style="max-height: 250px;">
-          <div v-if="filteredItems.length === 0" class="py-4 text-center text-neutral-500">
+          <div v-if="filteredItems.length === 0" class="py-4 text-center text-content-muted">
              {{ t('common.no_results') || 'No results found.' }}
           </div>
           <div v-else :style="{ height: filteredItems.length * rowHeight + 'px', position: 'relative' }">
@@ -140,7 +140,7 @@ onBeforeUnmount(() => {
                         'h-stack justify-between px-2.5 w-full text-left cursor-pointer transition-colors duration-150 rounded-md group/item',
                         item.active
                           ? 'bg-accent text-accent-fg shadow-lg shadow-accent/20'
-                          : 'hover:bg-white/10 text-content hover:text-neutral-900 dark:hover:text-white'
+                          : 'hover:bg-white/10 text-content hover:text-content-strong'
                       )">
 
                 <div class="h-stack gap-2.5 flex-1 min-w-0">
@@ -165,7 +165,7 @@ onBeforeUnmount(() => {
                   <span v-if="item.badge"
                         :class="cn(
                           'px-1.5 py-0.5 rounded text-[9px] font-black tracking-tighter bg-black/30 border border-white/5 text-content-muted transition-colors',
-                          item.active ? 'bg-white/20 border-white/20 text-white' : ''
+                          item.active ? 'bg-accent border-accent text-accent-fg' : ''
                         )">
                     {{ item.badge }}
                   </span>

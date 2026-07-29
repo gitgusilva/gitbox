@@ -63,17 +63,17 @@ const fmtDate = (time: number | string) => new Date(Number(time) * 1000).toLocal
         {{ t('changes_menu.blame') }} · <span class="font-mono">{{ file }}</span>
       </div>
 
-      <div v-if="loading" class="flex-1 center text-neutral-500">
-        <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-blue-400" />
+      <div v-if="loading" class="flex-1 center text-content-muted">
+        <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-accent" />
       </div>
-      <div v-else-if="error && rows.length === 0" class="flex-1 center text-red-400 text-xs px-6 text-center">{{ error }}</div>
+      <div v-else-if="error && rows.length === 0" class="flex-1 center text-removed text-xs px-6 text-center">{{ error }}</div>
 
       <div v-else v-bind="containerProps" class="flex-1 min-h-0 font-mono text-[12px]">
         <div v-bind="wrapperProps">
           <div
             v-for="{ data: r, index } in list"
             :key="index"
-            class="flex items-stretch hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40"
+            class="flex items-stretch hover:bg-surface-hover"
             :style="{ height: ROW_H + 'px' }"
           >
             <!-- Blame gutter -->
@@ -82,13 +82,13 @@ const fmtDate = (time: number | string) => new Date(Number(time) * 1000).toLocal
                 <Tooltip :text="`${r.blame.author}\n${r.blame.summary}`" position="right">
                   <img :src="gravatarUrl(r.blame.email)" class="w-3.5 h-3.5 rounded-sm border border-line-strong shrink-0" />
                 </Tooltip>
-                <span class="text-[10px] text-neutral-500 truncate flex-1">{{ r.blame.author }}</span>
-                <span class="text-[9.5px] text-neutral-400 opacity-70 shrink-0">{{ fmtDate(r.blame.time) }}</span>
-                <span class="text-[9.5px] text-neutral-400 shrink-0">{{ (r.blame.commit || '').slice(0, 7) }}</span>
+                <span class="text-[10px] text-content-muted truncate flex-1">{{ r.blame.author }}</span>
+                <span class="text-[9.5px] text-content-muted opacity-70 shrink-0">{{ fmtDate(r.blame.time) }}</span>
+                <span class="text-[9.5px] text-content-muted shrink-0">{{ (r.blame.commit || '').slice(0, 7) }}</span>
               </template>
             </div>
             <!-- Line number -->
-            <div class="shrink-0 w-[52px] text-right pr-2 text-neutral-400 select-none border-r border-neutral-100 dark:border-neutral-800/50 flex items-center justify-end">{{ r.line }}</div>
+            <div class="shrink-0 w-[52px] text-right pr-2 text-content-muted select-none border-r border-line flex items-center justify-end">{{ r.line }}</div>
             <!-- Code -->
             <pre class="flex-1 min-w-0 px-3 whitespace-pre overflow-hidden text-content flex items-center">{{ r.code }}</pre>
           </div>

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { toasts, removeToast } from '../services/toastService';
 import { generalSettings } from '../services/settingsService';
+import { openExternalUrl } from '../utils/formatters';
 
 const positionClass = computed(() => {
   switch (generalSettings.value.notificationPosition) {
@@ -30,19 +31,19 @@ const positionClass = computed(() => {
         <div v-for="toast in toasts" :key="toast.id" 
              class="w-[380px] rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto bg-surface border border-line/50"
              :class="{
-                 'border-l-4 border-l-red-500': toast.type === 'error',
-                 'border-l-4 border-l-green-500': toast.type === 'success',
-                 'border-l-4 border-l-yellow-500': toast.type === 'warning',
-                 'border-l-4 border-l-blue-500': toast.type === 'info'
+                 'border-l-4 border-l-removed': toast.type === 'error',
+                 'border-l-4 border-l-added': toast.type === 'success',
+                 'border-l-4 border-l-modified': toast.type === 'warning',
+                 'border-l-4 border-l-accent': toast.type === 'info'
              }">
           
           <!-- Icon Section -->
           <div class="w-12 flex items-start justify-center pt-4"
                :class="{
-                   'bg-red-500/10 text-red-500': toast.type === 'error',
-                   'bg-green-500/10 text-green-500': toast.type === 'success',
-                   'bg-yellow-500/10 text-yellow-500': toast.type === 'warning',
-                   'bg-blue-500/10 text-blue-500': toast.type === 'info'
+                   'bg-removed/10 text-removed': toast.type === 'error',
+                   'bg-added/10 text-added': toast.type === 'success',
+                   'bg-modified/10 text-modified': toast.type === 'warning',
+                   'bg-accent/10 text-accent': toast.type === 'info'
                }">
                <Icon v-if="toast.type === 'error'" icon="lucide:x-circle" class="text-xl" />
                <Icon v-else-if="toast.type === 'success'" icon="lucide:check-circle-2" class="text-xl" />
@@ -52,14 +53,14 @@ const positionClass = computed(() => {
 
           <!-- Content Section -->
           <div class="flex-1 p-3 pr-8 relative">
-              <button @click="removeToast(toast.id)" class="absolute top-2 right-2 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors">
+              <button @click="removeToast(toast.id)" class="absolute top-1 right-1 w-7 h-7 flex items-center justify-center rounded-lg text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors">
                   <Icon icon="lucide:x" class="text-sm" />
               </button>
               <h3 class="font-bold text-sm text-content mb-1 leading-tight">{{ toast.title }}</h3>
               <p class="text-xs text-content-muted leading-relaxed">{{ toast.message }}</p>
-              <a v-if="toast.link" :href="toast.link" target="_blank" class="block mt-2 text-xs text-blue-400 hover:underline">
+              <button v-if="toast.link" @click="openExternalUrl(toast.link)" class="block mt-2 text-xs text-accent hover:underline text-left break-all">
                   {{ toast.link }}
-              </a>
+              </button>
           </div>
         </div>
       </TransitionGroup>

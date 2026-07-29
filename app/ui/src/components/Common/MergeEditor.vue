@@ -1021,7 +1021,7 @@ onBeforeUnmount(() => {
   <div class="flex-1 min-h-0 flex flex-col bg-app merge-editor-root">
     <div class="shrink-0 bg-surface border-b border-line px-3 py-2 flex items-center justify-between gap-3 relative">
       <span v-if="remainingConflicts > 0"
-            class="absolute left-1/2 -translate-x-1/2 text-[10px] text-amber-500 tabular-nums whitespace-nowrap pointer-events-none">
+            class="absolute left-1/2 -translate-x-1/2 text-[10px] text-modified tabular-nums whitespace-nowrap pointer-events-none">
         {{ remainingConflicts }} {{ t('changes.conflicts_remaining') }}
       </span>
       <div class="min-w-0 flex items-center gap-1">
@@ -1045,7 +1045,7 @@ onBeforeUnmount(() => {
                 :class="[
                   'w-7 h-7 center rounded border transition-colors disabled:opacity-30',
                   onlyConflicts
-                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-500'
+                    ? 'bg-modified/20 border-modified/40 text-modified'
                     : 'border-line-strong text-content-muted hover:text-content-strong'
                 ]"
               >
@@ -1076,7 +1076,7 @@ onBeforeUnmount(() => {
             </Tooltip>
             <span
               v-if="isDirty"
-              class="inline-flex w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 ml-1"
+              class="inline-flex w-1.5 h-1.5 rounded-full bg-modified shrink-0 ml-1"
               :title="t('common.save')"
             />
           </div>
@@ -1168,7 +1168,7 @@ onBeforeUnmount(() => {
              :style="{ top: (r.arrowY - 9) + 'px' }">
           <Tooltip :text="t('changes.ignore')">
             <button @mousedown.stop @click="applyConflictAt(r.index, 'base')"
-                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-removed hover:border-removed shadow transition-colors">
               <Icon icon="lucide:x" class="text-[10px]" />
             </button>
           </Tooltip>
@@ -1201,7 +1201,7 @@ onBeforeUnmount(() => {
           <div class="h-stack items-center gap-2 min-w-0">
             <span>{{ t('changes.result') }}</span>
             <span class="text-content-muted truncate">{{ filename || t('changes.untitled') }}</span>
-            <span v-if="isDirty" class="inline-flex w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" :title="t('common.save')" />
+            <span v-if="isDirty" class="inline-flex w-1.5 h-1.5 rounded-full bg-modified shrink-0" :title="t('common.save')" />
           </div>
           <div class="h-stack items-center gap-2">
             <button v-if="isComparingWithBase" @click="closeCompare"
@@ -1219,7 +1219,7 @@ onBeforeUnmount(() => {
             <div v-if="isBlameLoading" class="absolute inset-0 center bg-app/70 z-10">
               <Icon icon="lucide:loader-2" class="animate-spin text-content-muted" />
             </div>
-            <div v-else-if="blameError" class="p-3 text-[10px] text-red-400 text-center opacity-70">{{ blameError }}</div>
+            <div v-else-if="blameError" class="p-3 text-[10px] text-removed text-center opacity-70">{{ blameError }}</div>
             <div v-else class="absolute left-0 right-0 top-0 will-change-transform" :style="{ transform: `translateY(-${blameScrollTop}px)` }">
               <div v-for="vb in visibleBlame" :key="vb.line" class="absolute left-0 w-full h-stack px-1 group overflow-hidden" :style="{ top: vb.top + 'px', height: vb.height + 'px' }">
                 <template v-if="vb.blame && vb.isNewCommit">
@@ -1272,7 +1272,7 @@ onBeforeUnmount(() => {
           </Tooltip>
           <Tooltip :text="t('changes.ignore')">
             <button @mousedown.stop @click="applyConflictAt(r.index, 'base')"
-                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-red-400 hover:border-red-400 shadow transition-colors">
+                    class="w-[18px] h-[18px] center rounded-full bg-surface border border-line-strong text-content-muted hover:text-removed hover:border-removed shadow transition-colors">
               <Icon icon="lucide:x" class="text-[10px]" />
             </button>
           </Tooltip>
