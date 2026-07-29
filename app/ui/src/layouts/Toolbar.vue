@@ -11,7 +11,7 @@ import {
 } from '../services/workspaceService';
 import { repoPath, loadRepoData, isLoadingData, activeTab, isTerminalOpen, reportError } from '../services/gitService';
 import { generalSettings } from '../services/settingsService';
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
 import Tooltip from '../components/Common/Tooltip.vue';
@@ -86,8 +86,19 @@ const colors = ['#E53935', '#D81B60', '#8E24AA', '#5E35B1', '#3949AB', '#1E88E5'
 
 let checkOverflow: (() => void) | undefined;
 
+/**
+ * Deferred work that must not outlive the component. Every timer here reads
+ * `tabsContainer`, which is null once the bar is gone — one of them dereferenced
+ * it unguarded and threw `Cannot read properties of null (reading '$el')` on
+ * every teardown, including the remounts a hot reload does.
+ */
+const timers: ReturnType<typeof setTimeout>[] = [];
+function later(fn: () => void, ms: number) {
+    timers.push(setTimeout(fn, ms));
+}
+
 watch(workspaces, () => {
-    setTimeout(() => {
+    later(() => {
         if (checkOverflow) checkOverflow();
     }, 50);
 }, { deep: true });
@@ -120,13 +131,22 @@ onMounted(() => {
 
     if (tabsContainer.value && tabsContainer.value.$el) {
         observer.observe(tabsContainer.value.$el);
-        setTimeout(() => {
-            const inner = tabsContainer.value.$el.querySelector('.simplebar-content');
+        // SimpleBar builds its inner content element after mount, so it can only
+        // be observed a tick later — by which point the bar may already be gone.
+        later(() => {
+            const inner = tabsContainer.value?.$el?.querySelector('.simplebar-content');
             if (inner && observer) observer.observe(inner);
         }, 100);
     }
-    
-    setTimeout(() => { if (checkOverflow) checkOverflow(); }, 100);
+
+    later(() => { if (checkOverflow) checkOverflow(); }, 100);
+});
+
+onUnmounted(() => {
+    timers.forEach(clearTimeout);
+    timers.length = 0;
+    observer?.disconnect();
+    observer = null;
 });
 
 import { addNewTab, addWorkspaceFlow } from '../services/workspaceService';
@@ -406,7 +426,8 @@ watch(activeWorkspaceId, async (val) => {
        (which is z-[100]): it carries the window's drag region and the buttons, and
        a backdrop covering them left the window impossible to move, minimize or
        close. It is only lifted then, so normal stacking is untouched. -->
-  <div class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none relative"
+  <div data-window-chrome
+       class="flex-shrink-0 h-10 bg-surface border-b border-line flex items-center shadow-sm select-none relative"
        :class="isModalOpen ? 'z-[120]' : ''"
        style="-webkit-app-region: drag;">
 
@@ -418,22 +439,28 @@ watch(activeWorkspaceId, async (val) => {
     <!-- Dialog veil: matches the modal backdrop so the bar still reads as
          "behind the dialog", and swallows clicks on the menu/tabs — switching
          repository under an open dialog would re-target it at another repo.
-         Stays a drag region, and sits below the window controls. -->
-    <div v-if="isModalOpen" class="absolute inset-0 z-20 bg-black/70" style="-webkit-app-region: drag;"></div>
+         Stays a drag region, and sits below the window controls.
+         Carries the backdrop's blur as well as its tint: the bar sits ABOVE the
+         dialog overlay (z-120 vs z-100), so it is the one surface the overlay's
+         own blur never reaches. Tint alone left the tabs sharp against a blurred
+         body — a seam that only got more obvious as the tint got lighter.
+         The project colour strip (z-30) and the window controls (z-[25]) stay
+         above this, so both keep their full contrast. -->
+    <div v-if="isModalOpen" class="absolute inset-0 z-20 bg-black/55 backdrop-blur-[6px]" style="-webkit-app-region: drag;"></div>
 
     <ProjectMenu v-if="isProjectMenuOpen" :x="projectMenuX" @close="isProjectMenuOpen = false" />
     
     <!-- Left actions -->
     <div class="flex items-center px-4 gap-3 relative z-10" style="-webkit-app-region: no-drag;">
-       <div class="p-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="openMainMenu">
+       <div class="p-1 hover:bg-surface-hover rounded cursor-pointer transition-colors flex items-center justify-center -ml-1 text-content-muted hover:text-content-strong" @click="openMainMenu">
            <Icon icon="lucide:menu" />
        </div>
        <!-- Project switcher: the tab bar shows the repos of whichever project is
             active here, and its colour tints this button + the strip below. -->
        <Tooltip :text="t('project.switch_tooltip')" position="bottom">
          <div id="project-switcher"
-              class="h-stack items-center gap-1.5 pl-1.5 pr-2 py-1 hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded cursor-pointer transition-colors text-content-muted hover:text-neutral-900 dark:hover:text-white"
-              :class="{ 'bg-neutral-200 dark:bg-[#2D2D2D]': isProjectMenuOpen }"
+              class="h-stack items-center gap-1.5 pl-1.5 pr-2 py-1 hover:bg-surface-hover rounded cursor-pointer transition-colors text-content-muted hover:text-content-strong"
+              :class="{ 'bg-surface-hover': isProjectMenuOpen }"
               @click="toggleProjectMenu">
              <Icon icon="lucide:folders" :style="{ color: activeProjectColor }" />
              <span class="max-w-[120px] truncate text-xs font-medium">{{ activeProject?.name || t('project.default_name') }}</span>
@@ -464,11 +491,11 @@ watch(activeWorkspaceId, async (val) => {
                          <span class="truncate text-xs font-medium">{{ ws.name || t('workspace.new_tab') }}</span>
                      </div>
                      <div class="flex items-center justify-center w-4 h-4 ml-2">
-                        <Icon v-if="isLoadingData && activeWorkspaceId === ws.id" icon="lucide:loader-2" class="w-3 h-3 text-blue-500 animate-spin" />
+                        <Icon v-if="isLoadingData && activeWorkspaceId === ws.id" icon="lucide:loader-2" class="w-3 h-3 text-accent animate-spin" />
                         <!-- Active tab keeps its close icon visible in the text colour (the
                              translucent accent background was swallowing the hover-only glyph);
                              inactive tabs still reveal it on hover. Red hover unchanged. -->
-                        <Icon v-else icon="lucide:x" @click.stop="removeWorkspace(ws.id)" :class="[activeWorkspaceId === ws.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100', 'w-3 h-3 hover:text-red-400 transition-opacity']" />
+                        <Icon v-else icon="lucide:x" @click.stop="removeWorkspace(ws.id)" :class="[activeWorkspaceId === ws.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100', 'w-3 h-3 hover:text-removed transition-opacity']" />
                      </div>
                 </div>
 
@@ -486,17 +513,17 @@ watch(activeWorkspaceId, async (val) => {
              veil and, being later in the DOM, stayed lit on top of it. -->
         <div v-if="isOverflowing" class="flex items-center h-full px-1 bg-surface z-10" style="-webkit-app-region: no-drag;">
              <Tooltip :text="t('ui.scroll_left')" position="bottom">
-               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(-200)">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-surface-hover rounded text-content-muted hover:text-content-strong" @click="scrollTabsBy(-200)">
                    <Icon icon="lucide:chevron-left" class="w-4 h-4" />
                </div>
              </Tooltip>
              <Tooltip :text="t('ui.scroll_right')" position="bottom">
-               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="scrollTabsBy(200)">
+               <div class="h-8 w-6 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-surface-hover rounded text-content-muted hover:text-content-strong" @click="scrollTabsBy(200)">
                    <Icon icon="lucide:chevron-right" class="w-4 h-4" />
                </div>
              </Tooltip>
              <Tooltip :text="t('ui.add_workspace')" position="bottom" class="ml-0.5">
-               <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-neutral-200 dark:hover:bg-[#2D2D2D] rounded text-content-muted hover:text-neutral-900 dark:hover:text-white" @click="handleAddWorkspaceFlow">
+               <div class="h-8 w-8 flex flex-shrink-0 items-center justify-center cursor-pointer hover:bg-surface-hover rounded text-content-muted hover:text-content-strong" @click="handleAddWorkspaceFlow">
                    <Icon icon="lucide:plus" class="w-4 h-4" />
                </div>
              </Tooltip>
@@ -514,7 +541,7 @@ watch(activeWorkspaceId, async (val) => {
         <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMaximize">
             <Icon icon="lucide:square" class="w-3.5 h-3.5" />
         </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-red-500 hover:text-white transition-colors cursor-pointer" @click="handleClose">
+        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-removed hover:text-white transition-colors cursor-pointer" @click="handleClose">
             <Icon icon="lucide:x" class="w-4 h-4" />
         </div>
     </div>
@@ -533,7 +560,7 @@ watch(activeWorkspaceId, async (val) => {
             <div class="mt-3 pt-3 border-t border-line-strong flex items-center gap-2">
                 <ColorPicker v-model="customColor" class="flex-1 min-w-0" />
                 <button @click="selectColor(customColor)"
-                        class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0">
+                        class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded bg-accent hover:bg-accent-hover text-accent-fg transition-colors shrink-0">
                     {{ t('common.apply') || 'Apply' }}
                 </button>
             </div>
