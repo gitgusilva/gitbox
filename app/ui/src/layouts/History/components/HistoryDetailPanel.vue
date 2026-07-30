@@ -87,8 +87,8 @@ function onSetTab(tab: string) {
     :class="cn(
       'flex flex-col bg-overlay flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden',
       isBottom
-        ? 'w-full border-t border-neutral-200 dark:border-transparent'
-        : 'border-l border-neutral-200 dark:border-transparent',
+        ? 'w-full border-t border-line'
+        : 'border-l border-line',
     )"
     :style="isBottom
       ? { height: layoutRefs.detailsHeight.value + 'px' }
