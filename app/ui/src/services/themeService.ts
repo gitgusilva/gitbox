@@ -285,7 +285,8 @@ export function exportTheme(theme: GitboxTheme): string {
  * theme updates it); a built-in id or missing id is reassigned so nothing is
  * clobbered. Returns the theme, or null when the payload is invalid.
  */
-export function importTheme(json: string): GitboxTheme | null {
+export function importTheme(json: string, opts?: { activate?: boolean }): GitboxTheme | null {
+    const activate = opts?.activate !== false;
     try {
         const parsed = JSON.parse(json);
         if (!parsed?.colors || !parsed?.type) return null;
@@ -313,7 +314,11 @@ export function importTheme(json: string): GitboxTheme | null {
         if (idx >= 0) customThemes.value.splice(idx, 1, theme);
         else customThemes.value.push(theme);
         persistCustomThemes();
-        selectTheme(theme);
+        // Installing or importing a theme is a request to wear it. Updating one
+        // is not: refreshing a theme you are not using must not change the theme
+        // you are — the caller opts out for that.
+        if (activate) selectTheme(theme);
+        else if (activeThemeId.value === theme.id) applyGitboxTheme(theme);
         return theme;
     } catch {
         return null;

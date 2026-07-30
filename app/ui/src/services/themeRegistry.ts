@@ -21,6 +21,8 @@ export interface RegistryEntry {
     name: string;
     type: 'light' | 'dark';
     author?: string;
+    /** Author's link, straight from the theme.json — validate before rendering. */
+    authorUrl?: string;
     version?: string;
     description?: string;
     /** Full palette, used for swatches and instant preview. */
@@ -91,6 +93,7 @@ async function loadEntry(id: string): Promise<RegistryEntry | null> {
             name: theme.name || id,
             type: theme.type,
             author: theme.meta?.author,
+            authorUrl: typeof theme.meta?.authorUrl === 'string' ? theme.meta.authorUrl : undefined,
             version: theme.meta?.version,
             description: theme.meta?.description,
             colors: theme.colors,
@@ -135,7 +138,35 @@ export async function ensureRegistry(): Promise<void> {
 }
 
 /** Download a registry theme and import it as an editable custom theme. */
-export async function installRegistryTheme(entry: RegistryEntry): Promise<GitboxTheme | null> {
+export async function installRegistryTheme(
+    entry: RegistryEntry,
+    opts?: { activate?: boolean },
+): Promise<GitboxTheme | null> {
     const text = await window.gitbox.fetchText(entry.themeUrl);
-    return importTheme(text);
+    return importTheme(text, opts);
+}
+
+/**
+ * True when the registry carries a newer release of an installed theme.
+ *
+ * An installed theme is a copy in local storage: nothing re-reads its
+ * `theme.json` afterwards, so a fix published upstream never reached anyone who
+ * already had it. Comparing the versions is what surfaces that.
+ *
+ * Both sides must parse as MAJOR.MINOR.PATCH — the registry schema requires it.
+ * Anything else (a hand-imported theme, a missing version) reports no update
+ * rather than guessing, so the card stays quiet instead of nagging.
+ */
+export function hasNewerVersion(installed?: string, available?: string): boolean {
+    const parse = (v?: string) => {
+        const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v ?? '');
+        return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+    };
+    const a = parse(installed);
+    const b = parse(available);
+    if (!a || !b) return false;
+    for (let i = 0; i < 3; i++) {
+        if (b[i] !== a[i]) return b[i] > a[i];
+    }
+    return false;
 }

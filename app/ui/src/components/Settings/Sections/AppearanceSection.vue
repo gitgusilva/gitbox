@@ -15,13 +15,14 @@ import {
 } from '../../../services/themeService';
 import {
   registryThemes, registryLoading, registryError,
-  ensureRegistry, refreshRegistry, installRegistryTheme,
+  ensureRegistry, refreshRegistry, installRegistryTheme, hasNewerVersion,
   previewCache, resolvePreview,
 } from '../../../services/themeRegistry';
 import type { RegistryEntry } from '../../../services/themeRegistry';
 import type { ThemeColors, GitboxTheme } from '../../../types/theme';
 import { showToast } from '../../../services/toastService';
 import { getItem, setItem } from '../../../services/storageService';
+import { isSafeExternalUrl, openExternalUrl } from '../../../utils/formatters';
 import Tooltip from '../../Common/Tooltip.vue';
 
 const { t } = useI18n();
@@ -47,6 +48,7 @@ interface ThemeCard {
   name: string;
   type: 'light' | 'dark';
   author?: string;
+  authorUrl?: string;
   colors: ThemeColors;
   previewUrl?: string;
   local?: GitboxTheme;
@@ -71,6 +73,7 @@ const galleryCards = computed<ThemeCard[]>(() => {
       name: th.name,
       type: th.type,
       author: th.meta?.author,
+      authorUrl: th.meta?.authorUrl,
       colors: th.colors,
       previewUrl: entry?.previewUrl,
       local: th,
@@ -81,7 +84,7 @@ const galleryCards = computed<ThemeCard[]>(() => {
   for (const e of registryThemes.value) {
     const k = keyOf(e.name, e.type);
     if (matched.has(k)) continue;
-    cards.push({ key: `repo:${e.id}`, name: e.name, type: e.type, author: e.author, colors: e.colors, previewUrl: e.previewUrl, entry: e });
+    cards.push({ key: `repo:${e.id}`, name: e.name, type: e.type, author: e.author, authorUrl: e.authorUrl, colors: e.colors, previewUrl: e.previewUrl, entry: e });
   }
   return cards;
 });
@@ -100,6 +103,13 @@ function toggleFavorite(c: ThemeCard) {
   favorites.value = next;
   setItem(FAVORITES_KEY, JSON.stringify([...next]));
 }
+
+/**
+ * A theme's `authorUrl` is community-supplied, so it earns a link only if it is
+ * a scheme we would actually hand to the browser. Anything else still shows the
+ * credit — just as plain text, rather than a link that goes nowhere.
+ */
+const authorLink = (c: ThemeCard) => (isSafeExternalUrl(c.authorUrl) ? c.authorUrl : undefined);
 
 const filteredCards = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -125,6 +135,36 @@ function onCardClick(c: ThemeCard) {
 }
 function installCard(c: ThemeCard) {
   if (c.entry) onInstall(c.entry);
+}
+
+/**
+ * Whether the registry carries a newer release of this installed theme.
+ * Built-ins are excluded: they are compiled in, so the registry copy of GitBox
+ * Dark is a preview source, not something to install over it.
+ */
+function hasUpdate(c: ThemeCard): boolean {
+  if (!c.local || c.local.builtin || !c.entry) return false;
+  return hasNewerVersion(c.local.meta?.version, c.entry.version);
+}
+
+async function onUpdate(c: ThemeCard) {
+  if (!c.entry || !c.local) return;
+  const entry = c.entry;
+  installingId.value = entry.id;
+  try {
+    // Only re-apply if this is the theme currently worn; updating one you are
+    // not using must not switch you onto it.
+    const theme = await installRegistryTheme(entry, { activate: isActive(c) });
+    showToast(
+      theme ? t('common.success') : t('common.error'),
+      theme ? t('appearance.updated_ok', { name: entry.name }) : t('appearance.update_failed'),
+      theme ? 'success' : 'error',
+    );
+  } catch {
+    showToast(t('common.error'), t('appearance.update_failed'), 'error');
+  } finally {
+    installingId.value = null;
+  }
 }
 
 async function onExport() {
@@ -271,11 +311,23 @@ async function onInstall(entry: RegistryEntry) {
               <span class="text-[11px] font-medium text-content truncate">{{ card.name }}</span>
               <span v-if="isActive(card)" class="text-[8px] uppercase tracking-wide text-accent shrink-0">{{ t('appearance.active') }}</span>
             </div>
-            <div v-if="card.author" class="text-[9px] text-content-muted truncate">{{ t('appearance.by', { author: card.author }) }}</div>
+            <Tooltip v-if="card.author && authorLink(card)" :text="authorLink(card)!" position="top">
+              <button @click.stop="openExternalUrl(authorLink(card)!)"
+                      class="text-[9px] text-content-muted hover:text-accent hover:underline underline-offset-2 truncate max-w-full transition-colors flex items-center gap-0.5">
+                <span class="truncate">{{ t('appearance.by', { author: card.author }) }}</span>
+                <Icon icon="lucide:external-link" class="w-2 h-2 shrink-0" />
+              </button>
+            </Tooltip>
+            <div v-else-if="card.author" class="text-[9px] text-content-muted truncate">{{ t('appearance.by', { author: card.author }) }}</div>
             <button v-if="!card.local" @click.stop="installCard(card)" :disabled="installingId === card.entry?.id"
                     class="mt-1 h-7 rounded text-[10px] font-medium flex items-center justify-center gap-1 bg-accent text-accent-fg hover:bg-accent-hover transition-colors disabled:opacity-60">
               <Icon :icon="installingId === card.entry?.id ? 'lucide:loader-2' : 'lucide:download'" class="w-3 h-3" :class="installingId === card.entry?.id ? 'animate-spin' : ''" />
               {{ installingId === card.entry?.id ? t('appearance.installing') : t('appearance.install') }}
+            </button>
+            <button v-else-if="hasUpdate(card)" @click.stop="onUpdate(card)" :disabled="installingId === card.entry?.id"
+                    class="mt-1 h-7 rounded text-[10px] font-medium flex items-center justify-center gap-1 bg-accent text-accent-fg hover:bg-accent-hover transition-colors disabled:opacity-60">
+              <Icon :icon="installingId === card.entry?.id ? 'lucide:loader-2' : 'lucide:refresh-cw'" class="w-3 h-3" :class="installingId === card.entry?.id ? 'animate-spin' : ''" />
+              {{ installingId === card.entry?.id ? t('appearance.updating') : t('appearance.update') }}
             </button>
           </div>
         </div>

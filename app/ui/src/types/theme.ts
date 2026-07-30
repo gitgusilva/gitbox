@@ -72,6 +72,12 @@ export interface ThemeMeta {
     author?: string;
     /** Author contact email. */
     authorEmail?: string;
+    /**
+     * Public https link for the author (profile, site, or the theme's repo).
+     * Community-supplied, so treat it as untrusted: check it with
+     * `isSafeExternalUrl` before rendering it as a link.
+     */
+    authorUrl?: string;
     description?: string;
 }
 

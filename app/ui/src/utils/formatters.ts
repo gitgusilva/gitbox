@@ -12,11 +12,34 @@ export function renderMessageLinks(message: string) {
     return html;
 }
 
-/** Hand a URL to the OS default browser instead of navigating the app window. */
-export function openExternalUrl(url: string) {
-    if (url && (window as any).gitbox?.openExternal) {
-        (window as any).gitbox.openExternal(url);
+/**
+ * True for the only schemes we hand to the OS: web links and mail. Everything
+ * else — `javascript:`, `file:`, `data:`, custom app schemes — is rejected.
+ *
+ * The main process enforces this again before calling `shell.openExternal`, but
+ * the renderer needs its own answer: a URL that will never open should not be
+ * painted as a link in the first place, or the user gets a dead one to click.
+ */
+export function isSafeExternalUrl(url?: string | null): boolean {
+    if (!url) return false;
+    try {
+        const { protocol } = new URL(String(url));
+        return protocol === 'https:' || protocol === 'http:' || protocol === 'mailto:';
+    } catch {
+        return false;
     }
+}
+
+/**
+ * Hand a URL to the OS default browser instead of navigating the app window.
+ * Silent by design: an unsupported URL, a renderer with no bridge, or a machine
+ * with no browser registered all end the same way — nothing happens.
+ */
+export function openExternalUrl(url: string) {
+    if (!isSafeExternalUrl(url)) return;
+    // The bridge resolves false when there is no browser to hand the URL to; a
+    // swallowed rejection keeps that from surfacing as an unhandled promise.
+    Promise.resolve((window as any).gitbox?.openExternal?.(url)).catch(() => {});
 }
 
 /**
