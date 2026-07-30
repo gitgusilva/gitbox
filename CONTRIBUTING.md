@@ -41,5 +41,11 @@ Follow the instructions in README.md to build and run the project locally.
 - Follow existing project patterns for IPC and state management.
 - Ensure no emojis are used in documentation or commits.
 
+## Code of Conduct
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you are expected to uphold it.
+
+## Security
+Do not report vulnerabilities in a public issue. [SECURITY.md](SECURITY.md) explains the private channel and what to include.
+
 ## License
 By contributing, you agree that your contributions will be licensed under the MIT License.

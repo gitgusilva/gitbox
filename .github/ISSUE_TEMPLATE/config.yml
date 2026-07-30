@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/gitgusilva/gitbox/security/advisories/new
+    about: Report it privately here instead of opening an issue. See SECURITY.md.
+  - name: Contributing guide
+    url: https://github.com/gitgusilva/gitbox/blob/main/CONTRIBUTING.md
+    about: How to set up the build and open a pull request.
+  - name: Themes
+    url: https://github.com/gitgusilva/gitbox-themes/issues
+    about: Problems with a theme from the registry, or submitting a new one.

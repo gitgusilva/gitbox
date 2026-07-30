@@ -1,0 +1,63 @@
+name: Feature request
+description: Suggest something GitBox should be able to do
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before requesting
+      options:
+        - label: I searched the existing issues and this is not a duplicate
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        What are you trying to do that GitBox makes hard today? Describe the
+        situation rather than the feature, so the solution stays open.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to see
+      description: |
+        How you picture it working. If another Git client already does this
+        well, naming it helps.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - History and commit graph
+        - Working copy, staging and commits
+        - Merge and conflict resolution
+        - Remotes, authentication and pull requests
+        - Integrated terminal
+        - Themes and appearance
+        - Statistics
+        - Localization
+        - Packaging and updates
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Workarounds you are using now, or approaches you ruled out.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to work on this
+          required: false
