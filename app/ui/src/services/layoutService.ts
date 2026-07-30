@@ -37,8 +37,26 @@ function persistedSize(key: string, fallback: number, min = 60, max = 2000): Ref
     return size;
 }
 
+export type DetailsOrientation = 'right' | 'bottom';
+
+function persistedString<T extends string>(key: string, fallback: T, allowed: readonly T[]): Ref<T> {
+    const saved = getItem(LAYOUT_KEY + key);
+    const initial = (allowed.includes(saved as T) ? saved : fallback) as T;
+    const value = ref(initial) as Ref<T>;
+    watch(value, (v) => {
+        setItem(LAYOUT_KEY + key, v);
+    });
+    return value;
+}
+
 export const sidebarWidth = persistedSize('sidebarWidth', 256, 160);
 export const detailsWidth = persistedSize('detailsWidth', 340, 200);
+export const detailsHeight = persistedSize('detailsHeight', 320, 160);
+export const detailsOrientation = persistedString<DetailsOrientation>(
+    'detailsOrientation',
+    'right',
+    ['right', 'bottom'] as const,
+);
 export const statusWidth = persistedSize('statusWidth', 300, 160);
 export const unstagedHeight = persistedSize('unstagedHeight', 300, 100);
 export const stashFilesHeight = persistedSize('stashFilesHeight', 300, 100);
@@ -56,6 +74,8 @@ export const submoduleDetailHeight = persistedSize('submoduleDetailHeight', 400,
 export const layoutRefs = {
     sidebarWidth,
     detailsWidth,
+    detailsHeight,
+    detailsOrientation,
     statusWidth,
     unstagedHeight,
     stashFilesHeight,

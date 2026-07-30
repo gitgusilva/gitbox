@@ -11,8 +11,9 @@ import Tabs from '../../../components/Common/Tabs.vue';
 import Tab from '../../../components/Common/Tab.vue';
 import Tooltip from '../../../components/Common/Tooltip.vue';
 import Resizer from '../../../components/Common/Resizer.vue';
-import { detailsWidth, layoutRefs } from '../../../services/layoutService';
+import { detailsOrientation, layoutRefs } from '../../../services/layoutService';
 import { submodules } from '../../../services/gitService';
+import { cn } from '../../../utils/cn';
 
 const props = defineProps<{
   selectedCommits: Commit[];
@@ -42,6 +43,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const activeDetailTab = ref('information');
+
+const isBottom = computed(() => detailsOrientation.value === 'bottom');
+
+function toggleOrientation() {
+    detailsOrientation.value = isBottom.value ? 'right' : 'bottom';
+}
 
 // Let the parent drive the active tab (e.g. an AI file link jumps to "changes").
 watch(() => props.requestedTab, (tab) => {
@@ -76,9 +83,31 @@ function onSetTab(tab: string) {
 </script>
 
 <template>
-  <div class="flex flex-col bg-overlay border-l border-line flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden" :style="{ width: layoutRefs.detailsWidth.value + 'px' }">
-    <Resizer :target="layoutRefs.detailsWidth" :options="{ invert: true, min: 200, max: 1200, clampToContainer: true, reserve: 260 }" class="absolute left-0 top-0 bottom-0 -translate-x-1/2 z-30" />
-    
+  <div
+    :class="cn(
+      'flex flex-col bg-overlay flex-shrink-0 relative shadow-none dark:shadow-2xl z-10 min-h-0 overflow-hidden',
+      isBottom
+        ? 'w-full border-t border-neutral-200 dark:border-transparent'
+        : 'border-l border-neutral-200 dark:border-transparent',
+    )"
+    :style="isBottom
+      ? { height: layoutRefs.detailsHeight.value + 'px' }
+      : { width: layoutRefs.detailsWidth.value + 'px' }"
+  >
+    <Resizer
+      v-if="isBottom"
+      vertical
+      :target="layoutRefs.detailsHeight"
+      :options="{ axis: 'y', invert: true, min: 160, max: 1200, clampToContainer: true, reserve: 160 }"
+      class="absolute top-0 left-0 right-0 -translate-y-1/2 z-30"
+    />
+    <Resizer
+      v-else
+      :target="layoutRefs.detailsWidth"
+      :options="{ invert: true, min: 200, max: 1200, clampToContainer: true, reserve: 260 }"
+      class="absolute left-0 top-0 bottom-0 -translate-x-1/2 z-30"
+    />
+
     <!-- Top Title Bar like SourceGit: commit pinned left, explain as an icon
          button on the right. Both flex so they adapt when the panel is resized. -->
     <div v-if="selectedCommits.length === 1" class="flex-shrink-0 bg-surface border-b border-line flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
@@ -98,16 +127,42 @@ function onSetTab(tab: string) {
     <div v-if="selectedCommits.length > 1" class="flex-shrink-0 bg-surface border-b border-line flex items-center justify-between gap-2 px-3 h-[42px] min-w-0">
         <span class="text-xs text-content-strong font-bold truncate min-w-0">{{ t('history_detail.n_commits_selected', { count: selectedCommits.length }) }}</span>
 
-        <Tooltip :text="t('history_detail.explain_commits')" position="bottom">
-            <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-accent hover:bg-accent-hover text-accent-fg rounded transition-colors outline-none shadow-sm shrink-0">
-                <Icon icon="lucide:sparkles" class="text-sm" />
-            </button>
-        </Tooltip>
+        <div class="flex items-center gap-1 shrink-0">
+            <Tooltip :text="isBottom ? t('history_detail.dock_right') : t('history_detail.dock_bottom')" position="bottom">
+                <button
+                    @click="toggleOrientation"
+                    class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none"
+                >
+                    <Icon :icon="isBottom ? 'lucide:panel-right' : 'lucide:panel-bottom'" class="text-base" />
+                </button>
+            </Tooltip>
+            <Tooltip :text="t('history_detail.explain_commits')" position="bottom">
+                <button @click="emit('explain')" class="h-7 w-7 flex items-center justify-center bg-accent hover:bg-accent-hover text-accent-fg rounded transition-colors outline-none shadow-sm shrink-0">
+                    <Icon icon="lucide:sparkles" class="text-sm" />
+                </button>
+            </Tooltip>
+            <Tooltip :text="t('history_detail.close_details')" position="bottom">
+                <button
+                    @click="emit('close')"
+                    class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none"
+                >
+                    <Icon icon="lucide:x" class="text-base" />
+                </button>
+            </Tooltip>
+        </div>
     </div>
 
     <div v-if="selectedCommits.length === 1" class="flex-1 overflow-hidden flex flex-col">
         <Tabs v-model="activeDetailTab" @change="emit('setTab', $event)">
             <template #tab-actions>
+                 <Tooltip :text="isBottom ? t('history_detail.dock_right') : t('history_detail.dock_bottom')" position="bottom">
+                   <button
+                       @click="toggleOrientation"
+                       class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none"
+                   >
+                      <Icon :icon="isBottom ? 'lucide:panel-right' : 'lucide:panel-bottom'" class="text-base" />
+                   </button>
+                 </Tooltip>
                  <Tooltip :text="t('history_detail.close_details')" position="bottom">
                    <button @click="emit('close')"
                            class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none">

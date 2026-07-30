@@ -606,6 +606,8 @@
     "explain_commits": "Explicar commits",
     "n_commits_selected": "{count} commits selecionados",
     "close_details": "Fechar detalhes",
+    "dock_bottom": "Encaixar embaixo",
+    "dock_right": "Encaixar à direita",
     "tab_information": "INFORMAÇÃO",
     "tab_changes": "ALTERAÇÕES",
     "tab_submodule": "SUBMÓDULO",

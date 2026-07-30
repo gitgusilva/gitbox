@@ -548,6 +548,8 @@
     "explain_commits": "Explicar commits",
     "n_commits_selected": "{count} commits seleccionados",
     "close_details": "Cerrar detalles",
+    "dock_bottom": "Anclar abajo",
+    "dock_right": "Anclar a la derecha",
     "tab_information": "INFORMACIÓN",
     "tab_changes": "CAMBIOS",
     "tab_submodule": "SUBMÓDULO",
