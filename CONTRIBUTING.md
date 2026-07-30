@@ -48,4 +48,4 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By particip
 Do not report vulnerabilities in a public issue. [SECURITY.md](SECURITY.md) explains the private channel and what to include.
 
 ## License
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the GNU Lesser General Public License, version 3 or later ([LICENSE](LICENSE)). The project moved from MIT to LGPL-3.0-or-later after v1.2.0; contributions merged before that were made under MIT and keep their original notices.

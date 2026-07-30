@@ -79,4 +79,18 @@ Third-party dependencies and their licenses are listed in
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GitBox - Copyright (C) 2026 GitBox Team
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. It is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+
+The LGPL text is in [LICENSE](LICENSE); it adds permissions on top of the GNU
+General Public License, whose text is in [GPL-3.0.txt](GPL-3.0.txt). Read both
+together.
+
+Releases up to and including v1.2.0 were published under the MIT License and
+remain available under it.
