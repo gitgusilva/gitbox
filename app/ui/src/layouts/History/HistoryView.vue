@@ -23,6 +23,7 @@ import {
   historyAuthorWidth, 
   historyDateWidth, 
   detailsWidth,
+  detailsOrientation,
   layoutRefs
 } from '../../services/layoutService';
 import { appendCommitGraph, createGraphState, GraphState } from '../../GraphBuilder';
@@ -526,7 +527,10 @@ async function onRemoveFilter(name: string) {
       v-if="effectiveLogRefs.length"
       :refs="effectiveLogRefs"
       @remove="onRemoveFilter" />
-    <div class="flex flex-row flex-1 min-h-0 min-w-0 overflow-hidden">
+    <div
+      class="flex flex-1 min-h-0 min-w-0 overflow-hidden"
+      :class="detailsOrientation === 'bottom' ? 'flex-col' : 'flex-row'"
+    >
     <div class="flex-1 min-w-0 flex flex-col min-h-0">
       <HistoryCommitList
         ref="commitListRef"
