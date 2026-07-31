@@ -58,6 +58,31 @@ export function handleLinkClick(event: MouseEvent) {
     openExternalUrl(anchor.getAttribute('data-url') || anchor.getAttribute('href') || '');
 }
 
+/** Extensions the app renders as an image rather than as text. */
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|ico|svg)$/i;
+
+/**
+ * Shared so the code that FETCHES a file and the viewer that RENDERS it always
+ * agree — a mismatch means base64 gets run through a text decoder.
+ */
+export function isImagePath(path?: string | null): boolean {
+    return !!path && IMAGE_EXTENSIONS.test(path);
+}
+
+/** Byte count as B / KB / MB / GB / TB, for any size shown in the UI. */
+export function humanBytes(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    // Whole bytes and large values read better without a decimal.
+    return `${value >= 100 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+
 export function formatDistanceToNow(timestamp: number) {
     const diff = Math.floor(Date.now() / 1000 - timestamp);
     const t = i18n.global.t;
@@ -67,8 +92,15 @@ export function formatDistanceToNow(timestamp: number) {
     return t('time.days_ago', { count: Math.floor(diff / 86400) });
 }
 
-export function formatFullDate(timestamp: number) {
-    return new Date(timestamp * 1000).toLocaleString();
+/**
+ * Accepts the same shapes as `formatDate`: git hands us unix seconds, the
+ * forge APIs hand us ISO strings.
+ */
+export function formatFullDate(timestamp: number | string | Date) {
+    const date = timestamp instanceof Date
+        ? timestamp
+        : typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp * 1000);
+    return date.toLocaleString();
 }
 
 export function formatStashDate(timestamp: number) {

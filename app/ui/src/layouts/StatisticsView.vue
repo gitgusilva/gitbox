@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { humanBytes } from '../utils/formatters';
 import { computed, ref, watch } from 'vue';
 import { useElementSize, useDebounceFn, useVirtualList } from '@vueuse/core';
 import { Icon } from '@iconify/vue';
@@ -110,14 +111,6 @@ const TOP_N = 6;
 const topAuthors = computed(() => authors.value.slice(0, TOP_N));
 const tailAuthors = computed(() => authors.value.slice(TOP_N));
 
-function humanBytes(n: number): string {
-  if (!n) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
-}
 const fmt = (n: number) => (n ?? 0).toLocaleString();
 
 const overviewCards = computed(() => {
