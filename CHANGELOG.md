@@ -1,6 +1,30 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.3.0
+### Added
+- Pull requests can be reviewed without leaving GitBox: the changed files are listed with their per-file counts, and clicking one opens the diff in a panel docked beside the conversation, with keyboard and button navigation between files. Image files open in the image viewer like any other diff
+- The diff panel can be popped out into its own window, the way the merge editor already opens standalone, and docked back from either side. It follows the app theme, including changes made while it is open
+- Reactions on a pull request and on its comments — add, remove, and see who reacted. The names cost a request each, so they are fetched when you hover a reaction rather than upfront for every comment
+- Pull request summary: files changed, added and removed lines, commits, whether it can be merged, and when it was created and last updated
+- Branch names in a pull request header link to the branch on GitHub or GitLab, pointing at the fork for a fork's pull request
+- Screenshots in a pull request description or comment open full size on click, with fit and 1:1 zoom
+
+### Changed
+- Image diffs fit the pane instead of rendering at natural size: a 1440x920 screenshot used to show a cropped corner of itself with scrollbars for the rest. Zoom steps, fit and 1:1 are there for pixel-level inspection, each side reports its dimensions and weight, and the transparency grid follows the theme instead of being a fixed dark grey
+- Blame is no longer offered for images — there are no lines to attribute
+- The merge editor and the detached diff viewer name themselves before the file in their title bar, so they can be told apart from the main window in the task switcher
+- Windows raise themselves when they open, opening a file brings the detached viewer forward, and reopening a file already open in the merge editor raises that window instead of opening a second one on the same conflict
+- Opening a link hands focus to the browser, which used to open the page behind GitBox
+
+### Fixed
+- The pull request list went stale: the first list of a session was the only one, so a pull request merged or closed on the web stayed in the sidebar until the repository was switched. Toggling "show closed pull requests" also did nothing, for the same reason
+- Switching repositories with a pull request open left the view showing the previous repository's pull request, while everything it asked for after that hit the new one
+- A merged pull request was drawn as merely closed, and still offered to be approved and closed
+- Approve and Request changes were unreadable on themes with light diff colours — the buttons filled from the theme but wrote in a fixed white. The foreground is now derived from the fill, and only turns dark where white would fail
+- The minimize, maximize and close buttons acted on whichever window had focus rather than the one they belong to, so with the merge editor or the diff viewer open a click could hit a different window
+- The pull request icon in the sidebar used a fixed purple that ignored the active theme
+
 ## v1.2.0
 ### Added
 - Statistics gained filters: pick the contributors to chart, narrow to a time range, keep the top N, sort either way, and reset the zoom — so a busy repository's charts can be read one question at a time
