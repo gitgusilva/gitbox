@@ -1,4 +1,4 @@
-const { ipcMain, dialog, shell, app } = require('electron');
+const { ipcMain, dialog, shell, app, BrowserWindow } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -96,13 +96,22 @@ module.exports = function (isDev, rootPath) {
         return result.canceled ? null : result.filePaths[0];
     });
 
-    ipcMain.handle('gitbox:openExternal', async (_, url) => {
+    ipcMain.handle('gitbox:openExternal', async (event, url) => {
         // Only open web/mail links — never file://, smb://, custom schemes, etc.,
         // which shell.openExternal would otherwise happily launch.
         try {
             const u = new URL(String(url));
             if (u.protocol === 'https:' || u.protocol === 'http:' || u.protocol === 'mailto:') {
-                await shell.openExternal(u.toString());
+                // `activate` raises the browser on macOS. Elsewhere the window
+                // manager decides, and it keeps the focused app in front — so
+                // the page opens behind GitBox and the click looks ignored.
+                // Yielding focus first lets the browser come forward.
+                await shell.openExternal(u.toString(), { activate: true });
+
+                if (process.platform !== 'darwin') {
+                    const sender = BrowserWindow.fromWebContents(event.sender);
+                    if (sender && !sender.isDestroyed() && sender.isFocused()) sender.blur();
+                }
                 return true;
             }
         } catch { /* invalid URL */ }
