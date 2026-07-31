@@ -95,6 +95,31 @@ function hexToChannels(hex: string): string {
     return `${r} ${g} ${b}`;
 }
 
+/**
+ * Black or white, whichever stays readable on `hex`. Solid success/danger
+ * buttons used to hardcode white text, which disappeared on themes with a
+ * light `added`/`removed` (Solarized's olive green, for one).
+ */
+export function readableOn(hex: string): string {
+    const channels = hexToChannels(hex).split(' ').map(Number);
+    // WCAG relative luminance — gamma-encoded channels overstate how bright a
+    // fill reads, which is what made light greens look safe for white text.
+    const [r, g, b] = channels.map((c) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const contrastWithWhite = 1.05 / (luminance + 0.05);
+
+    // White stays the default for the same reason every design system keeps it
+    // on reds and greens; black is only pulled in once white stops being
+    // readable at all (WCAG 3:1, the floor for bold UI text). Picking the
+    // strictly higher contrast instead would put black text on a red danger
+    // button — measurably better, but not what a button is expected to look
+    // like.
+    return contrastWithWhite < 3 ? '0 0 0' : '255 255 255';
+}
+
 function applyGitboxTheme(theme: GitboxTheme) {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
@@ -111,6 +136,11 @@ function applyGitboxTheme(theme: GitboxTheme) {
         const hex = colors[key];
         if (hex) style.setProperty(COLOR_VARS[key], hexToChannels(hex));
     });
+
+    // Foregrounds for the solid added/removed buttons, derived from the theme
+    // itself so a themed Approve button is always legible.
+    if (colors.added) style.setProperty('--gb-added-fg', readableOn(colors.added));
+    if (colors.removed) style.setProperty('--gb-removed-fg', readableOn(colors.removed));
 
     const ty = theme.typography;
     style.setProperty('--gb-font-ui', ty.uiFont);

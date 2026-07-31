@@ -25,7 +25,9 @@ module.exports = {
         'accent-hover': 'rgb(var(--gb-accent-hover) / <alpha-value>)',
         'accent-fg': 'rgb(var(--gb-accent-fg) / <alpha-value>)',
         added: 'rgb(var(--gb-added) / <alpha-value>)',
+        'added-fg': 'rgb(var(--gb-added-fg) / <alpha-value>)',
         removed: 'rgb(var(--gb-removed) / <alpha-value>)',
+        'removed-fg': 'rgb(var(--gb-removed-fg) / <alpha-value>)',
         modified: 'rgb(var(--gb-modified) / <alpha-value>)',
       },
       fontFamily: {

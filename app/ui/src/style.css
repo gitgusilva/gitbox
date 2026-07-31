@@ -80,6 +80,11 @@ textarea,
   --gb-removed: 239 68 68;
   --gb-modified: 87 176 255;
 
+  /* Readable text on top of solid added/removed fills; themeService recomputes
+     these from the active theme's colors. */
+  --gb-added-fg: 255 255 255;
+  --gb-removed-fg: 255 255 255;
+
   /* Commit-graph lane palette + merge marker (themeable; .light inherits these
      unless a theme overrides them). */
   --gb-graph-1: 30 136 229;
