@@ -14,18 +14,24 @@ import {
     updatePullRequestAssigneesAndLabels,
     currentUserLogin,
     loadPullRequests,
-    fetchPullRequestDetails,
+    fetchPullRequestStats,
     convertPullRequestToDraft,
     submitPullRequestReview
 } from '../services/pullRequestService';
+import type { ReactionTarget } from '../services/pullRequestService';
 import { showToast } from '../services/toastService';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import MultiSelect from './Common/MultiSelect.vue';
 import Button from './Common/Button.vue';
 import Tooltip from './Common/Tooltip.vue';
-import { formatFullDate, formatDate } from '../utils/formatters';
-import { generalSettings } from '../services/settingsService';
+import BranchChip from './Common/BranchChip.vue';
+import MarkdownView from './Common/MarkdownView.vue';
+import ReactionBar from './PullRequest/ReactionBar.vue';
+import PullRequestFiles from './PullRequest/PullRequestFiles.vue';
+import PullRequestDiffPanel from './PullRequest/PullRequestDiffPanel.vue';
+import PullRequestStateBadge from './PullRequest/PullRequestStateBadge.vue';
+import PullRequestStats from './PullRequest/PullRequestStats.vue';
+import { formatDate, openExternalUrl } from '../utils/formatters';
+import { usePullRequestFiles } from '../composables/usePullRequestFiles';
 
 const { t } = useI18n();
 const isClosing = ref(false);
@@ -142,41 +148,33 @@ async function handleClosePR() {
     }
 }
 
-function openExternal(url: string) {
-    if (window.gitbox?.openExternal && url) {
-        window.gitbox.openExternal(url);
-    }
-}
+// --- State ------------------------------------------------------------------
+/** Only an open PR can be approved, closed or converted to a draft. */
+const isOpen = computed(() => pr.value?.state === 'open');
 
-function renderMd(text: string) {
-    if (!text) return '';
-    return DOMPurify.sanitize(marked.parse(text) as string);
-}
+// --- Reactions --------------------------------------------------------------
+const prReactionTarget = computed<ReactionTarget>(() => ({
+    kind: 'pr',
+    id: pr.value?.number ?? 0,
+    prNumber: pr.value?.number ?? 0,
+}));
 
-function getReactionIcon(reaction: string) {
-    const icons: Record<string, string> = {
-        '+1': 'lucide:thumbs-up',
-        '-1': 'lucide:thumbs-down',
-        'laugh': 'mdi:emoticon-laugh-outline',
-        'confused': 'mdi:emoticon-confused-outline',
-        'heart': 'mdi:heart-outline',
-        'hooray': 'mdi:party-popper',
-        'eyes': 'mdi:eye-outline',
-        'rocket': 'mdi:rocket-launch-outline'
+function commentReactionTarget(comment: any): ReactionTarget {
+    return {
+        kind: comment.kind === 'review_comment' ? 'review_comment' : 'issue_comment',
+        id: comment.id,
+        prNumber: pr.value?.number ?? 0,
     };
-    return icons[reaction] || 'mdi:emoticon-outline';
 }
 
-function handleMarkdownClick(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    const a = target.closest('a');
-    if (a && a.href) {
-        event.preventDefault();
-        openExternal(a.href);
-    }
-}
+/** Reacting needs an identified user, same as commenting. */
+const canReact = computed(() => !!currentUserLogin.value);
 
 const pr = computed(() => activePullRequest.value);
+
+// Changed files + the diff of the open one. Shared between the list in the
+// conversation column and the docked panel that renders the diff.
+const prFiles = usePullRequestFiles(() => pr.value);
 
 watch(pr, async (newPr) => {
     if (newPr) {
@@ -188,10 +186,12 @@ watch(pr, async (newPr) => {
         
         loadComments();
         
-        fetchPullRequestDetails(newPr.number).then(details => {
-            if (details && activePullRequest.value && activePullRequest.value.number === newPr.number) {
-                activePullRequest.value.changed_files = details.changed_files;
-                activePullRequest.value.reactions = details.reactions;
+        // The list endpoint carries no counters or merge state; fold the detail
+        // payload into the active PR so the sidebar and the file list have the
+        // SHAs and stats they need.
+        fetchPullRequestStats(newPr.number).then(details => {
+            if (activePullRequest.value && activePullRequest.value.number === newPr.number) {
+                Object.assign(activePullRequest.value, details);
             }
         });
         
@@ -289,7 +289,7 @@ async function handleConvertToDraft() {
       </div>
       <div class="flex items-center gap-2">
         <Tooltip :text="t('view.open_in_browser')" position="left">
-          <button @click="openExternal(pr.url)" class="text-content-muted hover:text-content-strong transition-colors p-1 rounded hover:bg-surface-hover">
+          <button @click="openExternalUrl(pr.url)" class="text-content-muted hover:text-content-strong transition-colors p-1 rounded hover:bg-surface-hover">
             <Icon icon="lucide:external-link" class="text-sm" />
           </button>
         </Tooltip>
@@ -302,7 +302,11 @@ async function handleConvertToDraft() {
     </header>
 
     <!-- Main Content -->
-    <div class="flex-1 overflow-x-hidden p-6 relative">
+    <!-- The diff panel floats over this area (see PullRequestDiffPanel): the
+         conversation keeps its two-column layout instead of reflowing into a
+         sliver every time a file is opened. -->
+    <div class="flex-1 relative min-h-0 min-w-0">
+    <div class="absolute inset-0 overflow-y-auto overflow-x-hidden p-6">
       <div class="max-w-[1200px] mx-auto w-full flex flex-col gap-6 font-sans">
         
         <!-- PR Title Header -->
@@ -323,17 +327,19 @@ async function handleConvertToDraft() {
                 </div>
              </template>
            </h1>
-           <div class="flex items-center gap-3 text-sm text-content-muted">
-             <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ring-1 transition-colors capitalize"
-                  :class="pr.state === 'closed' ? 'bg-removed/40 text-removed ring-removed/50' : (pr.draft ? 'bg-surface-hover text-content-muted ring-line-strong' : 'bg-added/40 text-added ring-added/50')">
-                {{ pr.state === 'closed' ? pr.state : (pr.draft ? $t('pr_view.draft') || 'Draft' : pr.state) }}
-             </div>
-             <div class="flex items-center gap-2">
+           <div class="flex items-center gap-3 text-sm text-content-muted flex-wrap">
+             <PullRequestStateBadge :state="pr.state" :draft="pr.draft" />
+             <div class="flex items-center gap-2 flex-wrap">
                 <Tooltip :text="pr.user?.login">
                   <img :src="pr.user?.avatar_url" class="w-5 h-5 rounded-full" />
                 </Tooltip>
                 <span class="font-bold text-content">{{ pr.user?.login }}</span>
-                <span>{{ t('view.wants_to_merge') }} <span class="bg-accent/15 text-accent px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.sourceBranch }}</span> {{ t('view.into') }} <span class="bg-accent/15 text-accent px-1.5 py-0.5 rounded font-mono text-xs">{{ pr.targetBranch }}</span></span>
+                <span class="flex items-center gap-1.5 flex-wrap">
+                  {{ t('view.wants_to_merge') }}
+                  <BranchChip :name="pr.sourceBranch" :url="pr.sourceBranchUrl" />
+                  {{ t('view.into') }}
+                  <BranchChip :name="pr.targetBranch" :url="pr.targetBranchUrl" />
+                </span>
              </div>
            </div>
         </div>
@@ -350,20 +356,12 @@ async function handleConvertToDraft() {
                    <button v-if="!isEditingDescription" @click="isEditingDescription = true" class="text-content-muted hover:text-content-strong opacity-0 group-hover/desc:opacity-100 transition-opacity"><Icon icon="lucide:edit-2" /></button>
                 </div>
                 <!-- Markdown Content -->
-                <div v-if="!isEditingDescription" class="bg-app text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2 p-4 rounded-lg border border-line" @click="handleMarkdownClick">
-                   <div v-if="pr.body" v-html="renderMd(pr.body)"></div>
-                   <div v-else class="text-content-muted italic">{{ $t('pr_view.no_description') || 'No description provided.' }}</div>
-                   <!-- Main Reactions -->
-                   <div v-if="pr.reactions && pr.reactions.total_count > 0" class="mt-4 flex flex-wrap gap-2">
-                     <template v-for="(count, key) in pr.reactions" :key="key">
-                       <Tooltip v-if="typeof count === 'number' && count > 0 && String(key) !== 'total_count' && String(key) !== 'url'" :text="String(key)">
-                         <div class="flex items-center gap-1.5 bg-surface-hover border border-line rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-content-strong transition-colors cursor-default">
-                           <Icon :icon="getReactionIcon(String(key))" class="text-[12px]" />
-                           <span class="font-medium">{{ count }}</span>
-                         </div>
-                       </Tooltip>
-                     </template>
-                   </div>
+                <div v-if="!isEditingDescription" class="bg-app p-4 rounded-lg border border-line">
+                   <MarkdownView :content="pr.body" :empty-text="$t('pr_view.no_description')" />
+                   <ReactionBar class="mt-4"
+                                :target="prReactionTarget"
+                                :initial="pr.reactions"
+                                :can-react="canReact" />
                 </div>
                 <!-- Edit Mode -->
                 <div v-else class="flex flex-col gap-2">
@@ -375,6 +373,16 @@ async function handleConvertToDraft() {
                 </div>
              </div>
              
+             <!-- Files changed: click a row to read the diff in the editor. -->
+             <PullRequestFiles class="mt-2"
+                               :files="prFiles.files.value"
+                               :is-loading="prFiles.isLoading.value"
+                               :load-error="prFiles.loadError.value"
+                               :totals="prFiles.totals.value"
+                               :active-path="prFiles.openFile.value?.path"
+                               @select="prFiles.openAt"
+                               @refresh="prFiles.load" />
+
              <!-- Comments Area -->
              <div class="flex flex-col gap-4 mt-6">
                 <div class="flex items-center justify-between text-xs font-medium text-content">
@@ -400,22 +408,15 @@ async function handleConvertToDraft() {
                                 <span class="text-content-muted">{{ formatDate(comment.createdAt) }}</span>
                             </div>
                              <Tooltip :text="t('view.open_in_browser')" position="left">
-                               <button @click="openExternal(comment.url)" class="text-content-muted hover:text-content-strong opacity-0 group-hover:opacity-100 transition-opacity"><Icon icon="lucide:external-link" /></button>
+                               <button @click="openExternalUrl(comment.url)" class="text-content-muted hover:text-content-strong opacity-0 group-hover:opacity-100 transition-opacity"><Icon icon="lucide:external-link" /></button>
                              </Tooltip>
                          </div>
-                         <div class="p-4 text-sm text-content prose prose-invert prose-sm max-w-none prose-a:text-accent hover:prose-a:text-accent-hover prose-a:underline prose-a:underline-offset-2" v-html="renderMd(comment.body)" @click="handleMarkdownClick">
-                         </div>
+                         <MarkdownView class="p-4 text-sm" :content="comment.body" />
                          <!-- Reactions -->
-                          <div v-if="comment.reactions && comment.reactions.total_count > 0" class="px-4 pb-3 flex flex-wrap gap-2">
-                            <template v-for="(count, key) in comment.reactions" :key="key">
-                               <Tooltip v-if="typeof count === 'number' && count > 0 && String(key) !== 'total_count' && String(key) !== 'url'" :text="String(key)">
-                                 <div class="flex items-center gap-1.5 bg-surface-hover border border-line rounded-full px-2.5 py-0.5 text-[10px] text-content-muted hover:text-content-strong transition-colors cursor-default">
-                                   <Icon :icon="getReactionIcon(String(key))" class="text-[12px]" />
-                                   <span class="font-medium">{{ count }}</span>
-                                 </div>
-                               </Tooltip>
-                            </template>
-                          </div>
+                          <ReactionBar class="px-4 pb-3"
+                                       :target="commentReactionTarget(comment)"
+                                       :initial="comment.reactions"
+                                       :can-react="canReact" />
                       </div>
                    </div>
                 </div>
@@ -438,13 +439,12 @@ async function handleConvertToDraft() {
            <div class="w-[300px] flex-shrink-0 flex flex-col gap-6">
                              <!-- Review Actions -->
               <div class="flex flex-col gap-2 pb-6 border-b border-line">
-                 <div class="text-xs text-content-muted font-medium mb-1">
-                     {{ $t('pr_view.files_changed', { count: pr.changed_files || 0 }) || (pr.changed_files || 0) + ' files changed' }}
-                     <span v-if="pr.changed_files === undefined" class="text-content-muted">{{ $t('pr_view.not_fetched') || '(Not fetched)' }}</span>
-                 </div>
+                 <!-- Summary of the change, filled in by the detail fetch. -->
+                 <PullRequestStats :pr="pr" class="mb-2" />
+
                  <!-- Review actions: only a non-author (reviewer) can approve / request
                       changes — GitHub forbids reviewing your own PR. -->
-                 <template v-if="canReview && pr.state !== 'closed'">
+                 <template v-if="canReview && isOpen">
                    <Button variant="success" block icon="lucide:check" :loading="isReviewing" @click="handleApprove">
                      {{ $t('pr_view.approve') || 'Approve' }}
                    </Button>
@@ -454,7 +454,7 @@ async function handleConvertToDraft() {
                  </template>
 
                  <!-- Close / reopen: the PR author manages their own PR. -->
-                 <Button v-if="isAuthor && pr.state !== 'closed'" variant="danger" block icon="lucide:x-circle" :loading="isClosing" @click="handleClosePR">
+                 <Button v-if="isAuthor && isOpen" variant="danger" block icon="lucide:x-circle" :loading="isClosing" @click="handleClosePR">
                    {{ $t('pr_view.close_pr') || 'Close Pull Request' }}
                  </Button>
                  <Button v-else-if="isAuthor && pr.state === 'closed'" variant="secondary" block icon="lucide:rotate-ccw" :loading="isReopening" @click="handleReopenPR">
@@ -470,7 +470,7 @@ async function handleConvertToDraft() {
                    </div>
                    <div v-if="selectedReviewers.length === 0" class="flex flex-col gap-1 text-[11px] mb-1">
                       <div class="text-content font-medium">{{ $t('pr_view.no_reviews') || 'No reviews' }}</div>
-                      <div v-if="pr.state !== 'closed'">
+                      <div v-if="isOpen">
                           <div v-if="!pr.draft" class="text-content-muted">
                              {{ $t('pr_view.still_in_progress') || 'Still in progress?' }}
                              <button @click="handleConvertToDraft" :disabled="isConvertingDraft" class="text-content-muted hover:text-content-strong transition-colors underline hover:no-underline disabled:opacity-50 inline-flex items-center gap-1">
@@ -536,5 +536,18 @@ async function handleConvertToDraft() {
 
       </div>
     </div>
+
+    <PullRequestDiffPanel v-if="prFiles.openFile.value"
+                          :file="prFiles.openFile.value"
+                          :original="prFiles.original.value"
+                          :modified="prFiles.modified.value"
+                          :is-loading="prFiles.isLoadingDiff.value"
+                          :error="prFiles.diffError.value"
+                          :index="prFiles.openIndex.value ?? 0"
+                          :total="prFiles.files.value.length"
+                          @close="prFiles.close"
+                          @step="prFiles.step" />
+    </div>
+
   </div>
 </template>

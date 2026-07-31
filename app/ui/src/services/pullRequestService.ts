@@ -277,10 +277,6 @@ async function withProvider<T>(fallback: T, fn: (provider: IPRProvider, repoId: 
     return fn(info.provider, info.repoId);
 }
 
-export async function fetchPullRequestDetails(prNumber: number) {
-    return withProvider<any>(null, (provider, repoId) => provider.fetchPRDetails(repoId, prNumber));
-}
-
 /** The detail payload reduced to the fields the PR view renders. */
 export async function fetchPullRequestStats(prNumber: number): Promise<Partial<PullRequest>> {
     return withProvider<Partial<PullRequest>>({}, async (provider, repoId) => {
