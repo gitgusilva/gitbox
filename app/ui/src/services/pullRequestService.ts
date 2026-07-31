@@ -4,10 +4,10 @@ import { useIntegrations, providers } from './integrations';
 import { showToast } from './toastService';
 import { activePullRequest, isCreatePROpen } from './modalService';
 import { generalSettings } from './settingsService';
-import { PullRequest, PullRequestMetadata } from './pullRequests/types';
+import { PRReaction, PullRequest, PullRequestFile, PullRequestMetadata, ReactionTarget } from './pullRequests/types';
 import { IPRProvider } from './pullRequests/providers/IPRProvider';
 
-export type { PullRequest, PullRequestMetadata };
+export type { PullRequest, PullRequestMetadata, PullRequestFile, PRReaction, ReactionTarget };
 
 export const pullRequests = ref<PullRequest[]>([]);
 export const isPRLoading = ref(false);
@@ -108,7 +108,14 @@ export async function loadPullRequests(force = false) {
             }
 
             try {
-                pullRequests.value = await info.provider.fetchPRs(info.repoId, generalSettings.value.showClosedPRs);
+                const list = await info.provider.fetchPRs(info.repoId, generalSettings.value.showClosedPRs);
+                // Branch links are the provider's to build — only it knows the
+                // forge's URL grammar.
+                pullRequests.value = list.map(pr => ({
+                    ...pr,
+                    sourceBranchUrl: info.provider.branchUrl(pr.sourceRepoUrl, pr.sourceBranch),
+                    targetBranchUrl: info.provider.branchUrl(pr.targetRepoUrl, pr.targetBranch),
+                }));
                 // Only a successful fetch starts the freshness window, so a
                 // failed call is retried by the next trigger instead of being
                 // treated as an up-to-date list.
@@ -204,13 +211,6 @@ export async function updatePullRequest(pr: PullRequest, data: any) {
     return false;
 }
 
-export async function fetchPullRequestDetails(prNumber: number) {
-    if (!repoPath.value || !window.gitbox) return null;
-    const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
-    const info = getProvider(remoteUrl);
-    return info ? await info.provider.fetchPRDetails(info.repoId, prNumber) : null;
-}
-
 export async function fetchPullRequestComments(pr: PullRequest) {
     if (!repoPath.value || !window.gitbox) return [];
     try {
@@ -260,6 +260,72 @@ export async function updatePullRequestAssigneesAndLabels(pr: PullRequest, assig
         return ok;
     }
     return false;
+}
+
+/**
+ * Resolves the provider for the open repository and runs `fn` with it,
+ * answering `fallback` when there is no repository, no bridge or no provider.
+ * Deliberately re-resolved per call: the remote can be changed from Settings
+ * without the repository path changing, and a cached provider would keep
+ * talking to the old forge.
+ */
+async function withProvider<T>(fallback: T, fn: (provider: IPRProvider, repoId: string) => Promise<T>): Promise<T> {
+    if (!repoPath.value || !window.gitbox) return fallback;
+    const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+    const info = getProvider(remoteUrl);
+    if (!info) return fallback;
+    return fn(info.provider, info.repoId);
+}
+
+export async function fetchPullRequestDetails(prNumber: number) {
+    return withProvider<any>(null, (provider, repoId) => provider.fetchPRDetails(repoId, prNumber));
+}
+
+/** The detail payload reduced to the fields the PR view renders. */
+export async function fetchPullRequestStats(prNumber: number): Promise<Partial<PullRequest>> {
+    return withProvider<Partial<PullRequest>>({}, async (provider, repoId) => {
+        const raw = await provider.fetchPRDetails(repoId, prNumber);
+        return provider.normalizeDetails(raw);
+    });
+}
+
+export async function fetchPullRequestFiles(prNumber: number): Promise<PullRequestFile[]> {
+    return withProvider<PullRequestFile[]>([], (provider, repoId) => provider.fetchFiles(repoId, prNumber));
+}
+
+/**
+ * Both sides of one file, base64 as the providers return them. Each side is
+ * null when the file does not exist at that commit (added on one side, deleted
+ * on the other).
+ */
+export async function fetchPullRequestFileDiff(file: PullRequestFile, baseSha: string, headSha: string) {
+    const empty: { original: string | null; modified: string | null } = { original: null, modified: null };
+
+    return withProvider(empty, async (provider, repoId) => {
+        const originalPath = file.previousPath || file.path;
+
+        const [original, modified] = await Promise.all([
+            file.status === 'added' ? Promise.resolve(null) : provider.fetchFileContent(repoId, originalPath, baseSha),
+            file.status === 'removed' ? Promise.resolve(null) : provider.fetchFileContent(repoId, file.path, headSha),
+        ]);
+
+        return { original, modified };
+    });
+}
+
+export async function fetchReactions(target: ReactionTarget): Promise<PRReaction[]> {
+    return withProvider<PRReaction[]>([], (provider, repoId) =>
+        provider.fetchReactions(repoId, target, currentUserLogin.value));
+}
+
+/**
+ * Toggles the signed-in user's reaction: adds it, or removes it when the
+ * caller passes the id of their existing one.
+ */
+export async function toggleReaction(target: ReactionTarget, content: string, existingId?: string | number | null) {
+    return withProvider(false, (provider, repoId) => (existingId
+        ? provider.removeReaction(repoId, target, existingId)
+        : provider.addReaction(repoId, target, content)));
 }
 
 // Watchers para automação de carregamento

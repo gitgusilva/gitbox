@@ -1,5 +1,31 @@
 import { BasePRProvider } from './BasePRProvider';
-import { PullRequest, PullRequestMetadata } from '../types';
+import { PRReaction, PullRequest, PullRequestFile, PullRequestMetadata, ReactionTarget } from '../types';
+
+/**
+ * The UI speaks GitHub's reaction vocabulary; GitLab names its award emoji
+ * differently, so translate in both directions at the provider boundary.
+ */
+const AWARD_BY_CONTENT: Record<string, string> = {
+    '+1': 'thumbsup',
+    '-1': 'thumbsdown',
+    'laugh': 'laughing',
+    'confused': 'confused',
+    'heart': 'heart',
+    'hooray': 'tada',
+    'rocket': 'rocket',
+    'eyes': 'eyes',
+};
+
+const CONTENT_BY_AWARD: Record<string, string> = Object.fromEntries(
+    Object.entries(AWARD_BY_CONTENT).map(([content, award]) => [award, content]),
+);
+
+/** `https://gitlab.com/group/proj/-/merge_requests/7` -> `https://gitlab.com/group/proj`. */
+function projectUrlFromMr(webUrl?: string) {
+    if (!webUrl) return undefined;
+    const cut = webUrl.indexOf('/-/merge_requests/');
+    return cut === -1 ? undefined : webUrl.slice(0, cut);
+}
 
 export class GitLabPRProvider extends BasePRProvider {
     async fetchPRs(repo: string, showClosed: boolean): Promise<PullRequest[]> {
@@ -28,7 +54,14 @@ export class GitLabPRProvider extends BasePRProvider {
             labels: mr.labels?.map((l: any) => ({ name: l, color: '#e24329' })) || [],
             sourceBranch: mr.source_branch,
             targetBranch: mr.target_branch,
+            // GitLab's list payload has no project web URL; derive both ends
+            // from the MR page, which is `<project>/-/merge_requests/<iid>`.
+            sourceRepoUrl: projectUrlFromMr(mr.web_url),
+            targetRepoUrl: projectUrlFromMr(mr.web_url),
             createdAt: mr.created_at,
+            updatedAt: mr.updated_at,
+            baseSha: mr.diff_refs?.base_sha,
+            headSha: mr.diff_refs?.head_sha || mr.sha,
             draft: mr.draft || mr.work_in_progress,
             nodeId: mr.id.toString()
         }));
@@ -72,7 +105,8 @@ export class GitLabPRProvider extends BasePRProvider {
             body: c.body,
             user: { login: c.author.username, avatar_url: c.author.avatar_url },
             createdAt: c.created_at,
-            url: ''
+            url: '',
+            kind: 'issue_comment'
         })).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     }
 
@@ -164,5 +198,94 @@ export class GitLabPRProvider extends BasePRProvider {
             number: res.data.iid,
             html_url: res.data.web_url
         };
+    }
+
+    /** GitLab namespaces repository routes under `/-/`. */
+    branchUrl(repoUrl: string | undefined, branch: string | undefined): string {
+        if (!repoUrl || !branch) return '';
+        return `${repoUrl}/-/tree/${branch.split('/').map(encodeURIComponent).join('/')}`;
+    }
+
+    normalizeDetails(raw: any): Partial<PullRequest> {
+        if (!raw) return {};
+        return {
+            state: raw.state === 'opened' ? 'open' : raw.state,
+            // `changes_count` arrives as a string, sometimes capped ("50+").
+            changed_files: Number.parseInt(String(raw.changes_count ?? ''), 10) || undefined,
+            mergeable: raw.merge_status === 'can_be_merged',
+            baseSha: raw.diff_refs?.base_sha,
+            headSha: raw.diff_refs?.head_sha || raw.sha,
+            targetRepoUrl: projectUrlFromMr(raw.web_url),
+            sourceRepoUrl: projectUrlFromMr(raw.web_url),
+            updatedAt: raw.updated_at,
+        };
+    }
+
+    async fetchFiles(repo: string, prNumber: number): Promise<PullRequestFile[]> {
+        const encodedRepo = encodeURIComponent(repo);
+        const res = await this._fetchJSON(`https://gitlab.com/api/v4/projects/${encodedRepo}/merge_requests/${prNumber}/changes`);
+        if (!res.ok || !Array.isArray(res.data?.changes)) return [];
+
+        return res.data.changes.map((c: any) => {
+            // GitLab ships the unified diff but no line counters; count them
+            // off the patch so the list can show the same +/- as GitHub.
+            const lines = String(c.diff || '').split('\n');
+            const additions = lines.filter(l => l.startsWith('+') && !l.startsWith('+++')).length;
+            const deletions = lines.filter(l => l.startsWith('-') && !l.startsWith('---')).length;
+
+            return {
+                path: c.new_path || c.old_path,
+                status: c.new_file ? 'added' : c.deleted_file ? 'removed' : c.renamed_file ? 'renamed' : 'modified',
+                previousPath: c.renamed_file ? c.old_path : undefined,
+                additions,
+                deletions,
+                binary: !c.diff,
+            } as PullRequestFile;
+        });
+    }
+
+    async fetchFileContent(repo: string, path: string, ref: string): Promise<string | null> {
+        const encodedRepo = encodeURIComponent(repo);
+        const res = await this._fetchJSON(
+            `https://gitlab.com/api/v4/projects/${encodedRepo}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`,
+        );
+        if (!res.ok || !res.data?.content) return null;
+        return String(res.data.content).replace(/\n/g, '');
+    }
+
+    /** Award emoji hang off the merge request, or off one of its notes. */
+    private awardsPath(repo: string, target: ReactionTarget) {
+        const encodedRepo = encodeURIComponent(repo);
+        const base = `https://gitlab.com/api/v4/projects/${encodedRepo}/merge_requests/${target.prNumber}`;
+        return target.kind === 'pr' ? `${base}/award_emoji` : `${base}/notes/${target.id}/award_emoji`;
+    }
+
+    async fetchReactions(repo: string, target: ReactionTarget, viewerLogin?: string | null): Promise<PRReaction[]> {
+        const res = await this._fetchJSON(`${this.awardsPath(repo, target)}?per_page=100`);
+        if (!res.ok || !Array.isArray(res.data)) return [];
+
+        const grouped = new Map<string, PRReaction>();
+        for (const award of res.data) {
+            // Emoji with no GitHub counterpart keep their GitLab name; the UI
+            // falls back to a generic icon rather than dropping the reaction.
+            const content = CONTENT_BY_AWARD[award.name] || award.name;
+            const entry: PRReaction = grouped.get(content) || { content, count: 0, users: [], viewerReactionId: null };
+            entry.count += 1;
+            if (award.user?.username) entry.users.push(award.user.username);
+            if (viewerLogin && award.user?.username === viewerLogin) entry.viewerReactionId = award.id;
+            grouped.set(content, entry);
+        }
+        return [...grouped.values()];
+    }
+
+    async addReaction(repo: string, target: ReactionTarget, content: string): Promise<boolean> {
+        const name = AWARD_BY_CONTENT[content] || content;
+        const res = await this._fetchJSON(`${this.awardsPath(repo, target)}?name=${encodeURIComponent(name)}`, { method: 'POST' });
+        return res.ok;
+    }
+
+    async removeReaction(repo: string, target: ReactionTarget, reactionId: string | number): Promise<boolean> {
+        const res = await this._fetchJSON(`${this.awardsPath(repo, target)}/${reactionId}`, { method: 'DELETE' });
+        return res.ok || res.status === 204;
     }
 }
