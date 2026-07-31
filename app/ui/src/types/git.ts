@@ -140,6 +140,15 @@ export interface UpdaterStatus {
     supported?: boolean;
 }
 
+/** Minimal file shape a diff header needs; a superset lives in pullRequests/types. */
+export interface PullRequestFileSummary {
+    path: string;
+    status: string;
+    additions: number;
+    deletions: number;
+    previousPath?: string;
+}
+
 export interface GitboxAPI {
     selectFolder: () => Promise<string | null>;
     status: (repoPath: string) => Promise<GitStatusEntry[]>;

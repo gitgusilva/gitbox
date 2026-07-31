@@ -481,7 +481,24 @@
     "draft": "Borrador",
     "none_yet": "Ninguno aún",
     "participants": "Participantes",
-    "branch": "Branch"
+    "branch": "Branch",
+    "state_open": "Abierto",
+    "state_closed": "Cerrado",
+    "state_merged": "Fusionado",
+    "state_draft": "Borrador",
+    "commits": "Commits",
+    "mergeable": "Se puede fusionar",
+    "mergeable_yes": "Sí",
+    "mergeable_no": "Conflictos",
+    "mergeable_unknown": "Comprobando…",
+    "created": "Creado",
+    "updated": "Actualizado",
+    "no_files": "No hay archivos para mostrar.",
+    "diff_unavailable": "Este archivo no se puede mostrar aquí — abre el pull request en el navegador para revisarlo.",
+    "previous_file": "Archivo anterior",
+    "next_file": "Archivo siguiente",
+    "add_reaction": "Añadir reacción",
+    "reacted_with": "reaccionó con"
   },
   "changes_menu": {
     "view_list": "Mostrar como lista de rutas",
@@ -548,8 +565,6 @@
     "explain_commits": "Explicar commits",
     "n_commits_selected": "{count} commits seleccionados",
     "close_details": "Cerrar detalles",
-    "dock_bottom": "Anclar abajo",
-    "dock_right": "Anclar a la derecha",
     "tab_information": "INFORMACIÓN",
     "tab_changes": "CAMBIOS",
     "tab_submodule": "SUBMÓDULO",
@@ -933,5 +948,9 @@
     "missing_body": "El repositorio en \"{path}\" ya no existe — fue movido, renombrado o eliminado. Se cerró la pestaña.",
     "not_a_repo_title": "No es un repositorio Git",
     "not_a_repo_body": "\"{path}\" no es un repositorio Git. No hay nada que mostrar: elige otra carpeta o inicializa un repositorio allí."
+  },
+  "layout": {
+    "dock_right": "Acoplar a la derecha",
+    "dock_bottom": "Acoplar abajo"
   }
 }

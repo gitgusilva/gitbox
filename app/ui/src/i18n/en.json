@@ -543,7 +543,24 @@
     "draft": "Draft",
     "none_yet": "None yet",
     "participants": "Participants",
-    "branch": "Branch"
+    "branch": "Branch",
+    "state_open": "Open",
+    "state_closed": "Closed",
+    "state_merged": "Merged",
+    "state_draft": "Draft",
+    "commits": "Commits",
+    "mergeable": "Mergeable",
+    "mergeable_yes": "Yes",
+    "mergeable_no": "Conflicts",
+    "mergeable_unknown": "Checking…",
+    "created": "Created",
+    "updated": "Updated",
+    "no_files": "No files to show.",
+    "diff_unavailable": "This file cannot be shown here — open the pull request in the browser to review it.",
+    "previous_file": "Previous file",
+    "next_file": "Next file",
+    "add_reaction": "Add a reaction",
+    "reacted_with": "reacted with"
   },
   "changes_menu": {
     "view_list": "Show as Path List",
@@ -610,8 +627,6 @@
     "explain_commits": "Explain commits",
     "n_commits_selected": "{count} commits selected",
     "close_details": "Close Details",
-    "dock_bottom": "Dock to bottom",
-    "dock_right": "Dock to right",
     "tab_information": "INFORMATION",
     "tab_changes": "CHANGES",
     "tab_submodule": "SUBMODULE",
@@ -985,5 +1000,9 @@
     "missing_body": "The repository at \"{path}\" no longer exists — it was moved, renamed or deleted. The tab was closed.",
     "not_a_repo_title": "Not a Git repository",
     "not_a_repo_body": "\"{path}\" is not a Git repository. Nothing to show: pick another folder or initialize a repository there."
+  },
+  "layout": {
+    "dock_right": "Dock to the right",
+    "dock_bottom": "Dock to the bottom"
   }
 }

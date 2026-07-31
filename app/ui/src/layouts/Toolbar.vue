@@ -15,6 +15,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import SimpleBar from 'simplebar-vue';
 import 'simplebar-vue/dist/simplebar.min.css';
 import Tooltip from '../components/Common/Tooltip.vue';
+import WindowControls from '../components/Common/WindowControls.vue';
 import ColorPicker from '../components/Common/ColorPicker.vue';
 import ProjectMenu from '../components/ProjectMenu.vue';
 import { activeProject, activeProjectColor, projects, activeProjectId } from '../services/projectService';
@@ -158,14 +159,6 @@ async function handleAddWorkspaceFlow() {
 
 function handleClose() {
     window.gitbox.close();
-}
-
-function handleMinimize() {
-    window.gitbox.minimize();
-}
-
-function handleMaximize() {
-    window.gitbox.maximize();
 }
 
 import { registerShortcut } from '../services/shortcutService';
@@ -534,17 +527,7 @@ watch(activeWorkspaceId, async (val) => {
          keep looking active — while a dialog is open, but BELOW the project accent
          strip (z-30): at the same z they won on DOM order, and their hover
          background painted over the coloured line at the top edge. -->
-    <div class="flex h-full relative z-[25]" style="-webkit-app-region: no-drag;">
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMinimize">
-            <Icon icon="lucide:minus" class="w-4 h-4" />
-        </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="handleMaximize">
-            <Icon icon="lucide:square" class="w-3.5 h-3.5" />
-        </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-removed hover:text-white transition-colors cursor-pointer" @click="handleClose">
-            <Icon icon="lucide:x" class="w-4 h-4" />
-        </div>
-    </div>
+    <WindowControls class="relative z-[25]" />
 
     <!-- Color Picker Popover -->
     <template v-if="isColorPickerOpen">

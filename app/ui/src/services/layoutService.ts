@@ -69,6 +69,10 @@ export const terminalHeight = persistedSize('terminalHeight', 200, 100, 1200);
 export const terminalListWidth = persistedSize('terminalListWidth', 200, 100, 600);
 export const blameWidth = persistedSize('blameWidth', 300, 120);
 export const submoduleDetailHeight = persistedSize('submoduleDetailHeight', 400, 100);
+// The pull request diff panel docks like the history details panel and follows
+// its orientation, but keeps its own size so resizing one does not move the other.
+export const prDiffWidth = persistedSize('prDiffWidth', 620, 320);
+export const prDiffHeight = persistedSize('prDiffHeight', 420, 200);
 
 // For template usage without auto-unwrapping
 export const layoutRefs = {
@@ -87,7 +91,9 @@ export const layoutRefs = {
     terminalHeight,
     terminalListWidth,
     blameWidth,
-    submoduleDetailHeight
+    submoduleDetailHeight,
+    prDiffWidth,
+    prDiffHeight
 };
 
 export const isResizing = ref(false);

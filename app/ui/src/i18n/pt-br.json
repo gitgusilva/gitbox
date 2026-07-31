@@ -543,7 +543,24 @@
     "draft": "Rascunho",
     "none_yet": "Nenhuma ainda",
     "participants": "Participantes",
-    "branch": "Branch"
+    "branch": "Branch",
+    "state_open": "Aberto",
+    "state_closed": "Fechado",
+    "state_merged": "Mesclado",
+    "state_draft": "Rascunho",
+    "commits": "Commits",
+    "mergeable": "Pode mesclar",
+    "mergeable_yes": "Sim",
+    "mergeable_no": "Conflitos",
+    "mergeable_unknown": "Verificando…",
+    "created": "Criado",
+    "updated": "Atualizado",
+    "no_files": "Nenhum arquivo para exibir.",
+    "diff_unavailable": "Este arquivo não pode ser exibido aqui — abra o pull request no navegador para revisá-lo.",
+    "previous_file": "Arquivo anterior",
+    "next_file": "Próximo arquivo",
+    "add_reaction": "Adicionar reação",
+    "reacted_with": "reagiu com"
   },
   "changes_menu": {
     "view_list": "Exibir como Lista de Caminhos",
@@ -610,8 +627,6 @@
     "explain_commits": "Explicar commits",
     "n_commits_selected": "{count} commits selecionados",
     "close_details": "Fechar detalhes",
-    "dock_bottom": "Encaixar embaixo",
-    "dock_right": "Encaixar à direita",
     "tab_information": "INFORMAÇÃO",
     "tab_changes": "ALTERAÇÕES",
     "tab_submodule": "SUBMÓDULO",
@@ -985,5 +1000,9 @@
     "missing_body": "O repositório em \"{path}\" não existe mais — foi movido, renomeado ou excluído. A aba foi fechada.",
     "not_a_repo_title": "Não é um repositório Git",
     "not_a_repo_body": "\"{path}\" não é um repositório Git. Nada a exibir: escolha outra pasta ou inicialize um repositório nela."
+  },
+  "layout": {
+    "dock_right": "Encaixar à direita",
+    "dock_bottom": "Encaixar embaixo"
   }
 }

@@ -128,7 +128,7 @@ function onSetTab(tab: string) {
         <span class="text-xs text-content-strong font-bold truncate min-w-0">{{ t('history_detail.n_commits_selected', { count: selectedCommits.length }) }}</span>
 
         <div class="flex items-center gap-1 shrink-0">
-            <Tooltip :text="isBottom ? t('history_detail.dock_right') : t('history_detail.dock_bottom')" position="bottom">
+            <Tooltip :text="isBottom ? t('layout.dock_right') : t('layout.dock_bottom')" position="bottom">
                 <button
                     @click="toggleOrientation"
                     class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none"
@@ -155,7 +155,7 @@ function onSetTab(tab: string) {
     <div v-if="selectedCommits.length === 1" class="flex-1 overflow-hidden flex flex-col">
         <Tabs v-model="activeDetailTab" @change="emit('setTab', $event)">
             <template #tab-actions>
-                 <Tooltip :text="isBottom ? t('history_detail.dock_right') : t('history_detail.dock_bottom')" position="bottom">
+                 <Tooltip :text="isBottom ? t('layout.dock_right') : t('layout.dock_bottom')" position="bottom">
                    <button
                        @click="toggleOrientation"
                        class="h-7 w-7 flex items-center justify-center rounded text-content-muted hover:text-content-strong hover:bg-surface-hover transition-colors outline-none"
