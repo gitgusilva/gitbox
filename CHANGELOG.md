@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Pull request summary: files changed, added and removed lines, commits, whether it can be merged, and when it was created and last updated
 - Branch names in a pull request header link to the branch on GitHub or GitLab, pointing at the fork for a fork's pull request
 - Screenshots in a pull request description or comment open full size on click, with fit and 1:1 zoom
+- The history detail panel can be docked below the commit list instead of beside it, with its own remembered height — contributed by [@HermesSantos](https://github.com/HermesSantos) ([#8](https://github.com/gitgusilva/gitbox/pull/8)). The pull request diff panel follows whichever side you pick
+- A code of conduct, a security policy, issue forms and a pull request template, so reporting a bug or opening a pull request comes with a shape to follow
 
 ### Changed
 - Image diffs fit the pane instead of rendering at natural size: a 1440x920 screenshot used to show a cropped corner of itself with scrollbars for the rest. Zoom steps, fit and 1:1 are there for pixel-level inspection, each side reports its dimensions and weight, and the transparency grid follows the theme instead of being a fixed dark grey
@@ -16,6 +18,8 @@ All notable changes to this project will be documented in this file.
 - The merge editor and the detached diff viewer name themselves before the file in their title bar, so they can be told apart from the main window in the task switcher
 - Windows raise themselves when they open, opening a file brings the detached viewer forward, and reopening a file already open in the merge editor raises that window instead of opening a second one on the same conflict
 - Opening a link hands focus to the browser, which used to open the page behind GitBox
+- GitBox is now licensed under the LGPL-3.0-or-later
+- The bundled themes were refreshed from the registry, and each card credits its author with a link to their profile
 
 ### Fixed
 - The pull request list went stale: the first list of a session was the only one, so a pull request merged or closed on the web stayed in the sidebar until the repository was switched. Toggling "show closed pull requests" also did nothing, for the same reason
@@ -24,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - Approve and Request changes were unreadable on themes with light diff colours — the buttons filled from the theme but wrote in a fixed white. The foreground is now derived from the fill, and only turns dark where white would fail
 - The minimize, maximize and close buttons acted on whichever window had focus rather than the one they belong to, so with the merge editor or the diff viewer open a click could hit a different window
 - The pull request icon in the sidebar used a fixed purple that ignored the active theme
+- The history detail panel drew its border with a hardcoded colour instead of the theme's
 
 ## v1.2.0
 ### Added
