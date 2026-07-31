@@ -1,8 +1,8 @@
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { repoPath, branches, isLoadingData, selectedLogRef } from './gitService';
 import { useIntegrations, providers } from './integrations';
 import { showToast } from './toastService';
-import { isCreatePROpen } from './modalService';
+import { activePullRequest, isCreatePROpen } from './modalService';
 import { generalSettings } from './settingsService';
 import { PullRequest, PullRequestMetadata } from './pullRequests/types';
 import { IPRProvider } from './pullRequests/providers/IPRProvider';
@@ -12,6 +12,19 @@ export type { PullRequest, PullRequestMetadata };
 export const pullRequests = ref<PullRequest[]>([]);
 export const isPRLoading = ref(false);
 export const prError = ref<string | null>(null);
+
+/**
+ * The list as it should be rendered. The provider already narrows the query
+ * (state=open) but the filter is reapplied here so toggling "show closed PRs"
+ * updates the UI on the spot instead of waiting for the network round-trip —
+ * and so a PR closed while the app was open disappears as soon as any refresh
+ * brings its new state in.
+ */
+export const visiblePullRequests = computed<PullRequest[]>(() =>
+    generalSettings.value.showClosedPRs
+        ? pullRequests.value
+        : pullRequests.value.filter(pr => pr.state === 'open'),
+);
 
 export const currentUserLogin = ref<string | null>(null);
 
@@ -43,7 +56,17 @@ export const hasActivePRProvider = ref(false);
 
 // Helper to keep track of the last path we loaded PRs for
 let lastLoadedPath = '';
+let lastLoadedAt = 0;
 let debounceTimer: any = null;
+
+/**
+ * How long a fetched list is considered fresh. The guard below used to skip
+ * every non-forced load for a path that had already been loaded, so a PR
+ * merged or closed on the web stayed in the sidebar for the whole session —
+ * nothing short of switching repositories could refresh it. A short window
+ * still collapses the burst of watchers that fire together on startup.
+ */
+const PR_FRESHNESS_MS = 15_000;
 
 export async function loadPullRequests(force = false) {
     if (!repoPath.value || !window.gitbox) return;
@@ -51,9 +74,9 @@ export async function loadPullRequests(force = false) {
     // Prevent concurrent loads if not forced
     if (isPRLoading.value && !force) return;
 
-    // If it's the same path and we aren't forcing, skip
-    // (This helps when multiple watchers trigger close together)
-    if (!force && lastLoadedPath === repoPath.value && pullRequests.value.length > 0) {
+    // Same path, fetched moments ago: let the burst settle instead of hitting
+    // the API once per watcher.
+    if (!force && lastLoadedPath === repoPath.value && Date.now() - lastLoadedAt < PR_FRESHNESS_MS) {
         return;
     }
 
@@ -86,6 +109,10 @@ export async function loadPullRequests(force = false) {
 
             try {
                 pullRequests.value = await info.provider.fetchPRs(info.repoId, generalSettings.value.showClosedPRs);
+                // Only a successful fetch starts the freshness window, so a
+                // failed call is retried by the next trigger instead of being
+                // treated as an up-to-date list.
+                lastLoadedAt = Date.now();
             } catch (err: any) {
                 if (err.message === 'github_404') {
                     prError.value = 'github_404';
@@ -177,6 +204,13 @@ export async function updatePullRequest(pr: PullRequest, data: any) {
     return false;
 }
 
+export async function fetchPullRequestDetails(prNumber: number) {
+    if (!repoPath.value || !window.gitbox) return null;
+    const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
+    const info = getProvider(remoteUrl);
+    return info ? await info.provider.fetchPRDetails(info.repoId, prNumber) : null;
+}
+
 export async function fetchPullRequestComments(pr: PullRequest) {
     if (!repoPath.value || !window.gitbox) return [];
     try {
@@ -228,19 +262,17 @@ export async function updatePullRequestAssigneesAndLabels(pr: PullRequest, assig
     return false;
 }
 
-export async function fetchPullRequestDetails(prNumber: number) {
-    if (!repoPath.value || !window.gitbox) return null;
-    const remoteUrl = await window.gitbox.getRemoteUrl(repoPath.value);
-    const info = getProvider(remoteUrl);
-    return info ? await info.provider.fetchPRDetails(info.repoId, prNumber) : null;
-}
-
 // Watchers para automação de carregamento
 watch(repoPath, async (newPath, oldPath) => {
     if (newPath !== oldPath) {
         pullRequests.value = [];
         prError.value = null;
         lastLoadedPath = '';
+        lastLoadedAt = 0;
+        // A PR belongs to the repository it was opened from. Leaving the view
+        // up after a repo switch showed one repo's pull request while every
+        // request it made (files, comments, reactions) hit the other one.
+        activePullRequest.value = null;
     }
 
     if (newPath && window.gitbox) {
@@ -269,4 +301,12 @@ watch(isLoadingData, (loading) => {
     if (!loading && repoPath.value) {
         debouncedLoadPullRequests();
     }
+});
+
+// The setting changes which states the provider asks for, so the cached list
+// no longer answers the question: refetch. `visiblePullRequests` already
+// narrowed the rendered list synchronously, this brings in the PRs that were
+// never fetched (the closed ones) when the box is ticked.
+watch(() => generalSettings.value.showClosedPRs, () => {
+    if (repoPath.value) loadPullRequests(true);
 });

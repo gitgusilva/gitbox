@@ -12,7 +12,7 @@ import {
     deleteBranch,
     repoPath
 } from '../services/gitService';
-import { pullRequests, loadPullRequests, createPullRequest, hasActivePRProvider } from '../services/pullRequestService';
+import { visiblePullRequests, loadPullRequests, createPullRequest, hasActivePRProvider } from '../services/pullRequestService';
 import { buildTree, flattenTree } from '../utils/tree';
 import { contextMenu, requestConfirm } from '../services/modalService';
 import { getItem, setItem } from '../services/storageService';
@@ -75,7 +75,7 @@ export function useSidebar(branchFilter: Ref<string>) {
     }));
 
     const filteredSubmodules = computed(() => submodules.value.filter(s => s.path.toLowerCase().includes(branchFilter.value.toLowerCase())));
-    const filteredPRs = computed(() => pullRequests.value.filter(pr => (pr.title + (pr.sourceBranch || '')).toLowerCase().includes(branchFilter.value.toLowerCase())));
+    const filteredPRs = computed(() => visiblePullRequests.value.filter(pr => (pr.title + (pr.sourceBranch || '')).toLowerCase().includes(branchFilter.value.toLowerCase())));
 
     const localTree = computed(() => buildTree(localBranches.value, {
         getPath: b => b.name,
