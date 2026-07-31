@@ -26,6 +26,7 @@ const registerSystemHandlers = require('./handlers/system');
 const registerFSHandlers = require('./handlers/fs');
 const registerGitHandlers = require('./handlers/git');
 const registerMergeHandlers = require('./handlers/merge');
+const registerDiffHandlers = require('./handlers/diff');
 const registerThemeHandlers = require('./handlers/theme');
 const registerSettingsHandlers = require('./handlers/settings');
 const registerAiHandlers = require('./handlers/ai');
@@ -109,6 +110,7 @@ app.whenReady().then(() => {
   registerFSHandlers(addon);
   registerGitHandlers(addon);
   registerMergeHandlers(getMainWindow);
+  registerDiffHandlers(getMainWindow);
   registerThemeHandlers();
   registerSettingsHandlers();
   registerAiHandlers();

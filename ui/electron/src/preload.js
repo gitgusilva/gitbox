@@ -70,6 +70,17 @@ contextBridge.exposeInMainWorld('gitbox', {
   openTextFile: () => ipcRenderer.invoke('gitbox:openTextFile'),
   fetchText: (url) => ipcRenderer.invoke('gitbox:fetchText', url),
   cachePreview: (url) => ipcRenderer.invoke('gitbox:cachePreview', url),
+  // Detached diff viewer. The window that detached it pushes state in and the
+  // detached side sends requests back, both over one relay.
+  openDiffWindow: () => ipcRenderer.invoke('gitbox:openDiffWindow'),
+  closeDiffWindow: () => ipcRenderer.invoke('gitbox:closeDiffWindow'),
+  sendDiffWindowMessage: (message) => ipcRenderer.send('diffwin:relay', message),
+  onDiffWindowMessage: (callback) => {
+    const listener = (_event, message) => callback(message);
+    ipcRenderer.on('diffwin:message', listener);
+    return () => ipcRenderer.removeListener('diffwin:message', listener);
+  },
+
   notifyMergeResolved: () => ipcRenderer.send('merge:resolved'),
   onMergeResolved: (callback) => {
     const listener = () => callback();

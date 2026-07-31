@@ -23,6 +23,7 @@ defineProps<{
 
 const emit = defineEmits<{
     (e: 'close'): void;
+    (e: 'detach'): void;
     (e: 'step', direction: 1 | -1): void;
 }>();
 </script>
@@ -31,6 +32,8 @@ const emit = defineEmits<{
     <DockedPanel v-model:orientation="detailsOrientation"
                  :width-target="layoutRefs.prDiffWidth"
                  :height-target="layoutRefs.prDiffHeight"
+                 detachable
+                 @detach="emit('detach')"
                  @close="emit('close')">
         <template #header>
             <DiffFileHeader :file="file" :index="index" :total="total" @step="emit('step', $event)" />

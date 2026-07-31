@@ -91,8 +91,9 @@ export function usePullRequestFiles(pr: () => PullRequest | null | undefined) {
 
     function close() {
         openIndex.value = null;
-        // Dropped together with the selection so nothing stale is left behind
-        // for the next file.
+        // Dropped together with the selection: the watcher below mirrors the
+        // change to the detached window, and there is no reason to ship the
+        // previous file's contents along with "nothing is open".
         original.value = '';
         modified.value = '';
     }
@@ -116,9 +117,97 @@ export function usePullRequestFiles(pr: () => PullRequest | null | undefined) {
         if (e.key === 'ArrowUp') step(-1);
     }
 
+    // --- Detached window --------------------------------------------------
+    // The separate window renders whatever it is pushed and owns no state, so
+    // both surfaces always agree and there is one fetch path.
+    const isDetached = ref(false);
+
+    function pushState() {
+        if (!isDetached.value) return;
+
+        // Every field is copied out by hand: `openFile` is a Vue reactive
+        // proxy, and Electron's structured clone rejects those outright
+        // ("An object could not be cloned"), which silently left the detached
+        // window showing nothing.
+        const file = openFile.value;
+
+        window.gitbox.sendDiffWindowMessage({
+            type: 'state',
+            payload: {
+                file: file
+                    ? {
+                        path: file.path,
+                        status: file.status,
+                        additions: file.additions,
+                        deletions: file.deletions,
+                        previousPath: file.previousPath,
+                    }
+                    : null,
+                original: original.value,
+                modified: modified.value,
+                index: openIndex.value ?? 0,
+                total: files.value.length,
+                context: pr() ? `#${pr()!.number} ${pr()!.title}` : '',
+                isLoading: isLoadingDiff.value,
+                error: diffError.value,
+            },
+        });
+    }
+
+    async function detach() {
+        if (openIndex.value === null) return;
+        isDetached.value = true;
+        // No push here: openDiffWindow resolves as soon as the window object
+        // exists, long before its renderer can listen. The window announces
+        // itself with 'ready' and gets the state then.
+        await window.gitbox.openDiffWindow();
+    }
+
+    function attach() {
+        isDetached.value = false;
+        window.gitbox.closeDiffWindow();
+    }
+
+    const stopDiffWindowMessages = window.gitbox.onDiffWindowMessage((message) => {
+        if (!message) return;
+
+        // 'ready' arrives when the detached window finished mounting — it may
+        // beat the first push, so answer it with the current state.
+        if (message.type === 'ready') pushState();
+        if (message.type === 'navigate') step(message.direction);
+
+        // Docking back keeps the file open, now in the panel.
+        if (message.type === 'attach') attach();
+
+        // Dismissing the window from its own title bar is not the same thing:
+        // it goes back to attached mode but shows nothing, so the panel does
+        // not pop open again behind a window the user just closed. The guard
+        // is what tells the two apart — attach() already cleared the flag
+        // before the window's own 'closed' arrives.
+        if (message.type === 'closed' && isDetached.value) {
+            isDetached.value = false;
+            close();
+        }
+    });
+
+    // Any change to the open file, its contents or its loading state is
+    // mirrored to the detached window.
+    watch([openIndex, original, modified, isLoadingDiff, diffError], () => pushState());
+
     watch(openIndex, (value) => {
-        if (value === null) window.removeEventListener('keydown', onKeydown);
-        else window.addEventListener('keydown', onKeydown);
+        if (value === null) {
+            window.removeEventListener('keydown', onKeydown);
+            // Closing the last file closes the window that was showing it.
+            if (isDetached.value) attach();
+            return;
+        }
+
+        window.addEventListener('keydown', onKeydown);
+        // Selecting another file raises the detached window — otherwise the
+        // click updates a window the user cannot see. Tied to the index rather
+        // than to the content watcher above, which fires several times per
+        // file and would keep stealing focus.
+        if (isDetached.value) window.gitbox.sendDiffWindowMessage({ type: 'focus' });
     });
 
     watch(() => pr()?.number, () => {
@@ -126,11 +215,18 @@ export function usePullRequestFiles(pr: () => PullRequest | null | undefined) {
         load();
     }, { immediate: true });
 
-    onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+    onBeforeUnmount(() => {
+        window.removeEventListener('keydown', onKeydown);
+        stopDiffWindowMessages?.();
+        // A detached window outliving the view that feeds it would sit there
+        // showing a file nothing can navigate.
+        if (isDetached.value) window.gitbox.closeDiffWindow();
+    });
 
     return {
         files, isLoading, loadError, totals,
         openIndex, openFile, isLoadingDiff, diffError, original, modified,
-        load, openAt, close, step,
+        isDetached,
+        load, openAt, close, step, detach, attach,
     };
 }

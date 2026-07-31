@@ -25,6 +25,8 @@ const props = withDefaults(defineProps<{
     maxWidth?: number;
     minHeight?: number;
     maxHeight?: number;
+    /** Shows the button that pops the panel out into its own window. */
+    detachable?: boolean;
 }>(), {
     minWidth: 320,
     maxWidth: 1400,
@@ -34,6 +36,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:orientation', value: DetailsOrientation): void;
+    (e: 'detach'): void;
     (e: 'close'): void;
 }>();
 
@@ -63,6 +66,12 @@ function toggleOrientation() {
         <header class="shrink-0 h-[42px] px-3 flex items-center gap-2 border-b border-line bg-surface">
             <slot name="header" />
 
+            <Tooltip v-if="detachable" :text="t('layout.detach')" position="left">
+                <button @click="emit('detach')"
+                        class="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-hover text-content-muted hover:text-content-strong transition-colors">
+                    <Icon icon="lucide:picture-in-picture-2" />
+                </button>
+            </Tooltip>
             <Tooltip :text="isBottom ? t('layout.dock_right') : t('layout.dock_bottom')" position="left">
                 <button @click="toggleOrientation"
                         class="w-7 h-7 flex items-center justify-center rounded hover:bg-surface-hover text-content-muted hover:text-content-strong transition-colors">

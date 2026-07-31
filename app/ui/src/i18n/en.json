@@ -296,7 +296,11 @@
     "zoom_in": "Zoom in",
     "zoom_out": "Zoom out",
     "zoom_fit": "Fit to pane",
-    "zoom_actual": "Actual size (1:1)"
+    "zoom_actual": "Actual size (1:1)",
+    "diff_viewer": "Diff Viewer",
+    "merge_editor": "Merge Editor",
+    "attach": "Dock back into the window",
+    "no_file_detached": "No file open."
   },
   "settings": {
     "title": "Settings",
@@ -1003,6 +1007,7 @@
   },
   "layout": {
     "dock_right": "Dock to the right",
-    "dock_bottom": "Dock to the bottom"
+    "dock_bottom": "Dock to the bottom",
+    "detach": "Open in a separate window"
   }
 }

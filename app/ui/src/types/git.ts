@@ -140,7 +140,20 @@ export interface UpdaterStatus {
     supported?: boolean;
 }
 
-/** Minimal file shape a diff header needs; a superset lives in pullRequests/types. */
+/** One file as the detached diff viewer renders it. */
+export interface DiffWindowState {
+    file: PullRequestFileSummary | null;
+    original: string;
+    modified: string;
+    index: number;
+    total: number;
+    /** What the diff belongs to, e.g. "#7 feat(themes): add Arrakis Dark". */
+    context?: string;
+    isLoading?: boolean;
+    error?: string | null;
+}
+
+/** Minimal file shape the detached viewer needs; a superset lives in pullRequests/types. */
 export interface PullRequestFileSummary {
     path: string;
     status: string;
@@ -148,6 +161,20 @@ export interface PullRequestFileSummary {
     deletions: number;
     previousPath?: string;
 }
+
+/**
+ * Messages exchanged with the detached diff viewer. The window that detached it
+ * pushes 'state' and 'focus'; the detached side answers with 'ready',
+ * 'navigate' and 'attach'. 'closed' is emitted by the main process when the
+ * window goes away.
+ */
+export type DiffWindowMessage =
+    | { type: 'state'; payload: DiffWindowState }
+    | { type: 'focus' }
+    | { type: 'ready' }
+    | { type: 'navigate'; direction: 1 | -1 }
+    | { type: 'attach' }
+    | { type: 'closed' };
 
 export interface GitboxAPI {
     selectFolder: () => Promise<string | null>;
@@ -201,6 +228,10 @@ export interface GitboxAPI {
     openMergeWindow: (repoPath: string, filePath: string) => Promise<boolean>;
     notifyMergeResolved: () => void;
     onMergeResolved: (callback: () => void) => (() => void);
+    openDiffWindow: () => Promise<boolean>;
+    closeDiffWindow: () => Promise<boolean>;
+    sendDiffWindowMessage: (message: DiffWindowMessage) => void;
+    onDiffWindowMessage: (callback: (message: DiffWindowMessage) => void) => (() => void);
     broadcastTheme?: (theme: unknown) => void;
     onThemeChanged?: (callback: (theme: unknown) => void) => (() => void);
     mergeBranch: (repoPath: string, branchName: string, noFastForward?: boolean) => Promise<MergeResult>;

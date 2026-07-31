@@ -2,6 +2,7 @@ const { BrowserWindow } = require('electron');
 const { DIST_INDEX, isDev } = require('../paths');
 const path = require('path'); // Added back for joining preload script if needed but it's cleaner in paths.js
 const { closeAllMergeWindows } = require('./merge');
+const { closeDiffWindow } = require('./diff');
 
 function createMainWindow(icon) {
     const mainWindow = new BrowserWindow({
@@ -23,7 +24,10 @@ function createMainWindow(icon) {
 
     // Closing the main window tears down every standalone merge window too, so no
     // orphaned merge tools keep the app alive or linger on screen.
-    mainWindow.on('close', () => closeAllMergeWindows());
+    mainWindow.on('close', () => {
+        closeAllMergeWindows();
+        closeDiffWindow();
+    });
 
     // Log why the renderer dies (crash / OOM) instead of failing silently.
     mainWindow.webContents.on('render-process-gone', (_event, details) => {

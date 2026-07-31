@@ -751,7 +751,11 @@
     "zoom_in": "Acercar",
     "zoom_out": "Alejar",
     "zoom_fit": "Ajustar al panel",
-    "zoom_actual": "Tamaño real (1:1)"
+    "zoom_actual": "Tamaño real (1:1)",
+    "diff_viewer": "Visor de Diff",
+    "merge_editor": "Editor de Merge",
+    "attach": "Acoplar de vuelta en la ventana",
+    "no_file_detached": "Ningún archivo abierto."
   },
   "stats": {
     "title": "Estadísticas",
@@ -951,6 +955,7 @@
   },
   "layout": {
     "dock_right": "Acoplar a la derecha",
-    "dock_bottom": "Acoplar abajo"
+    "dock_bottom": "Acoplar abajo",
+    "detach": "Abrir en una ventana aparte"
   }
 }

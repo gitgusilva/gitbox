@@ -537,7 +537,7 @@ async function handleConvertToDraft() {
       </div>
     </div>
 
-    <PullRequestDiffPanel v-if="prFiles.openFile.value"
+    <PullRequestDiffPanel v-if="prFiles.openFile.value && !prFiles.isDetached.value"
                           :file="prFiles.openFile.value"
                           :original="prFiles.original.value"
                           :modified="prFiles.modified.value"

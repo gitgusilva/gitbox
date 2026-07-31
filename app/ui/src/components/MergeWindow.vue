@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useTheme } from '../services/themeService';
 import MergeEditor from './Common/MergeEditor.vue';
 import Button from './Common/Button.vue';
+import WindowControls from './Common/WindowControls.vue';
 
 const { t } = useI18n();
 const { currentTheme, applyTheme } = useTheme();
@@ -110,7 +111,7 @@ async function continueWithNext() {
   showNextPrompt.value = false;
   if (!next) { window.gitbox.notifyMergeResolved(); return; }
   filePath.value = next;
-  document.title = `GitBox — ${t('changes.merging')}: ${fileName.value}`;
+  document.title = `GitBox — ${t('diff.merge_editor')} — ${filePath.value}`;
   await loadDiff();
 }
 
@@ -145,13 +146,10 @@ function handleState(state: { remainingConflicts: number; canCompleteMerge: bool
   mergeState.value = state;
 }
 
-const minimizeWindow = () => window.gitbox.minimize();
-const maximizeWindow = () => window.gitbox.maximize();
-const closeWindow = () => window.gitbox.close();
 
 onMounted(() => {
   applyTheme(currentTheme.value);
-  document.title = `GitBox — ${t('changes.merging')}: ${fileName.value}`;
+  document.title = `GitBox — ${t('diff.merge_editor')} — ${filePath.value}`;
   detectMergeTool();
   loadDiff();
 });
@@ -167,21 +165,12 @@ onMounted(() => {
     >
       <div class="flex items-center gap-2 min-w-0 pl-3 text-[11px] font-bold uppercase tracking-widest text-content">
         <Icon icon="lucide:git-merge" class="text-modified text-sm" />
-        <span class="truncate">{{ t('changes.merging') }}: {{ fileName }}</span>
+        <span class="shrink-0 text-content-muted">{{ t('diff.merge_editor') }}</span>
+        <span class="shrink-0 text-content-muted">·</span>
+        <span class="truncate font-mono normal-case tracking-normal text-content-strong">{{ filePath }}</span>
       </div>
 
-      <!-- Window controls — match the main GitBox window (flush, full-height). -->
-      <div class="flex h-full" style="-webkit-app-region: no-drag;">
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="minimizeWindow">
-          <Icon icon="lucide:minus" class="w-4 h-4" />
-        </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-surface-hover hover:text-content-strong transition-colors cursor-pointer" @click="maximizeWindow">
-          <Icon icon="lucide:square" class="w-3.5 h-3.5" />
-        </div>
-        <div class="w-12 h-full flex items-center justify-center text-content-muted hover:bg-removed hover:text-white transition-colors cursor-pointer" @click="closeWindow">
-          <Icon icon="lucide:x" class="w-4 h-4" />
-        </div>
-      </div>
+      <WindowControls />
     </div>
 
     <!-- Editor -->

@@ -330,7 +330,11 @@
     "zoom_in": "Aproximar",
     "zoom_out": "Afastar",
     "zoom_fit": "Ajustar ao painel",
-    "zoom_actual": "Tamanho real (1:1)"
+    "zoom_actual": "Tamanho real (1:1)",
+    "diff_viewer": "Visualizador de Diff",
+    "merge_editor": "Editor de Merge",
+    "attach": "Encaixar de volta na janela",
+    "no_file_detached": "Nenhum arquivo aberto."
   },
   "settings": {
     "title": "Configurações",
@@ -1003,6 +1007,7 @@
   },
   "layout": {
     "dock_right": "Encaixar à direita",
-    "dock_bottom": "Encaixar embaixo"
+    "dock_bottom": "Encaixar embaixo",
+    "detach": "Abrir em uma janela separada"
   }
 }
