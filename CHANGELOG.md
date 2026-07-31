@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - Branch names in a pull request header link to the branch on GitHub or GitLab, pointing at the fork for a fork's pull request
 - Screenshots in a pull request description or comment open full size on click, with fit and 1:1 zoom
 - The history detail panel can be docked below the commit list instead of beside it, with its own remembered height — contributed by [@HermesSantos](https://github.com/HermesSantos) ([#8](https://github.com/gitgusilva/gitbox/pull/8)). The pull request diff panel follows whichever side you pick
+- Installed themes can be updated: a theme is a copy in local storage, so a fix published in the registry never reached anyone who already had it. The card compares versions and offers Update when the registry is ahead, and updating the theme you are wearing reapplies its colours in place. A theme with no version reports no update instead of nagging about one it cannot check
+- A theme can credit its author with a link. The URL comes from the community, so only http, https and mailto earn a link — anything else shows the author as plain text rather than a link that goes nowhere
 - A code of conduct, a security policy, issue forms and a pull request template, so reporting a bug or opening a pull request comes with a shape to follow
 
 ### Changed
@@ -18,8 +20,7 @@ All notable changes to this project will be documented in this file.
 - The merge editor and the detached diff viewer name themselves before the file in their title bar, so they can be told apart from the main window in the task switcher
 - Windows raise themselves when they open, opening a file brings the detached viewer forward, and reopening a file already open in the merge editor raises that window instead of opening a second one on the same conflict
 - Opening a link hands focus to the browser, which used to open the page behind GitBox
-- GitBox is now licensed under the LGPL-3.0-or-later
-- The bundled themes were refreshed from the registry, and each card credits its author with a link to their profile
+- GitBox moves from MIT to the **LGPL-3.0-or-later**. Modifying GitBox itself now carries the obligation to publish those modifications; linking the project into another program stays permitted. Both texts ship with it, since the LGPL is written as additional permissions on top of the GPL
 
 ### Fixed
 - The pull request list went stale: the first list of a session was the only one, so a pull request merged or closed on the web stayed in the sidebar until the repository was switched. Toggling "show closed pull requests" also did nothing, for the same reason
