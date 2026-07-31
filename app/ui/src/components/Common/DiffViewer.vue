@@ -17,6 +17,7 @@ import { blameWidth, layoutRefs, isResizing } from '../../services/layoutService
 import { gravatarUrl } from '../../utils/avatars';
 import { cn } from '../../utils/cn';
 import { startMarquee, stopMarquee } from '../../utils/dom';
+import { isImagePath } from '../../utils/formatters';
 
 const { t } = useI18n();
 const { currentTheme } = useTheme();
@@ -29,6 +30,8 @@ const props = defineProps<{
   filename?: string;
   readOnly?: boolean;
   inline?: boolean;
+  /** Hides the filename strip when the host already shows the path. */
+  hideFilename?: boolean;
   class?: string;
 }>();
 
@@ -68,7 +71,7 @@ function rebuildBlameIndex() {
 async function loadBlame() {
     blameError.value = null;
 
-    if (isBlameVisible.value && props.filename && viewType.value === 'file') {
+    if (isBlameVisible.value && props.filename && canBlame.value) {
         isBlameLoading.value = true;
 
         try {
@@ -139,9 +142,7 @@ function onBlameWheel(e: WheelEvent) {
     fileEditor.setScrollTop(fileEditor.getScrollTop() + e.deltaY);
 }
 
-const isImage = computed(() => {
-    return props.filename && /\.(png|jpe?g|gif|webp|ico|svg)$/i.test(props.filename);
-});
+const isImage = computed(() => isImagePath(props.filename));
 
 const isMarkdown = computed(() => {
     return props.filename && /\.(md|markdown)$/i.test(props.filename);
@@ -150,6 +151,11 @@ const isMarkdown = computed(() => {
 const isNewOrUntracked = computed(() => {
     return !props.original && !!props.modified;
 });
+
+// Line authorship is meaningless on a binary image, and there is nothing to
+// blame in a file that has no history yet. Held once so the next
+// non-blameable case does not need four separate edits.
+const canBlame = computed(() => viewType.value === 'file' && !isNewOrUntracked.value && !isImage.value);
 
 const viewMode = ref<'visual' | 'code'>(isImage.value ? 'visual' : 'code');
 
@@ -414,7 +420,7 @@ function onToolbarWheel(e: WheelEvent) {
     <div class="shrink-0 bg-surface border-b border-line px-3 h-10 h-stack justify-between gap-2 z-10 select-none overflow-hidden">
       <!-- Left: File Ident & Extra Actions -->
       <div class="h-stack gap-3 min-w-0 flex-1 pr-2">
-        <div class="min-w-0 overflow-hidden flex items-center gap-2"
+        <div v-if="!hideFilename" class="min-w-0 overflow-hidden flex items-center gap-2"
              @mouseenter="startMarquee($event, '.diff-filename')" @mouseleave="stopMarquee($event, '.diff-filename')">
           <Icon icon="lucide:file-code" class="text-xs text-content-muted shrink-0" />
           <span class="diff-filename text-[10px] font-bold text-content-muted uppercase tracking-widest truncate block">
@@ -473,8 +479,8 @@ function onToolbarWheel(e: WheelEvent) {
             </template>
         </div>
 
-        <!-- Group 2: Blame -->
-        <div v-if="viewType === 'file' && !isNewOrUntracked" class="h-stack items-center p-1 h-9 shrink-0">
+        <!-- Group 2: Blame (line authorship is meaningless on a binary image) -->
+        <div v-if="canBlame" class="h-stack items-center p-1 h-9 shrink-0">
             <IconButton direction="row"
                          :showLabel="displayLabels"
                          icon="lucide:git-commit-vertical"
@@ -518,7 +524,7 @@ function onToolbarWheel(e: WheelEvent) {
     </div>
     
     <div v-show="viewMode === 'code'" class="flex-1 flex min-h-0 min-w-0 overflow-hidden relative">
-        <div v-if="isBlameVisible && viewType === 'file'" @wheel.prevent="onBlameWheel" class="shrink-0 bg-app border-r border-line overflow-hidden relative select-none z-10 v-stack" :style="{ width: blameWidth + 'px' }">
+        <div v-if="isBlameVisible && canBlame" @wheel.prevent="onBlameWheel" class="shrink-0 bg-app border-r border-line overflow-hidden relative select-none z-10 v-stack" :style="{ width: blameWidth + 'px' }">
             <div v-if="isBlameLoading" class="absolute inset-0 center bg-app/80 z-20">
                 <Icon icon="lucide:loader-2" class="animate-spin text-content-muted text-xl" />
             </div>
@@ -548,7 +554,7 @@ function onToolbarWheel(e: WheelEvent) {
             </div>
         </div>
         
-        <Resizer v-if="isBlameVisible && viewType === 'file'" :target="layoutRefs.blameWidth" :options="{ min: 100, max: 800, clampToContainer: true, reserve: 240 }" @resize="handleBlameResize" />
+        <Resizer v-if="isBlameVisible && canBlame" :target="layoutRefs.blameWidth" :options="{ min: 100, max: 800, clampToContainer: true, reserve: 240 }" @resize="handleBlameResize" />
 
         <RibbonDiffViewer
             v-if="isCustomDiff"

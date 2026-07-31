@@ -732,7 +732,11 @@
     "word_wrap": "Ajuste de línea",
     "blame": "Blame",
     "connectors": "Conectores",
-    "only_changes": "Solo cambios"
+    "only_changes": "Solo cambios",
+    "zoom_in": "Acercar",
+    "zoom_out": "Alejar",
+    "zoom_fit": "Ajustar al panel",
+    "zoom_actual": "Tamaño real (1:1)"
   },
   "stats": {
     "title": "Estadísticas",

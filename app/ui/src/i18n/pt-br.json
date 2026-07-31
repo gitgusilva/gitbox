@@ -326,7 +326,11 @@
     "prev_change": "Alteração Anterior",
     "next_change": "Próxima Alteração",
     "connectors": "Conectores",
-    "only_changes": "Apenas alterações"
+    "only_changes": "Apenas alterações",
+    "zoom_in": "Aproximar",
+    "zoom_out": "Afastar",
+    "zoom_fit": "Ajustar ao painel",
+    "zoom_actual": "Tamanho real (1:1)"
   },
   "settings": {
     "title": "Configurações",

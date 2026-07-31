@@ -292,7 +292,11 @@
     "prev_change": "Previous Change",
     "next_change": "Next Change",
     "connectors": "Connectors",
-    "only_changes": "Only changes"
+    "only_changes": "Only changes",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "zoom_fit": "Fit to pane",
+    "zoom_actual": "Actual size (1:1)"
   },
   "settings": {
     "title": "Settings",
