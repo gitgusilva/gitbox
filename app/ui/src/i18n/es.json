@@ -86,7 +86,7 @@
   "stash": {
     "pop": "Aplicar y Eliminar (Pop)",
     "drop_title": "Eliminar Stash",
-    "drop_msg": "¿Estás seguro de que deseas eliminar stash@{{index}}?",
+    "drop_msg": "¿Estás seguro de que deseas eliminar stash{'@'}{index}?",
     "apply": "Aplicar",
     "apply_title": "¿Aplicar stash?",
     "apply_msg": "¿Aplicar el stash {index} a tu copia de trabajo? Se mantendrá en la lista.",
