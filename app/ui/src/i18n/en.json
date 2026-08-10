@@ -54,6 +54,10 @@
     "error": "Error",
     "action_failed": "Action failed",
     "action_failed_hint": "Something went wrong. See the details in the banner above the history, or open the Command Log.",
+    "git_missing_title": "Git was not found",
+    "git_missing": "GitBox runs the git command line for staging, diffs, stashes, tags and submodules, and it is not on your PATH.",
+    "git_missing_windows": "Install Git for Windows from https://git-scm.com/download/win and reopen GitBox.",
+    "git_missing_unix": "Install it with your package manager and reopen GitBox.",
     "ok": "OK",
     "create": "Create",
     "remove": "Remove"

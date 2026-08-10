@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { loadRepoData, repoPath, status } from '../gitService'
+import { loadRepoData, repoPath, status, reportError, error } from '../gitService'
 
 describe('gitService', () => {
     beforeEach(() => {
@@ -36,5 +36,38 @@ describe('gitService', () => {
         // Error handling logic in gitService might update some state
         // Here we just check if it caught the error (service has internal try/catch)
         // We could assert on `error` ref if it was exported/reactive
+    })
+})
+
+describe('a machine without git', () => {
+    // The main process marks the failure it gets when the binary is absent,
+    // because only an Error's message survives the IPC boundary.
+    const enoent = () => new Error(
+        "Error invoking remote method 'gitbox:stageFile': Error: Git was not found on PATH. " +
+        'GitBox runs the git command line for staging, diffs, stashes, tags and submodules. ' +
+        'Install it with your package manager and reopen GitBox. [gitbox-git-missing]'
+    )
+
+    beforeEach(() => { error.value = '' })
+
+    it('answers with the actionable message rather than spawn git ENOENT', () => {
+        reportError('Stage file', enoent())
+
+        // The i18n mock echoes keys, so these prove the translated path was taken.
+        expect(error.value).toContain('common.git_missing')
+        expect(error.value).toContain('common.git_missing_unix')
+    })
+
+    it('never lets the marker reach the banner', () => {
+        reportError('Stage file', enoent())
+
+        expect(error.value).not.toContain('gitbox-git-missing')
+        expect(error.value).not.toContain('ENOENT')
+    })
+
+    it('leaves a git that ran and failed exactly as it was', () => {
+        reportError('Stage file', new Error("Error invoking remote method 'x': Error: Command failed: git status"))
+
+        expect(error.value).toBe('Command failed: git status')
     })
 })

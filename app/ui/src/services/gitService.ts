@@ -626,8 +626,24 @@ export function messageOf(err: unknown): string {
     return stripAuthMarker(raw
         .replace(/^Error invoking remote method '[^']*':\s*/i, '')
         .replace(/^Error:\s*/i, '')
+        .replace(GIT_MISSING_MARKER, '')
         .trim());
 }
+
+/**
+ * The main process stamps this on the failure it gets when the git binary is
+ * absent, because an Error's own properties do not survive the IPC boundary —
+ * only its message does. Detect on the raw message: `messageOf` strips the
+ * marker so it never reaches a banner or a log entry.
+ */
+const GIT_MISSING_MARKER = '[gitbox-git-missing]';
+
+function isGitMissing(err: unknown): boolean {
+    return String((err as any)?.message ?? err ?? '').includes(GIT_MISSING_MARKER);
+}
+
+/** One missing git fails every command after it; the first says so out loud. */
+let gitMissingAnnounced = false;
 
 export function isHandledFailure(err: unknown): boolean {
     return HANDLED_FAILURES.some(re => re.test(messageOf(err)));
@@ -696,12 +712,30 @@ function ownershipRemedy(detail: string): { title: string; command: string; note
 export const errorRemedy = computed(() => ownershipRemedy(error.value));
 
 export function reportError(context: string, err: unknown) {
-    const detail = messageOf(err) || 'Unknown error';
+    const t = i18n.global.t as (k: string) => string;
+    const missing = isGitMissing(err);
+    const windows = /win/i.test(navigator.userAgent) && !/like mac/i.test(navigator.userAgent);
+
+    // A machine with no git fails the action the user asked for and every one
+    // the app tries after it. The banner is worth repeating — it is one line
+    // that stays put — but eight identical toasts are noise, so only the first
+    // one speaks.
+    const detail = missing
+        ? `${t('common.git_missing')} ${t(windows ? 'common.git_missing_windows' : 'common.git_missing_unix')}`
+        : (messageOf(err) || 'Unknown error');
+
     error.value = detail;                                       // banner on top of the history
     addLog(context, 'Error', 'error', { details: detail });     // persistent, consultable log
+
+    if (missing && gitMissingAnnounced) return;
+    if (missing) gitMissingAnnounced = true;
+
     import('./toastService').then(({ showToast }) => {
-        const t = i18n.global.t as (k: string) => string;
-        showToast(t('common.action_failed'), t('common.action_failed_hint'), 'error');
+        showToast(
+            missing ? t('common.git_missing_title') : t('common.action_failed'),
+            missing ? t('common.git_missing') : t('common.action_failed_hint'),
+            'error',
+        );
     });
 }
 

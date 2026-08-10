@@ -54,6 +54,10 @@
     "error": "Erro",
     "action_failed": "A ação falhou",
     "action_failed_hint": "Algo deu errado. Veja os detalhes no alerta acima do histórico, ou abra o Log de Comandos.",
+    "git_missing_title": "Git não encontrado",
+    "git_missing": "O GitBox usa a linha de comando do git para stage, diffs, stashes, tags e submódulos, e ela não está no seu PATH.",
+    "git_missing_windows": "Instale o Git for Windows em https://git-scm.com/download/win e abra o GitBox de novo.",
+    "git_missing_unix": "Instale pelo gerenciador de pacotes e abra o GitBox de novo.",
     "ok": "OK",
     "create": "Criar",
     "remove": "Remover"

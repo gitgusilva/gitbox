@@ -11,6 +11,39 @@ function redactCredentials(s) {
 }
 
 /**
+ * Turns "spawn git ENOENT" into something the user can act on.
+ *
+ * The libgit2 addon owns the network, but staging, diffs, stashes, tags,
+ * submodules, amend and revert still run the git command line, so a machine
+ * without Git can browse a repository and not change one. Node reports that as
+ * `spawn git ENOENT`, which names neither the cause nor the fix.
+ *
+ * The marker rides in the message because that is all that survives the IPC
+ * boundary — an Error's own properties do not — and follows the convention the
+ * credential flow already uses. The renderer matches on it and strips it.
+ */
+const GIT_MISSING_MARKER = '[gitbox-git-missing]';
+
+function gitMissingError(cause) {
+    const remedy = process.platform === 'win32'
+        ? 'Install Git for Windows from https://git-scm.com/download/win and reopen GitBox.'
+        : 'Install it with your package manager and reopen GitBox.';
+    const error = new Error(
+        `Git was not found on PATH. GitBox runs the git command line for staging, diffs, ` +
+        `stashes, tags and submodules. ${remedy} ${GIT_MISSING_MARKER}`
+    );
+    error.code = 'GIT_NOT_FOUND';
+    error.cause = cause;
+    return error;
+}
+
+/** ENOENT from execFile means the binary is absent; a git that ran and failed
+ *  reports its exit status as a number instead. */
+function isGitMissing(error) {
+    return !!error && error.code === 'ENOENT';
+}
+
+/**
  * Base Git Command Class
  */
 class Command {
@@ -42,10 +75,14 @@ class Command {
             }
             return result;
         } catch (error) {
-            if (!probe) {
-                this.emitLog(repoPath, redactCredentials(display), '', error.message, Date.now() - start, error.code || 1);
+            // A probe swallows its own failure, but a missing git is not the
+            // "expected failure" the caller is prepared for — it means nothing
+            // will work — so it reaches the log either way.
+            const reported = isGitMissing(error) ? gitMissingError(error) : error;
+            if (!probe || reported !== error) {
+                this.emitLog(repoPath, redactCredentials(display), '', reported.message, Date.now() - start, error.code || 1);
             }
-            throw error;
+            throw reported;
         }
     }
 

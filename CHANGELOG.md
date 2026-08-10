@@ -3,6 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 ### Fixed
+- GitBox says what is wrong when Git is missing. Every operation that runs the git command line — staging, diffs, stashes, tags, submodules, amend, revert — failed with `spawn git ENOENT`, which names neither the cause nor the fix. The banner now says Git was not found and where to get it, in your language, and the repeat toasts are gone: one missing Git fails every command after it, and the first one is the one that speaks
 - The `.deb`, `.rpm` and `.pacman` packages now depend on `git`. They declared no dependencies at all, and GitBox needs the `git` command line for the local plumbing — staging, diffs, stashes, tags, submodules, amend, revert. Installed on a machine without Git, those operations failed with `spawn git ENOENT` and nothing said why. The AppImage and the Windows installers cannot declare dependencies, so on those Git still has to be installed separately
 
 ## v1.3.2
