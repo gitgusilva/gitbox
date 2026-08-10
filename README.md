@@ -40,8 +40,9 @@ Download the latest build from [Releases](https://github.com/gitgusilva/gitbox/r
 
 The AppImage and the Windows installer update themselves from GitHub Releases;
 `.deb`, `.rpm` and `.pacman` are updated by your package manager. GitBox bundles
-libgit2 and its TLS stack, so there is nothing else to install — a local Git is
-not required.
+libgit2 and its TLS stack, so remotes over HTTPS and SSH need nothing else
+installed. The local plumbing — staging, diffs, stashes, tags, submodules — still
+runs the `git` command line, so a `git` binary on `PATH` is required.
 
 The Linux packages are built on Ubuntu 22.04, so they need glibc 2.35 or newer
 (Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+). SSH remotes (`git@…`) work on

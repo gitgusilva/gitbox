@@ -31,6 +31,23 @@ dependency trees plus every tarball `core/addon/vendor/build-libgit2.sh`
 fetches, all resolvable offline, to end up with a byte-identical binary. This is
 the accepted pattern for Electron apps on Flathub.
 
+## Why git is built into the sandbox
+
+The libgit2 addon owns the network — clone, fetch, pull, push — but the local
+plumbing still shells out to `git`: staging, diffs, stashes, tags, submodules,
+amend, revert, and a good deal of the history view. `org.freedesktop.Platform`
+carries no git, so without a `git` module every one of those fails with
+`spawn git ENOENT` and the app can browse a repository but not change one.
+
+The module builds git from the kernel.org tarball with the parts the app never
+calls turned off (`NO_TCLTK`, `NO_GETTEXT`, `NO_PERL`, `NO_PYTHON`, and
+`NO_RUST` because the SDK has no cargo). curl and expat stay: `git submodule
+add` and `git submodule update --remote` reach the network through the CLI.
+
+The deb this Flatpak repackages declares no dependencies, so on a distribution
+without git installed it has the same gap. Bumping the bundled git is manual —
+the `x-checker-data` on the app source only tracks GitBox releases.
+
 ## Building and testing locally
 
 ```sh
