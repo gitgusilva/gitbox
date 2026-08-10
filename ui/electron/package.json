@@ -64,13 +64,19 @@
       ]
     },
     "deb": {
-      "depends": []
+      "depends": [
+        "git"
+      ]
     },
     "rpm": {
-      "depends": []
+      "depends": [
+        "git"
+      ]
     },
     "pacman": {
-      "depends": []
+      "depends": [
+        "git"
+      ]
     },
     "win": {
       "target": [

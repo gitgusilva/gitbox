@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+### Fixed
+- The `.deb`, `.rpm` and `.pacman` packages now depend on `git`. They declared no dependencies at all, and GitBox needs the `git` command line for the local plumbing — staging, diffs, stashes, tags, submodules, amend, revert. Installed on a machine without Git, those operations failed with `spawn git ENOENT` and nothing said why. The AppImage and the Windows installers cannot declare dependencies, so on those Git still has to be installed separately
+
 ## v1.3.2
 ### Fixed
 - In the Flatpak, external tools are resolved on the host instead of inside the sandbox. The Settings pickers found no editors, diff tools or terminal emulators, "open in terminal" had nothing to launch, and the integrated terminal opened the runtime's `/bin/bash` with none of your toolchains on `PATH`. Your login shell, editors and diff tools are now the ones GitBox finds and launches. Only the Flatpak is affected; every other package already ran on the host
