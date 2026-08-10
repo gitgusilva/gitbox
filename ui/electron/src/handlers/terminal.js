@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron');
 const os = require('os');
 const fs = require('fs');
+const host = require('../host');
 
 module.exports = function (pty) {
     const ptyProcesses = {};
@@ -16,7 +17,19 @@ module.exports = function (pty) {
             shellInstance = fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
         }
 
-        const ptyProcess = pty.spawn(shellInstance, [], {
+        // In a Flatpak the shell above is the runtime's, so the terminal would
+        // open with none of the user's toolchains on PATH — the one thing people
+        // reach for the terminal to use. Run their login shell on the host
+        // instead; outside a Flatpak spawnArgs hands the command back untouched.
+        if (host.usable()) shellInstance = host.loginShell();
+        const [shellFile, shellArgs] = host.spawnArgs(shellInstance, [], {
+            cwd: repoPath,
+            // flatpak-spawn does not forward the environment, and a shell with no
+            // TERM renders as a dumb terminal.
+            env: { TERM: 'xterm-color' }
+        });
+
+        const ptyProcess = pty.spawn(shellFile, shellArgs, {
             name: 'xterm-color',
             cols: 80,
             rows: 24,

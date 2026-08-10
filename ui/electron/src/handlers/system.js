@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { execFileSync, spawn } = require('child_process');
+const host = require('../host');
 
 /**
  * Terminals offered in Settings and used by "open external terminal".
@@ -73,6 +74,10 @@ function augmentedPath() {
 
 function checkTool(cmd) {
     if (!cmd) return false;
+    // In a Flatpak the tools live on the host, where none of the probing below
+    // can see them — ask the host instead. Falls through to the normal scan when
+    // the host is out of reach, which finds nothing but costs nothing either.
+    if (host.usable()) return host.hasCommand(cmd);
     // Absolute/relative path given directly.
     if (cmd.includes('/') || cmd.includes('\\')) {
         try { fs.accessSync(cmd, fs.constants.X_OK); return true; } catch { return false; }
@@ -130,7 +135,11 @@ module.exports = function (isDev, rootPath) {
 
         const launch = (cmd, args) => {
             try {
-                const child = spawn(cmd, args, {
+                // Under Flatpak this becomes `flatpak-spawn --host --directory=…`,
+                // so the emulator opens on the host at the repository; unchanged
+                // everywhere else.
+                const [file, argv] = host.spawnArgs(cmd, args, { cwd: dirPath });
+                const child = spawn(file, argv, {
                     cwd: dirPath,
                     env: { ...process.env, PATH: augmentedPath() },
                     detached: true,
@@ -246,6 +255,13 @@ module.exports = function (isDev, rootPath) {
             { id: 'bc-win', cmd: 'bcomp', label: 'Beyond Compare' },
             { id: 'winmerge', cmd: 'winmergeu', label: 'WinMerge' }
         ];
+
+        // Resolve every candidate on the host in one shot. Left to checkTool the
+        // probe would start a login shell per command — see host.js.
+        host.primeCommands(
+            [...defaultEditors, ...defaultTerminals, ...defaultMerge, ...defaultDiff]
+                .flatMap(t => [t.cmd, t.flatpak])
+        );
 
         const detect = (list) => list
             .filter(t => t.id === 'gitbox' || checkTool(t.cmd) || (t.flatpak && checkTool(t.flatpak)))

@@ -108,15 +108,31 @@ than on the bot's next poll, add a job to `build-linux.yml` that checks out
 and pushes. It buys a few hours and costs a credential to rotate; the bot is the
 better default.
 
+## Host integration
+
+`ui/electron/src/host.js` runs external tools outside the sandbox through
+`flatpak-spawn --host`: resolving the user's editors, diff tools and terminal
+emulators for the Settings pickers, launching the external terminal, and opening
+the integrated terminal on the user's login shell rather than the runtime's
+`/bin/bash`.
+
+It is **inert until `--talk-name=org.freedesktop.Flatpak` is added to
+`finish-args`**, which is deliberately not in the submitted manifest: it is full
+host access, Flathub surfaces it on the app page, and it is better argued as a
+follow-up than bundled into the first review. Without it `host.usable()` is
+false, every lookup returns "not found", and the app behaves exactly as a
+Flatpak with no host access — no errors, just empty pickers and a sandbox shell.
+
+To turn it on, add the permission to the manifest and open a PR on the app's
+flathub repository. To try it locally without touching the manifest:
+
+```sh
+flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.gitgusilva.gitbox
+# and to undo
+flatpak override --user --reset io.github.gitgusilva.gitbox
+```
+
 ## Known sandbox limitations
 
-- **External editors and diff tools.** `ui/electron/src/handlers/system.js`
-  probes the host `PATH` for VS Code, Meld, KDiff3, terminal emulators, etc.
-  Inside the sandbox those binaries are not visible, so the pickers come up
-  empty and "open in editor" does nothing. Fixing it means routing those spawns
-  through `flatpak-spawn --host` and adding `--talk-name=org.freedesktop.Flatpak`
-  to `finish-args` — full host access, which Flathub flags on the app page.
-- **Integrated terminal.** Works, but the shell is the runtime's `/bin/bash`
-  inside the sandbox, not the user's login shell — no host toolchains on `PATH`.
 - **Self-update.** Correctly reports "unsupported": `updater.js` only self-updates
   the AppImage on Linux, and Flathub handles updates itself.
