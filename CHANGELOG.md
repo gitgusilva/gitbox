@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.3.2
+### Fixed
+- In the Flatpak, external tools are resolved on the host instead of inside the sandbox. The Settings pickers found no editors, diff tools or terminal emulators, "open in terminal" had nothing to launch, and the integrated terminal opened the runtime's `/bin/bash` with none of your toolchains on `PATH`. Your login shell, editors and diff tools are now the ones GitBox finds and launches. Only the Flatpak is affected; every other package already ran on the host
+
 ## v1.3.1
 ### Fixed
 - Every package was roughly twice the size it needed to be. The vendored OpenSSL, mbedTLS, libgit2 and libssh2 were shipped as their complete source and object trees — around 260 MB, down to a stray `openssl` binary and CMake scratch files — even though they are linked statically into the native addon at build time and nothing reads them at runtime. The addon's own intermediate objects went along with them. Installed size drops from about 570 MB to 310 MB, and the download shrinks in step
