@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## v1.3.1
+### Fixed
+- Every package was roughly twice the size it needed to be. The vendored OpenSSL, mbedTLS, libgit2 and libssh2 were shipped as their complete source and object trees — around 260 MB, down to a stray `openssl` binary and CMake scratch files — even though they are linked statically into the native addon at build time and nothing reads them at runtime. The addon's own intermediate objects went along with them. Installed size drops from about 570 MB to 310 MB, and the download shrinks in step
+
+### Added
+- Flatpak packaging under `flatpak/`, ahead of a Flathub submission: manifest, AppStream metadata and a launcher that runs GitBox under `zypak` so Chromium keeps its sandbox inside the Flatpak one
+
 ## v1.3.0
 ### Added
 - Pull requests can be reviewed without leaving GitBox: the changed files are listed with their per-file counts, and clicking one opens the diff in a panel docked beside the conversation, with keyboard and button navigation between files. Image files open in the image viewer like any other diff
