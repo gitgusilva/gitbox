@@ -82,8 +82,8 @@ modules:
 
     sources:
       - type: file
-        url: https://github.com/gitgusilva/gitbox/releases/download/v1.3.1/GitBox-1.3.1-amd64.deb
-        sha256: 24e792eceaab1e2dfb4419d599ffecc109702f86705e1c78ca06648b67e75e68
+        url: https://github.com/gitgusilva/gitbox/releases/download/v1.3.2/GitBox-1.3.2-amd64.deb
+        sha256: 902f62c1cfd46e12d6d71d1e74b3040e76344539b3ca0447bc2620dc1d33368c
         # Lets Flathub's external-data-checker open the version-bump PR on this
         # manifest by itself whenever a new GitHub Release appears.
         x-checker-data:
