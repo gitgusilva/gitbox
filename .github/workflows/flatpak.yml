@@ -1,0 +1,54 @@
+name: Flatpak
+
+# Keeps flatpak/ honest. The manifest that Flathub actually builds lives in the
+# flathub/io.github.gitgusilva.gitbox repository, not here — this workflow only
+# proves the manifest in this repo still builds and still passes the Flathub
+# linter, so the copy used for local testing (and for the next manifest change
+# we upstream) never rots unnoticed.
+#
+# It does NOT publish anything. Publishing a new version to Flathub is the
+# flathubbot's job: the manifest carries x-checker-data, so the bot notices a
+# new GitHub Release, opens the version bump, and flathub.json's
+# automerge-flathubbot-prs merges it. See flatpak/README.md.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "flatpak/**"
+      - ".github/workflows/flatpak.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # The runtime version here must track `runtime-version` in the manifest.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The manifest pulls a released .deb by URL + sha256, so a build failure
+      # here means the release asset moved, the checksum drifted, or the
+      # manifest itself is malformed — all worth catching before Flathub does.
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: gitbox.flatpak
+          manifest-path: flatpak/io.github.gitgusilva.gitbox.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+
+      # --exceptions applies the permission exceptions Flathub has granted this
+      # app id. Until the app is accepted there are none on file, so
+      # --filesystem=home and --socket=ssh-auth still report as errors; the step
+      # is informational for that reason and does not gate the build.
+      - name: Lint manifest
+        continue-on-error: true
+        run: flatpak-builder-lint --exceptions manifest flatpak/io.github.gitgusilva.gitbox.yml

@@ -57,3 +57,8 @@ core/addon/certs/
 # Agent tooling config, local to a checkout and not part of the app
 .agents/
 skills-lock.json
+
+# flatpak-builder scratch space from a local `flatpak run org.flatpak.Builder`
+flatpak/.flatpak-builder/
+flatpak/builddir/
+flatpak/*.flatpak
