@@ -82,6 +82,8 @@
       "src/**/*",
       "assets/**/*",
       "package.json",
+      "!**/node_modules/gitbox-addon/vendor/**",
+      "!**/node_modules/gitbox-addon/build/obj.target/**",
       {
         "from": "../../dist",
         "to": "dist"
