@@ -46,7 +46,9 @@ export default async function (ctx) {
         await sleep(600);
     });
 
-    // A merge commit, so the detail panel has two parents to show.
+    // A merge commit, so the detail panel has two parents to show — and because
+    // those are the commits GitHub authored, whose address is the noreply one.
+    // Picking any commit would put a contributor's real address on screen.
     await step('commit detail', async () => {
         await click(`[...document.querySelectorAll('[id^="commit-"]')].find(e => e.innerText.includes('Merge pull request'))`);
         await sleep(2400);
@@ -170,14 +172,13 @@ export default async function (ctx) {
     await step('settings', async () => {
         await key(',', 2);   // Ctrl+, — the app's own shortcut, no icon to hunt for
         await sleep(2400);
-        // Git & Tools carries the user's identity; the driver's redaction pass
-        // has blurred the address and the Gravatar before it is ever drawn.
-        await click(byText('div,span,button', 'Git & Tools'));
-        await sleep(2600);
-        await scroll(700, 500, 400);
-        await sleep(2600);
-        await scroll(700, 500, 400);
-        await sleep(2600);
+        await scroll(700, 500, 300);
+        await sleep(2200);
+        await scroll(700, 500, -300);
+        await sleep(1200);
+        // Git & Tools is deliberately not opened: it shows the machine's git
+        // identity — name, address and the Gravatar fetched for it — and this
+        // video is published.
         await click(byText('div,span,button', 'Appearance'));
         await sleep(2800);
         await click(`[...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Install')`);

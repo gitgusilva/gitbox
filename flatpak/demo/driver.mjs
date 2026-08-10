@@ -23,34 +23,77 @@ const BITRATE = process.env.BITRATE || '2600k';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const log = msg => console.log(`  ${msg}`);
 
-// Addresses show up in three places: the git identity in Settings, the author of
-// every commit in the detail panel, and the Gravatar fetched for it. Blurring
-// them in the page on a timer, rather than over the finished video, means no
-// frame can leak one — there is nothing left to catch afterwards.
-const REDACT = String.raw`(() => {
-    if (window.__gitboxRedact) return 'already running';
-    const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/;
-    const hide = el => {
-        if (!el || el.dataset.gbRedacted) return;
-        el.dataset.gbRedacted = '1';
-        el.style.filter = 'blur(7px)';
+// Input dispatched over the protocol never draws a pointer: the compositor
+// cursor belongs to the desktop, and the desktop is not in frame. So the page
+// gets one of its own — an arrow that travels to each target and pulses when a
+// button goes down, which is the only thing that makes the video read as
+// somebody using the app rather than the UI operating itself.
+const CURSOR = String.raw`(() => {
+    if (window.__gbCursor) return 'already running';
+
+    const layer = document.createElement('div');
+    layer.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none';
+    layer.innerHTML =
+        '<svg width="26" height="26" viewBox="0 0 24 24" style="position:absolute;left:0;top:0;' +
+        'filter:drop-shadow(0 2px 4px rgba(0,0,0,.55))">' +
+        '<path d="M5.5 2.2 L5.5 19.4 L10.1 15.1 L13.1 21.6 L15.9 20.2 L13 13.9 L19.2 13.4 Z"' +
+        ' fill="#ffffff" stroke="#101014" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+    const arrow = layer.firstChild;
+    document.documentElement.appendChild(layer);
+
+    let x = innerWidth / 2, y = innerHeight / 2, frame = null;
+    const draw = () => { arrow.style.transform = 'translate(' + x + 'px,' + y + 'px)'; };
+    draw();
+
+    const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+    window.__gbCursor = {
+        at: () => ({ x, y }),
+
+        /** Travels to a point, easing in and out, and resolves on arrival. */
+        move(tx, ty, ms = 380) {
+            cancelAnimationFrame(frame);
+            const fromX = x, fromY = y;
+            const dx = tx - fromX, dy = ty - fromY;
+            const distance = Math.hypot(dx, dy);
+            if (distance < 2 || ms <= 0) { x = tx; y = ty; draw(); return Promise.resolve(); }
+            // Short hops should not take as long as a trip across the window.
+            const duration = Math.max(140, Math.min(ms, 120 + distance * 0.7));
+            const start = performance.now();
+            return new Promise(resolve => {
+                const tick = now => {
+                    const t = Math.min(1, (now - start) / duration);
+                    const e = ease(t);
+                    x = fromX + dx * e;
+                    y = fromY + dy * e;
+                    draw();
+                    if (t < 1) frame = requestAnimationFrame(tick);
+                    else resolve();
+                };
+                frame = requestAnimationFrame(tick);
+            });
+        },
+
+        /** A ring that expands and fades where the button went down. */
+        press(colour = 'rgba(120,170,255,0.95)') {
+            const ring = document.createElement('div');
+            ring.style.cssText =
+                'position:absolute;left:' + x + 'px;top:' + y + 'px;width:14px;height:14px;' +
+                'margin:-7px 0 0 -7px;border-radius:50%;border:2px solid ' + colour + ';' +
+                'opacity:0.95;transform:scale(0.4)';
+            layer.appendChild(ring);
+            ring.animate(
+                [{ transform: 'scale(0.4)', opacity: 0.95 }, { transform: 'scale(2.6)', opacity: 0 }],
+                { duration: 480, easing: 'cubic-bezier(.2,.7,.3,1)' },
+            ).onfinish = () => ring.remove();
+            arrow.animate(
+                [{ scale: '1' }, { scale: '0.86' }, { scale: '1' }],
+                { duration: 220, easing: 'ease-out' },
+            );
+            return true;
+        },
     };
-    const sweep = () => {
-        for (const i of document.querySelectorAll('input')) {
-            if (typeof i.value === 'string' && EMAIL.test(i.value)) hide(i);
-        }
-        for (const img of document.querySelectorAll('img')) {
-            if (/gravatar|avatar/i.test(img.src || '')) hide(img);
-        }
-        const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-        let n;
-        while ((n = walk.nextNode())) {
-            if (EMAIL.test(n.nodeValue || '')) hide(n.parentElement);
-        }
-    };
-    sweep();
-    window.__gitboxRedact = setInterval(sweep, 80);
-    return 'redacting';
+    return 'cursor drawn';
 })()`;
 
 class Target {
@@ -146,7 +189,7 @@ async function main() {
         await t.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
         await t.send('Page.setWebLifecycleState', { state: 'active' }).catch(() => {});
 
-        await t.evaluate(REDACT);
+        await t.evaluate(CURSOR);
         await t.send('Page.startScreencast', { format: 'jpeg', quality: 92, everyNthFrame: 1 });
         targets.set(t.id, t);
         return t;
@@ -162,21 +205,35 @@ async function main() {
     const mouse = async (type, x, y, extra = {}) =>
         cur().send('Input.dispatchMouseEvent', { type, x, y, ...extra });
 
-    const move = async (x, y) => mouse('mouseMoved', x, y, { buttons: 0 });
+    // The drawn pointer travels first and the real event lands when it arrives,
+    // so hover states light up under the arrow instead of ahead of it.
+    const glide = async (x, y, ms) =>
+        evaluate(`window.__gbCursor ? window.__gbCursor.move(${x}, ${y}, ${ms}) : null`).catch(() => {});
+    const pulse = async colour =>
+        evaluate(`window.__gbCursor ? window.__gbCursor.press(${JSON.stringify(colour)}) : null`).catch(() => {});
+
+    const move = async (x, y, ms = 380) => {
+        await glide(x, y, ms);
+        await mouse('mouseMoved', x, y, { buttons: 0 });
+    };
 
     const clickAt = async (x, y) => {
         await move(x, y);
-        await sleep(120);
+        await sleep(220);
+        await pulse('rgba(120,170,255,0.95)');
         await mouse('mousePressed', x, y, { button: 'left', buttons: 1, clickCount: 1 });
-        await sleep(60);
+        await sleep(90);
         await mouse('mouseReleased', x, y, { button: 'left', buttons: 0, clickCount: 1 });
+        await sleep(180);
     };
 
     const rightClickAt = async (x, y) => {
         await move(x, y);
-        await sleep(120);
+        await sleep(220);
+        await pulse('rgba(255,190,120,0.95)');
         await mouse('mousePressed', x, y, { button: 'right', buttons: 2, clickCount: 1 });
         await mouse('mouseReleased', x, y, { button: 'right', buttons: 0, clickCount: 1 });
+        await sleep(180);
     };
 
     // Takes a JS expression that evaluates to an element (or to a selector
@@ -207,8 +264,12 @@ async function main() {
         return b;
     };
 
-    const scroll = async (x, y, dy) =>
-        mouse('mouseWheel', x, y, { deltaX: 0, deltaY: dy, pointerType: 'mouse' });
+    // The wheel turns where the pointer is, so it has to be there first.
+    const scroll = async (x, y, dy) => {
+        const here = await evaluate('window.__gbCursor ? window.__gbCursor.at() : null').catch(() => null);
+        if (!here || Math.hypot(here.x - x, here.y - y) > 8) await move(x, y);
+        await mouse('mouseWheel', x, y, { deltaX: 0, deltaY: dy, pointerType: 'mouse' });
+    };
 
     // Typed a character at a time so the video shows text appearing, not a
     // field that fills in one frame.
@@ -316,6 +377,16 @@ async function main() {
         const last = runs[runs.length - 1];
         if (last && last.key === frame.size) last.items.push(frame);
         else runs.push({ key: frame.size, items: [frame] });
+    }
+
+    // A frame holds the screen until the next one arrives — but the next one
+    // may come from the window the camera cut to, and that stretch is already
+    // the other clip's running time. Left alone, the last frame before a cut
+    // freezes for exactly as long as the segment that follows it, and the tour
+    // plays a minute longer than it was recorded.
+    for (const group of runs) {
+        const tail = group.items[group.items.length - 1];
+        tail.dur = Math.min(tail.dur, 0.8);
     }
 
     const canvasH = even(Math.round(CANVAS_W * heightRatio(written)));

@@ -36,11 +36,18 @@ Frames arrive only when the screen changes, each with a timestamp, and are
 re-timed on the way out. A view that sits still for four seconds costs one
 frame, which is why a two-minute tour lands around 2 MB.
 
-**Addresses are blurred in the page, not over the video.** The git identity in
-Settings, the author of every commit in the detail panel and the Gravatar
-fetched for it are found by a sweep running every 80 ms and blurred before they
-are drawn, so no frame can leak one. The demo commit is authored as
-`GitBox Demo <demo@example.invalid>`; override with `DEMO_NAME` / `DEMO_EMAIL`.
+The pointer is drawn by the page, not by the desktop: protocol input events
+move nothing on screen, so the driver injects an arrow that travels to each
+target and pulses when a button goes down. The real event is dispatched when
+the arrow arrives, so hover states light up under it.
+
+**Nothing on camera carries a personal address.** Settings' *Git & Tools*
+holds the machine's git identity and its Gravatar, so the tour does not open
+it. The commit the detail panel shows is deliberately a merge commit, whose
+author is GitHub's noreply address rather than a contributor's own. The demo
+commit is authored as `GitBox Demo <demo@example.invalid>` — override with
+`DEMO_NAME` / `DEMO_EMAIL`. Keep both of those in mind when editing the
+storyboard, because the video is published.
 
 ## Adjusting it
 
