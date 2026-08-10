@@ -53,6 +53,13 @@ finish-args:
   - --filesystem=/run/media
   - --filesystem=/media
 
+  # The user's editor, diff tool and shell live on the host, not in the runtime.
+  # ui/electron/src/host.js runs them through flatpak-spawn --host, which talks
+  # to this name; without it the Settings pickers list nothing, "open in
+  # terminal" has nothing to launch, and the integrated terminal falls back to
+  # the runtime's /bin/bash with none of the user's toolchains on PATH.
+  - --talk-name=org.freedesktop.Flatpak
+
 modules:
   - name: gitbox
     buildsystem: simple

@@ -50,18 +50,21 @@ flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest io.githu
 flatpak run --command=flatpak-builder-lint org.flatpak.Builder builddir builddir
 ```
 
-Three findings are expected and are **not** defects:
+These findings are expected and are **not** defects:
 
 - `appstream-external-screenshot-url` — screenshots are served from the project
   site until Flathub mirrors them to `dl.flathub.org` after acceptance.
-- `finish-args-home-filesystem-access` and `finish-args-has-socket-ssh-auth` —
-  both need a reviewer-granted exception. Justify them in the submission PR:
+- `finish-args-home-filesystem-access`, `finish-args-has-socket-ssh-auth` and
+  `finish-args-flatpak-spawn-access` — each needs a reviewer-granted exception.
+  Justify them in the submission PR:
 
   > GitBox is a Git client. `--filesystem=home` is what lets it open working
   > trees wherever the user keeps them and read `~/.gitconfig` and `~/.ssh`;
   > `--filesystem=host` was deliberately avoided. `--socket=ssh-auth` is what
   > makes `git` over SSH work — the bundled libssh2 authenticates through the
-  > user's SSH agent.
+  > user's SSH agent. `--talk-name=org.freedesktop.Flatpak` is what lets the
+  > user's own editor, diff tool and login shell be found and launched, since
+  > they live on the host and not in the runtime.
 
 ## Submitting (one time, manual)
 
@@ -116,20 +119,18 @@ emulators for the Settings pickers, launching the external terminal, and opening
 the integrated terminal on the user's login shell rather than the runtime's
 `/bin/bash`.
 
-It is **inert until `--talk-name=org.freedesktop.Flatpak` is added to
-`finish-args`**, which is deliberately not in the submitted manifest: it is full
-host access, Flathub surfaces it on the app page, and it is better argued as a
-follow-up than bundled into the first review. Without it `host.usable()` is
-false, every lookup returns "not found", and the app behaves exactly as a
-Flatpak with no host access — no errors, just empty pickers and a sandbox shell.
+That needs `--talk-name=org.freedesktop.Flatpak`, which the manifest carries as
+of v1.3.2. It is effectively host access and Flathub surfaces it on the app
+page, so it is one of the permissions the submission has to justify.
 
-To turn it on, add the permission to the manifest and open a PR on the app's
-flathub repository. To try it locally without touching the manifest:
+The code degrades instead of failing when the permission is absent: `usable()`
+goes false on the first refused call, every lookup returns "not found", and the
+app behaves exactly as a Flatpak with no host access — empty pickers and the
+runtime's shell, no errors. To exercise that path locally:
 
 ```sh
-flatpak override --user --talk-name=org.freedesktop.Flatpak io.github.gitgusilva.gitbox
-# and to undo
-flatpak override --user --reset io.github.gitgusilva.gitbox
+flatpak override --user --no-talk-name=org.freedesktop.Flatpak io.github.gitgusilva.gitbox
+flatpak override --user --reset io.github.gitgusilva.gitbox   # and to undo
 ```
 
 ## Known sandbox limitations
