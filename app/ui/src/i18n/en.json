@@ -472,7 +472,7 @@
   "stash": {
     "pop": "Apply & Drop (Pop)",
     "drop_title": "Drop Stash",
-    "drop_msg": "Are you sure you want to drop stash@{{index}}?",
+    "drop_msg": "Are you sure you want to drop stash{'@'}{index}?",
     "apply": "Apply",
     "apply_title": "Apply stash?",
     "apply_msg": "Apply stash {index} to your working copy? It will be kept in the list.",

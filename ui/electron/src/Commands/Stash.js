@@ -41,10 +41,22 @@ class Stash extends Command {
     }
 
     /**
-     * Drop a stash entry
+     * Drop a stash entry.
+     * The UI passes the stash commit OID; `git stash drop` only accepts
+     * stash@{n}, so resolve the OID to an index first.
      */
     async drop(repoPath, stashId) {
-        try { await this.execGit(repoPath, stashId ? ['stash', 'drop', stashId] : ['stash', 'drop']); return true; } catch (e) { throw new Error(e.message); }
+        try {
+            let ref;
+            if (stashId) {
+                const stashes = await this.getStashes(repoPath);
+                const entry = stashes.find((s) => s.id === stashId);
+                if (!entry) throw new Error(`stash entry not found: ${stashId}`);
+                ref = `stash@{${entry.id}}`;
+            }
+            await this.execGit(repoPath, ref ? ['stash', 'drop', ref] : ['stash', 'drop']);
+            return true;
+        } catch (e) { throw new Error(e.message); }
     }
 
     /**
